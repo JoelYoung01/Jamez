@@ -1,0 +1,39 @@
+{
+  "name": "@jamez/relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tiny in-memory Nostr relay (NIP-01 subset). Run one on your LAN for fully offline game nights, or use it in tests.",
+  "type": "module",
+  "main": "./dist/server.cjs",
+  "module": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "require": "./dist/server.cjs"
+    }
+  },
+  "bin": {
+    "jamez-relay": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "start": "pnpm build && node dist/cli.js"
+  },
+  "dependencies": {
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "tsup": "^8.5.1",
+    "typescript": "~5.9.2"
+  }
+}

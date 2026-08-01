@@ -1,0 +1,18 @@
+{
+  "name": "jamez-monorepo",
+  "private": true,
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm --filter @jamez/core build && pnpm --filter @jamez/relay build && pnpm --filter @jamez/web build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "dev": "pnpm --filter @jamez/core build && concurrently -n core,web -c blue,green \"pnpm --filter @jamez/core dev\" \"pnpm --filter @jamez/web dev\"",
+    "relay": "pnpm --filter @jamez/relay start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}
