@@ -39,9 +39,10 @@ export class GuestSession {
   readonly onStatus = new Emitter<GuestStatus>()
   readonly onReject = new Emitter<{ reqId?: string; reason: string }>()
 
+  readonly transport: RoomTransport
+
   private readonly code: string
   private readonly profile: PlayerProfile
-  private readonly transport: RoomTransport
   private readonly now: () => number
 
   private _state: SessionState | null = null

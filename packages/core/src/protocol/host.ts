@@ -38,10 +38,10 @@ export interface HostSessionOptions {
  */
 export class HostSession {
   readonly onState = new Emitter<SessionState>()
+  readonly transport: RoomTransport
 
   private state: SessionState
   private readonly game: GameEngine<any, any, any>
-  private readonly transport: RoomTransport
   private readonly hostId: string
   private readonly now: () => number
   private readonly onSnapshot?: (state: SessionState) => void
