@@ -9,7 +9,8 @@
     "android": "expo start --android",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "export:check": "expo export --platform ios --output-dir /tmp/jamez-export"
+    "export:check": "expo export --platform ios --output-dir /tmp/jamez-export",
+    "eas-build-post-install": "pnpm --filter @jamez/core build"
   },
   "dependencies": {
     "@jamez/core": "workspace:*",

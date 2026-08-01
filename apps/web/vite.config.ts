@@ -9,7 +9,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      '@': path.resolve(import.meta.dirname, 'src'),
     },
+    // The workspace hoists one React for web + Expo; never bundle two copies.
+    dedupe: ['react', 'react-dom'],
   },
 })
