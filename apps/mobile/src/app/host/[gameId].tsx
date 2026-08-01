@@ -1,0 +1,81 @@
+import { getGameEngine } from '@jamez/core'
+import { router, useLocalSearchParams } from 'expo-router'
+import * as React from 'react'
+import { Switch, Text, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { PageHeader } from '@/components/page-header'
+import { RequireProfile } from '@/components/require-profile'
+import { AppButton, Card, CardTitle, Muted, Screen } from '@/components/ui'
+import { getGameUI } from '@/games/registry'
+import { useSession } from '@/lib/session-store'
+
+export default function HostConfigScreen() {
+  const insets = useSafeAreaInsets()
+  const { gameId = '' } = useLocalSearchParams<{ gameId: string }>()
+  const hostGame = useSession((s) => s.hostGame)
+  const game = getGameEngine(gameId)
+  const ui = getGameUI(gameId)
+  const [config, setConfig] = React.useState<unknown>(() => game?.defaultConfig())
+  const [passAndPlay, setPassAndPlay] = React.useState(false)
+
+  if (!game || !ui) {
+    return (
+      <Screen>
+        <View style={{ paddingTop: insets.top + 8 }}>
+          <PageHeader title="Unknown game" />
+          <Muted>This game isn't on the shelf. Head back and pick another.</Muted>
+        </View>
+      </Screen>
+    )
+  }
+
+  const SetupForm = ui.SetupForm as React.ComponentType<{
+    config: unknown
+    onChange: (c: unknown) => void
+  }>
+
+  const create = () => {
+    const code = hostGame({ gameId, config, passAndPlay })
+    if (code) router.replace(`/session/${code}`)
+  }
+
+  return (
+    <Screen>
+      <View style={{ paddingTop: insets.top + 8 }}>
+        <PageHeader title={`Host ${game.name}`} emoji={game.emoji} />
+        <RequireProfile>
+          <View className="gap-4">
+            <Card className="p-4">
+              <View className="mb-3">
+                <CardTitle>Game options</CardTitle>
+              </View>
+              <SetupForm config={config} onChange={setConfig} />
+            </Card>
+
+            <Card className="flex-row items-center justify-between p-4">
+              <View className="min-w-0 flex-1 pr-3">
+                <Text className="text-sm font-medium text-zinc-100">Pass & Play</Text>
+                <Muted className="mt-0.5">
+                  Everyone plays on this phone — works with zero connectivity
+                </Muted>
+              </View>
+              <Switch
+                value={passAndPlay}
+                onValueChange={setPassAndPlay}
+                trackColor={{ false: '#232329', true: '#fbbf24' }}
+                thumbColor="#ffffff"
+              />
+            </Card>
+
+            <AppButton size="lg" title="Open the lobby" onPress={create} />
+            <Text className="text-center text-xs text-muted-foreground/70">
+              {passAndPlay
+                ? "You'll add every player yourself on the next screen."
+                : 'A join code + QR appears next — friends hop in from their phones.'}
+            </Text>
+          </View>
+        </RequireProfile>
+      </View>
+    </Screen>
+  )
+}
