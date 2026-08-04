@@ -27,8 +27,8 @@ export default function SettingsScreen() {
         <PageHeader title="Relays" />
         <Card className="gap-4 p-5">
           <Muted className="text-sm leading-5">
-            Sessions travel through Nostr relays as end-to-end encrypted, ephemeral messages —
-            nothing is stored anywhere. Leave empty to use the default public relays, or point at
+            Sessions travel through Nostr relays as end-to-end encrypted, ephemeral messages.
+            Nothing is stored anywhere. Leave empty to use the default public relays, or point at
             your own (run `pnpm relay` on any machine for a fully offline LAN game night).
           </Muted>
           <View>

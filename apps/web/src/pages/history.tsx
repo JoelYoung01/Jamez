@@ -65,7 +65,7 @@ export function HistoryPage() {
             <span className="text-3xl">🎲</span>
             <CardTitle>No games yet</CardTitle>
             <CardDescription>
-              Finish a session and it lands here — stored on this device only.
+              Finish a session and it lands here. Stored on this device only.
             </CardDescription>
           </CardHeader>
         </Card>

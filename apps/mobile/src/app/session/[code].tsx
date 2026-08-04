@@ -73,7 +73,7 @@ function SessionBody({ code }: { code: string }) {
         <StatusCard
           emoji="🚪"
           title="Couldn't join"
-          body="The host turned this request down — the session may be full or already running."
+          body="The host turned this request down. The session may be full or already running."
           onDone={() => store.leaveSession()}
         />
       )
@@ -112,7 +112,7 @@ function SessionBody({ code }: { code: string }) {
         <View className="flex-row items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3">
           <ActivityIndicator size="small" color="#fbbf24" />
           <Text className="flex-1 text-sm text-primary">
-            Host went quiet — hang tight, we'll resync the moment they're back.
+            Host went quiet. Hang tight, we'll resync the moment they're back.
           </Text>
         </View>
       )}
@@ -354,7 +354,7 @@ function PlayingView() {
       <StatusCard
         emoji="🤔"
         title="Unsupported game"
-        body="This app version doesn't know this game yet — update and rejoin."
+        body="This app version doesn't know this game yet. Update and rejoin."
       />
     )
   }

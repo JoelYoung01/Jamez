@@ -34,7 +34,7 @@ export interface HostSessionOptions {
 /**
  * The authoritative side of a session. Exactly one device runs a HostSession;
  * everyone else runs a GuestSession. All game state lives here and is
- * broadcast to guests — nothing is ever stored off-device.
+ * broadcast to guests; nothing is ever stored off-device.
  */
 export class HostSession {
   readonly onState = new Emitter<SessionState>()

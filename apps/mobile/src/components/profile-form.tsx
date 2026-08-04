@@ -45,7 +45,7 @@ export function ProfileForm({
       </View>
       <AppButton title={submitLabel} onPress={save} disabled={!draftName.trim()} />
       <Text className="text-center text-xs text-muted-foreground/70">
-        Lives only on this device — it's what other players see at the table.
+        Lives only on this device. It's what other players see at the table.
       </Text>
     </View>
   )

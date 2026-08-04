@@ -47,7 +47,7 @@ export function JoinPage() {
           <CardHeader>
             <CardTitle>Enter the join code</CardTitle>
             <CardDescription>
-              It's on the host's screen — or scan their QR code with your camera.
+              It's on the host's screen, or scan their QR code with your camera.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">

@@ -178,7 +178,7 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
       <AppButton title="Add hand" disabled={!valid} onPress={submit} />
       {!isHost && (
         <Text className="text-center text-xs text-muted-foreground">
-          The host confirms every entry — mistakes can be undone on the host device.
+          The host confirms every entry. Mistakes can be undone on the host device.
         </Text>
       )}
     </Card>

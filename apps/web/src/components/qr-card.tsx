@@ -21,7 +21,7 @@ export function QrCard({ code }: QrCardProps) {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      // clipboard unavailable (e.g. http on LAN) — the code is on screen anyway
+      // clipboard unavailable (e.g. http on LAN); the code is on screen anyway
     }
   }
 
@@ -33,7 +33,7 @@ export function QrCard({ code }: QrCardProps) {
       <div className="text-center">
         <div className="font-mono text-4xl font-bold tracking-[0.3em] text-primary">{code}</div>
         <div className="mt-1 text-xs text-muted-foreground">
-          Scan the code or share the link — friends without the app land in the web app
+          Scan the code or share the link. Friends without the app land in the web app.
         </div>
       </div>
       <Button variant="secondary" size="sm" onClick={copy}>

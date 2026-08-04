@@ -43,8 +43,8 @@ export function SettingsDialog() {
         <DialogHeader>
           <DialogTitle>Relays</DialogTitle>
           <DialogDescription>
-            Sessions travel through Nostr relays as end-to-end encrypted, ephemeral messages —
-            nothing is stored anywhere. Leave empty to use the default public relays, or point at
+            Sessions travel through Nostr relays as end-to-end encrypted, ephemeral messages.
+            Nothing is stored anywhere. Leave empty to use the default public relays, or point at
             your own (run <code className="rounded bg-muted px-1 font-mono text-xs">pnpm relay</code>{' '}
             on any machine for a fully offline LAN game night).
           </DialogDescription>

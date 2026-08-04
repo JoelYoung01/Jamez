@@ -185,7 +185,7 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
         </Button>
         {!isHost && (
           <p className="text-center text-xs text-muted-foreground/70">
-            The host confirms every entry — mistakes can be undone on the host device.
+            The host confirms every entry. Mistakes can be undone on the host device.
           </p>
         )}
       </CardContent>

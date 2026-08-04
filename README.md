@@ -1,20 +1,20 @@
-# 🎲 Jamez — game night, scored
+# Jamez
 
-Jamez is a peer-to-peer score tracker for board & card game nights. One person **hosts** a session on their phone or browser, everyone else **joins in seconds** with a 6-letter code or a QR scan — no accounts, no sign-ups, no server holding your data. Players submit their own scores from their own devices, results sync live at the table, and every finished game is saved to **each player's own device**.
+Jamez is a peer-to-peer score tracker for board & card game nights. One person **hosts** a session on their phone or browser, everyone else **joins in seconds** with a 6-letter code or a QR scan: no accounts, no sign-ups, no server holding your data. Players submit their own scores from their own devices, results sync live at the table, and every finished game is saved to **each player's own device**.
 
 | | |
 |---|---|
 | 🌐 **Web app** | React + Vite + Tailwind 4, shadcn-style UI, deployed to GitHub Pages |
-| 📱 **iOS app** | Expo + React Native + NativeWind, shipped to TestFlight via EAS |
+| 📱 **iOS app** | Expo + React Native + NativeWind, shipped to TestFlight via GitHub Actions |
 | 🧠 **Shared core** | One TypeScript engine (`@jamez/core`) powers both apps |
-| 🎮 **Games** | Wingspan 🐦 and Gin Rummy 🃏 today — engines are pluggable |
+| 🎮 **Games** | Wingspan 🐦 and Gin Rummy 🃏 today; engines are pluggable |
 
 ## How it works
 
 - **The host is the authority.** The host device runs the game session, validates every score submission, and broadcasts authoritative state. Guests are thin: they render state and send actions.
-- **Sessions are rooms on a message bus.** Devices exchange messages through [Nostr](https://nostr.com) relays as *ephemeral* events (kind 20808) — relays fan them out to live subscribers and **never store them**. This works across networks (cellular ↔ home wifi) with zero infrastructure of our own.
+- **Sessions are rooms on a message bus.** Devices exchange messages through [Nostr](https://nostr.com) relays as *ephemeral* events (kind 20808); relays fan them out to live subscribers and **never store them**. This works across networks (cellular ↔ home wifi) with zero infrastructure of our own.
 - **Everything is end-to-end encrypted.** The join code is a shared secret: each room derives an XChaCha20-Poly1305 key from it (HKDF-SHA256) and a public room topic hash. Relays and eavesdroppers see only ciphertext on an opaque topic; only people who know the code can read or write the room.
-- **Stats live on your devices.** When a game finishes, each participant's device writes the result to its own local history (`localStorage` / `AsyncStorage`). There is no central database — deleting your history is genuinely deleting it.
+- **Stats live on your devices.** When a game finishes, each participant's device writes the result to its own local history (`localStorage` / `AsyncStorage`). There is no central database; deleting your history is genuinely deleting it.
 - **Works with zero connectivity too.** *Pass & Play* mode runs a whole game on the host device, and `@jamez/relay` is a tiny NIP-01 relay you can run on a laptop for fully offline LAN game nights (point both apps at it in Settings).
 
 ```mermaid
@@ -36,10 +36,10 @@ flowchart LR
 ## Repo layout
 
 ```
-packages/core     @jamez/core   — session protocol, crypto, transports, game engines, history/stats
-packages/relay    @jamez/relay  — tiny in-memory NIP-01 Nostr relay (LAN play, dev, tests)
-apps/web          @jamez/web    — Vite + React 19 + Tailwind 4 web app
-apps/mobile       @jamez/mobile — Expo (iOS-first) app with expo-router + NativeWind
+packages/core     @jamez/core   session protocol, crypto, transports, game engines, history/stats
+packages/relay    @jamez/relay  tiny in-memory NIP-01 Nostr relay (LAN play, dev, tests)
+apps/web          @jamez/web    Vite + React 19 + Tailwind 4 web app
+apps/mobile       @jamez/mobile Expo (iOS-first) app with expo-router + NativeWind
 e2e/              Playwright smoke test: two real browsers play full games over a real relay
 .github/workflows CI, GitHub Pages deploy, iOS TestFlight release (macOS runner)
 ```
@@ -60,7 +60,7 @@ Mobile:
 ```bash
 pnpm --filter @jamez/core build
 cd apps/mobile
-pnpm start        # Expo dev server — press i for the iOS simulator, or scan with Expo Go
+pnpm start        # Expo dev server; press i for the iOS simulator, or scan with Expo Go
 ```
 
 Fully offline / LAN game night:
@@ -91,28 +91,28 @@ One-time setup: repo **Settings → Pages → Source: GitHub Actions**. Deployed
 
 ## iOS releases (TestFlight)
 
-Same flow as Sous Kit: `.github/workflows/ios-release.yml` on a **macOS** runner — `expo prebuild` → `xcodebuild` → TestFlight. No Expo/EAS. Setup walkthrough (Apple + secrets): **[`docs/ASC_Setup.md`](docs/ASC_Setup.md)**.
+Same flow as Sous Kit: `.github/workflows/ios-release.yml` on a **macOS** runner: `expo prebuild` → `xcodebuild` → TestFlight. No Expo/EAS. Setup walkthrough (Apple + secrets): **[`docs/ASC_Setup.md`](docs/ASC_Setup.md)**.
 
 Triggers on `main` pushes that touch `apps/mobile/**` or `packages/core/**`, or *Actions → iOS release*. Bundle id `com.jamez.app` · scheme `jamez://join/CODE` (QR codes use the web URL so people without the app land in the browser).
 
 ## Adding a game
 
-Games are plug-ins in three parts — the whole of Wingspan is ~200 lines of engine + one UI file per app:
+Games are plug-ins in three parts. The whole of Wingspan is ~200 lines of engine + one UI file per app:
 
-1. **Engine** (`packages/core/src/games/<game>.ts`) — implement `GameEngine`: a pure, serializable state machine (`defaultConfig / init / validateAction / applyAction / isFinished / summary`). The host runs it; guests never need game logic to submit actions. Register it in `games/registry.ts` and add a test file next to it.
-2. **Web UI** (`apps/web/src/games/<game>.tsx`) — a `GameUIModule` with a `SetupForm` (host options), `PlayView` (score entry + live standings) and optional `ResultsDetail`. Register in `apps/web/src/games/registry.ts`.
-3. **Mobile UI** (`apps/mobile/src/games/<game>.tsx`) — same module shape in React Native. Register in `apps/mobile/src/games/registry.ts`.
+1. **Engine** (`packages/core/src/games/<game>.ts`): implement `GameEngine`: a pure, serializable state machine (`defaultConfig / init / validateAction / applyAction / isFinished / summary`). The host runs it; guests never need game logic to submit actions. Register it in `games/registry.ts` and add a test file next to it.
+2. **Web UI** (`apps/web/src/games/<game>.tsx`): a `GameUIModule` with a `SetupForm` (host options), `PlayView` (score entry + live standings) and optional `ResultsDetail`. Register in `apps/web/src/games/registry.ts`.
+3. **Mobile UI** (`apps/mobile/src/games/<game>.tsx`): same module shape in React Native. Register in `apps/mobile/src/games/registry.ts`.
 
-Design rule of thumb: guests may edit **their own** scores (`validateAction` enforces it), the host may edit anyone's — great for scoring for the player who wandered off to refill snacks.
+Design rule of thumb: guests may edit **their own** scores (`validateAction` enforces it), the host may edit anyone's (great for scoring for the player who wandered off to refill snacks).
 
 ## Current games
 
-- **🐦 Wingspan** — full end-game score sheet (birds, bonus cards, end-of-round goals, eggs, cached food, tucked cards + optional Oceania nectar), live standings, official tie-breaker (unused food).
-- **🃏 Gin Rummy** — hand-by-hand recorder (knock / gin / big gin / undercut with configurable bonuses), running totals to a target score, boxes, and the official final tally with line bonuses.
+- **🐦 Wingspan:** full end-game score sheet (birds, bonus cards, end-of-round goals, eggs, cached food, tucked cards + optional Oceania nectar), live standings, official tie-breaker (unused food).
+- **🃏 Gin Rummy:** hand-by-hand recorder (knock / gin / big gin / undercut with configurable bonuses), running totals to a target score, boxes, and the official final tally with line bonuses.
 
 ## Roadmap ideas
 
 - Direct WebRTC data channels (relay becomes signaling only) and Bluetooth/mDNS discovery for true serverless LAN play
-- Host entitlements (the "host is the paid user" model — guests always free)
+- Host entitlements (the "host is the paid user" model; guests always free)
 - More games: Scrabble, Yahtzee, Hearts, Farkle, Azul…
 - Shared long-term leagues: signed, portable stat exports players can merge

@@ -22,7 +22,7 @@ export function RequireProfile({ children }: { children: React.ReactNode }) {
       <CardHeader>
         <CardTitle>Who's playing?</CardTitle>
         <CardDescription>
-          Pick a name and emoji — they live only on this device and show up at the table.
+          Pick a name and emoji. They live only on this device and show up at the table.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">

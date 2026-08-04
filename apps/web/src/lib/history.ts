@@ -27,7 +27,7 @@ function write(records: HistoryRecord[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records))
   } catch {
-    // storage full/unavailable — history stays in memory for the session
+    // storage full/unavailable; history stays in memory for the session
   }
   for (const listener of listeners) listener()
 }

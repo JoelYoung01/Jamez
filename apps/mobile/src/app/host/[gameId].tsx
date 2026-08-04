@@ -56,7 +56,7 @@ export default function HostConfigScreen() {
               <View className="min-w-0 flex-1 pr-3">
                 <Text className="text-sm font-medium text-zinc-100">Pass & Play</Text>
                 <Muted className="mt-0.5">
-                  Everyone plays on this phone — works with zero connectivity
+                  Everyone plays on this phone. Works with zero connectivity.
                 </Muted>
               </View>
               <Switch
@@ -71,7 +71,7 @@ export default function HostConfigScreen() {
             <Text className="text-center text-xs text-muted-foreground/70">
               {passAndPlay
                 ? "You'll add every player yourself on the next screen."
-                : 'A join code + QR appears next — friends hop in from their phones.'}
+                : 'A join code + QR appears next. Friends hop in from their phones.'}
             </Text>
           </View>
         </RequireProfile>

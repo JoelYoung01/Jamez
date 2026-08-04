@@ -15,7 +15,7 @@ import type { RoomTransport, TransportStatus } from './types'
  * to current subscribers and never store. Payloads are end-to-end encrypted
  * with a key derived from the join code, so relays only see ciphertext.
  *
- * Users can override this list (Settings on web/mobile) — e.g. to point at a
+ * Users can override this list (Settings on web/mobile), e.g. to point at a
  * self-hosted `@jamez/relay` instance on the local network for fully offline
  * game nights.
  */

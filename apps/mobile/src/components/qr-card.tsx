@@ -22,7 +22,7 @@ export function QrCard({ code }: { code: string }) {
           {code}
         </Text>
         <Text className="mt-1 text-center text-xs text-muted-foreground">
-          Scan to join from any phone — no app required
+          Scan to join from any phone. No app required.
         </Text>
       </View>
       <Pressable
