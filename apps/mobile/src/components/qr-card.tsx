@@ -6,7 +6,7 @@ import QRCode from 'react-native-qrcode-svg'
 import { toast } from '@/lib/toast'
 
 export function webJoinUrl(code: string): string {
-  const base = (Constants.expoConfig?.extra?.webAppUrl as string | undefined) ?? 'https://jamez.app'
+  const base = (Constants.expoConfig?.extra?.webAppUrl as string | undefined) ?? 'https://playjames.com'
   return `${base.replace(/\/$/, '')}/join/${code}`
 }
 
