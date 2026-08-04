@@ -41,7 +41,7 @@ packages/relay    @jamez/relay  — tiny in-memory NIP-01 Nostr relay (LAN play,
 apps/web          @jamez/web    — Vite + React 19 + Tailwind 4 web app
 apps/mobile       @jamez/mobile — Expo (iOS-first) app with expo-router + NativeWind
 e2e/              Playwright smoke test: two real browsers play full games over a real relay
-.github/workflows CI, GitHub Pages deploy, EAS/TestFlight release
+.github/workflows CI, GitHub Pages deploy, iOS TestFlight release (macOS runner)
 ```
 
 ## Quick start
@@ -87,22 +87,43 @@ Already wired: `.github/workflows/deploy-web.yml` builds and publishes on every 
 
 One-time setup: repo **Settings → Pages → Source: GitHub Actions**. Deployed at **https://playjames.com** (custom domain on GitHub Pages). QR codes and join links point there automatically (a `404.html` fallback keeps `/join/CODE` deep links working).
 
-`VITE_BASE` is `/` in `.github/workflows/deploy-web.yml` for the custom domain. Mobile QR codes use `extra.webAppUrl` in `apps/mobile/app.json` (`https://playjames.com`).
+`VITE_BASE` is `/` in `.github/workflows/deploy-web.yml` for the custom domain. Mobile QR codes use `extra.webAppUrl` in `apps/mobile/app.config.ts` (`https://playjames.com`).
 
 ## iOS releases (TestFlight)
 
-`.github/workflows/ios-release.yml` starts an [EAS](https://docs.expo.dev/eas/) cloud build and auto-submits production builds to TestFlight. Trigger it from the Actions tab (choose `production` or `preview`) or by pushing a `v*` tag.
+Same flow as Sous Kit: `.github/workflows/ios-release.yml` runs on a **macOS GitHub Actions runner** — `expo prebuild` → `xcodebuild` archive/export with Apple cloud signing → `altool` upload to TestFlight. No Expo account / EAS. Triggers on pushes to `main` that touch `apps/mobile/**` or `packages/core/**`, or via *Actions → iOS release → Run workflow*.
 
-One-time setup on your side:
+Until the Apple secrets below exist, the workflow skips the signed build with a warning (stays green).
 
-1. **Link the Expo project** — `cd apps/mobile && npx eas-cli init` (creates the project on expo.dev and writes `extra.eas.projectId` into `app.json`; commit that change).
-2. **Repo secret** — create an access token at [expo.dev → Access tokens](https://expo.dev/settings/access-tokens) and add it as `EXPO_TOKEN` (Settings → Secrets and variables → Actions).
-3. **Apple credentials** — `npx eas-cli credentials` once, interactively: sign in to your Apple Developer account, let EAS manage the distribution certificate + provisioning profile, and add an App Store Connect API key so submissions work headlessly.
-4. **Fill in `apps/mobile/eas.json`** — replace `ascAppId` (the numeric Apple ID of the app you create in App Store Connect) and `appleTeamId`.
+### One-time Apple setup
 
-After that, every release is: *Actions → iOS release → Run workflow*. The GitHub job finishes in ~2 minutes; the build + TestFlight submission continue on Expo's servers (watch progress on your expo.dev dashboard).
+1. Join the [Apple Developer Program](https://developer.apple.com/programs/) ($99/year) if you haven't already.
+2. In [App Store Connect → Users and Access → Integrations → App Store Connect API](https://appstoreconnect.apple.com/access/integrations/api), create a **Team key** with the **Admin** role. Note the **Key ID** and **Issuer ID**, and download the `.p8` (only once). Admin is required for Xcode cloud signing — App Manager keys fail at export with "Cloud signing permission error".
+3. In [App Store Connect → Apps](https://appstoreconnect.apple.com/apps), create the iOS app: name **Jamez**, bundle ID `com.jamez.app` (register it if prompted; must match `JAMEZ_IOS_BUNDLE_ID` if you override it).
+4. Find your **Team ID** in [Apple Developer → Membership](https://developer.apple.com/account#MembershipDetailsCard) (10-character string).
 
-Bundle id: `com.jamez.app` · custom URL scheme: `jamez://join/CODE` (QR codes carry the web URL so people without the app land in the browser; the in-app scanner reads the same QR).
+You can reuse the same ASC API key + team id you already use for Sous Kit.
+
+### GitHub repository secrets
+
+| Secret | Value |
+|---|---|
+| `APPLE_TEAM_ID` | 10-char Team ID |
+| `ASC_KEY_ID` | API key's Key ID |
+| `ASC_ISSUER_ID` | API key's Issuer ID |
+| `ASC_PRIVATE_KEY` | Full contents of the `.p8` file (multiline is fine) |
+
+Optional Actions **variable**: `JAMEZ_IOS_BUNDLE_ID` (defaults to `com.jamez.app`). Build number is set to `github.run_number` automatically.
+
+### Installing on your phone
+
+1. Install **TestFlight** and sign in with the same Apple ID.
+2. After the first successful workflow run, the build appears in App Store Connect → TestFlight (a few minutes of processing). Add yourself as an internal tester.
+3. Install from TestFlight. Subsequent mobile/core merges to `main` push new builds automatically.
+
+Each run also attaches the raw `.ipa` as a workflow artifact.
+
+Bundle id: `com.jamez.app` · custom URL scheme: `jamez://join/CODE` (QR codes carry the web URL so people without the app land in the browser; the in-app scanner reads the same QR). The native `ios/` project is generated by `expo prebuild` and never committed.
 
 ## Adding a game
 

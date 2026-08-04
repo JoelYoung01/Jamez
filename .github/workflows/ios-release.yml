@@ -1,73 +1,180 @@
 name: iOS release
 
-# Kicks off an EAS cloud build of the iOS app and (for production builds)
-# auto-submits the result to TestFlight. The heavy lifting happens on Expo's
-# build servers, so this job finishes in a minute or two.
+# Builds, signs, and uploads the iOS app to TestFlight whenever mobile (or
+# shared core) code lands on main. Mirrors the Sous Kit / RecipeDB flow:
+# expo prebuild → xcodebuild on a macOS runner → altool upload. No EAS.
 #
-# One-time setup (see README "iOS releases"):
-#   1. Create an Expo account + project: `npx eas-cli init` inside apps/mobile,
-#      commit the projectId it writes into app.json.
-#   2. Add an EXPO_TOKEN repository secret (expo.dev → Access tokens).
-#   3. Run `eas credentials` once to wire up your Apple Developer account,
-#      distribution cert & App Store Connect API key.
-#   4. Fill in ascAppId / appleTeamId in apps/mobile/eas.json.
+# Requires the Apple credentials documented in the root README (App Store
+# Connect API key + team id). Until those secrets exist the signed build is
+# skipped with a warning so the workflow stays green.
+#
+# NOTE: the ASC API key must have the ADMIN role — cloud signing (creating the
+# distribution certificate/profile during export) is not permitted for App
+# Manager keys and fails with "Cloud signing permission error".
 
 on:
-  workflow_dispatch:
-    inputs:
-      profile:
-        description: EAS build profile
-        type: choice
-        options: [production, preview]
-        default: production
-      submit:
-        description: Submit to TestFlight when the build finishes
-        type: boolean
-        default: true
   push:
-    tags: ['v*']
+    branches:
+      - main
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/core/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/ios-release.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-release
+  cancel-in-progress: false
 
 env:
   EXPO_NO_TELEMETRY: '1'
 
 jobs:
-  eas-build:
-    name: EAS build (iOS)
-    runs-on: ubuntu-latest
+  BuildIOS:
+    name: Build, sign & upload to TestFlight
+    # macos-26: Expo SDK 57 needs Xcode 26.4+ (Swift 6.3 `weak let`, see
+    # expo/expo#46242); the macos-15 image tops out at Xcode 26.3.
+    runs-on: macos-26
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
-      - name: Require EXPO_TOKEN
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Check Apple signing secrets
+        id: creds
         run: |
-          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
-            echo "::error::Missing EXPO_TOKEN secret. Create an access token at https://expo.dev/settings/access-tokens and add it in Settings → Secrets and variables → Actions."
+          if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ] || [ -z "$ASC_PRIVATE_KEY" ] || [ -z "$APPLE_TEAM_ID" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Apple signing secrets (ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, APPLE_TEAM_ID) are not configured — skipping the signed iOS build. See README.md → iOS releases."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Expo SDK 57 (via expo-modules-jsi) requires Xcode 26.4+ — its Swift
+      # sources use Swift 6.3 syntax such as `weak let` (expo/expo#46242).
+      # Select the newest stable Xcode 26.x on the runner and fail loudly if
+      # it is older than 26.4.
+      - name: Select Xcode (26.4+)
+        if: steps.creds.outputs.configured == 'true'
+        run: |
+          XCODE_APP=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)
+          echo "Selecting $XCODE_APP"
+          sudo xcode-select -s "$XCODE_APP/Contents/Developer"
+          xcodebuild -version
+          VERSION=$(xcodebuild -version | awk 'NR==1 {print $2}')
+          if [ "$(printf '%s\n' "26.4" "$VERSION" | sort -V | head -n1)" != "26.4" ]; then
+            echo "::error::Xcode $VERSION selected but Expo SDK 57 needs 26.4+. Update the runner image."
             exit 1
           fi
 
-      - uses: actions/checkout@v6
+      - name: Setup pnpm
+        if: steps.creds.outputs.configured == 'true'
+        uses: pnpm/action-setup@v6
 
-      - uses: pnpm/action-setup@v6
-
-      - uses: actions/setup-node@v6
+      - name: Setup Node.js
+        if: steps.creds.outputs.configured == 'true'
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
 
-      - name: Set up EAS CLI
-        uses: expo/expo-github-action@9.0.0
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
       - name: Install dependencies
+        if: steps.creds.outputs.configured == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Start EAS build
+      - name: Build shared core
+        if: steps.creds.outputs.configured == 'true'
+        run: pnpm --filter @jamez/core build
+
+      - name: Generate native iOS project (expo prebuild)
+        if: steps.creds.outputs.configured == 'true'
+        working-directory: apps/mobile
+        env:
+          JAMEZ_IOS_BUNDLE_ID: ${{ vars.JAMEZ_IOS_BUNDLE_ID }}
+          JAMEZ_IOS_BUILD_NUMBER: ${{ github.run_number }}
+        run: pnpm exec expo prebuild --platform ios
+
+      - name: Write App Store Connect API key
+        if: steps.creds.outputs.configured == 'true'
+        run: |
+          printf '%s' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/AuthKey.p8"
+          mkdir -p ~/.appstoreconnect/private_keys
+          cp "$RUNNER_TEMP/AuthKey.p8" ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      # The archive is AD-HOC signed (the same approach Xcode Cloud uses):
+      # no certificate or registered device is needed, unlike development
+      # signing, but the app's entitlements still get embedded. Distribution
+      # signing happens in the export step.
+      - name: Archive (ad-hoc signed)
+        if: steps.creds.outputs.configured == 'true'
         working-directory: apps/mobile
         run: |
-          PROFILE="${{ github.event.inputs.profile || 'production' }}"
-          SUBMIT="${{ github.event.inputs.submit || 'true' }}"
-          ARGS=(build --platform ios --profile "$PROFILE" --non-interactive --no-wait)
-          if [ "$PROFILE" = "production" ] && [ "$SUBMIT" = "true" ]; then
-            ARGS+=(--auto-submit)
-          fi
-          echo "Running: eas ${ARGS[*]}"
-          eas "${ARGS[@]}"
+          xcodebuild -version
+          xcodebuild archive \
+            -workspace ios/Jamez.xcworkspace \
+            -scheme Jamez \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Jamez.xcarchive" \
+            CODE_SIGN_IDENTITY=- \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+
+      # Signs the app for App Store distribution via cloud-managed signing:
+      # -allowProvisioningUpdates + the ASC API key let Xcode create/fetch the
+      # Apple Distribution certificate and App Store profile on the fly.
+      - name: Export IPA (distribution signing)
+        if: steps.creds.outputs.configured == 'true'
+        run: |
+          cat > "$RUNNER_TEMP/exportOptions.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>export</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Jamez.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/exportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Upload IPA artifact
+        if: steps.creds.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jamez-ipa
+          path: ${{ runner.temp }}/export/*.ipa
+          retention-days: 30
+
+      - name: Upload to TestFlight
+        if: steps.creds.outputs.configured == 'true'
+        run: |
+          IPA_PATH=$(ls "$RUNNER_TEMP"/export/*.ipa | head -n 1)
+          echo "Uploading $IPA_PATH"
+          xcrun altool --upload-app --type ios \
+            --file "$IPA_PATH" \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
