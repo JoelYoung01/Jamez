@@ -1,0 +1,73 @@
+name: iOS release
+
+# Kicks off an EAS cloud build of the iOS app and (for production builds)
+# auto-submits the result to TestFlight. The heavy lifting happens on Expo's
+# build servers, so this job finishes in a minute or two.
+#
+# One-time setup (see README "iOS releases"):
+#   1. Create an Expo account + project: `npx eas-cli init` inside apps/mobile,
+#      commit the projectId it writes into app.json.
+#   2. Add an EXPO_TOKEN repository secret (expo.dev → Access tokens).
+#   3. Run `eas credentials` once to wire up your Apple Developer account,
+#      distribution cert & App Store Connect API key.
+#   4. Fill in ascAppId / appleTeamId in apps/mobile/eas.json.
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile
+        type: choice
+        options: [production, preview]
+        default: production
+      submit:
+        description: Submit to TestFlight when the build finishes
+        type: boolean
+        default: true
+  push:
+    tags: ['v*']
+
+env:
+  EXPO_NO_TELEMETRY: '1'
+
+jobs:
+  eas-build:
+    name: EAS build (iOS)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require EXPO_TOKEN
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "::error::Missing EXPO_TOKEN secret. Create an access token at https://expo.dev/settings/access-tokens and add it in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up EAS CLI
+        uses: expo/expo-github-action@9.0.0
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start EAS build
+        working-directory: apps/mobile
+        run: |
+          PROFILE="${{ github.event.inputs.profile || 'production' }}"
+          SUBMIT="${{ github.event.inputs.submit || 'true' }}"
+          ARGS=(build --platform ios --profile "$PROFILE" --non-interactive --no-wait)
+          if [ "$PROFILE" = "production" ] && [ "$SUBMIT" = "true" ]; then
+            ARGS+=(--auto-submit)
+          fi
+          echo "Running: eas ${ARGS[*]}"
+          eas "${ARGS[@]}"
