@@ -5,7 +5,7 @@ Jamez is a peer-to-peer score tracker for board & card game nights. One person *
 | | |
 |---|---|
 | 🌐 **Web app** | React + Vite + Tailwind 4, shadcn-style UI, deployed to GitHub Pages |
-| 📱 **iOS app** | Expo + React Native + NativeWind, shipped to TestFlight via EAS |
+| 📱 **iOS app** | Expo + React Native + NativeWind, shipped to TestFlight via GitHub Actions |
 | 🧠 **Shared core** | One TypeScript engine (`@jamez/core`) powers both apps |
 | 🎮 **Games** | Wingspan 🐦 and Gin Rummy 🃏 today; engines are pluggable |
 
@@ -41,7 +41,7 @@ packages/relay    @jamez/relay  tiny in-memory NIP-01 Nostr relay (LAN play, dev
 apps/web          @jamez/web    Vite + React 19 + Tailwind 4 web app
 apps/mobile       @jamez/mobile Expo (iOS-first) app with expo-router + NativeWind
 e2e/              Playwright smoke test: two real browsers play full games over a real relay
-.github/workflows CI, GitHub Pages deploy, EAS/TestFlight release
+.github/workflows CI, GitHub Pages deploy, iOS TestFlight release (macOS runner)
 ```
 
 ## Quick start
@@ -87,22 +87,13 @@ Already wired: `.github/workflows/deploy-web.yml` builds and publishes on every 
 
 One-time setup: repo **Settings → Pages → Source: GitHub Actions**. Deployed at **https://playjames.com** (custom domain on GitHub Pages). QR codes and join links point there automatically (a `404.html` fallback keeps `/join/CODE` deep links working).
 
-`VITE_BASE` is `/` in `.github/workflows/deploy-web.yml` for the custom domain. Mobile QR codes use `extra.webAppUrl` in `apps/mobile/app.json` (`https://playjames.com`).
+`VITE_BASE` is `/` in `.github/workflows/deploy-web.yml` for the custom domain. Mobile QR codes use `extra.webAppUrl` in `apps/mobile/app.config.ts` (`https://playjames.com`).
 
 ## iOS releases (TestFlight)
 
-`.github/workflows/ios-release.yml` starts an [EAS](https://docs.expo.dev/eas/) cloud build and auto-submits production builds to TestFlight. Trigger it from the Actions tab (choose `production` or `preview`) or by pushing a `v*` tag.
+Same flow as Sous Kit: `.github/workflows/ios-release.yml` on a **macOS** runner: `expo prebuild` → `xcodebuild` → TestFlight. No Expo/EAS. Setup walkthrough (Apple + secrets): **[`docs/ASC_Setup.md`](docs/ASC_Setup.md)**.
 
-One-time setup on your side:
-
-1. **Link the Expo project:** `cd apps/mobile && npx eas-cli init` (creates the project on expo.dev and writes `extra.eas.projectId` into `app.json`; commit that change).
-2. **Repo secret:** create an access token at [expo.dev → Access tokens](https://expo.dev/settings/access-tokens) and add it as `EXPO_TOKEN` (Settings → Secrets and variables → Actions).
-3. **Apple credentials:** `npx eas-cli credentials` once, interactively: sign in to your Apple Developer account, let EAS manage the distribution certificate + provisioning profile, and add an App Store Connect API key so submissions work headlessly.
-4. **Fill in `apps/mobile/eas.json`:** replace `ascAppId` (the numeric Apple ID of the app you create in App Store Connect) and `appleTeamId`.
-
-After that, every release is: *Actions → iOS release → Run workflow*. The GitHub job finishes in ~2 minutes; the build + TestFlight submission continue on Expo's servers (watch progress on your expo.dev dashboard).
-
-Bundle id: `com.jamez.app` · custom URL scheme: `jamez://join/CODE` (QR codes carry the web URL so people without the app land in the browser; the in-app scanner reads the same QR).
+Triggers on `main` pushes that touch `apps/mobile/**` or `packages/core/**`, or *Actions → iOS release*. Bundle id `com.jamez.app` · scheme `jamez://join/CODE` (QR codes use the web URL so people without the app land in the browser).
 
 ## Adding a game
 
