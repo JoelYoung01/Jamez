@@ -5,12 +5,12 @@
   "private": true,
   "scripts": {
     "start": "expo start",
-    "ios": "expo start --ios",
-    "android": "expo start --android",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "export:check": "expo export --platform ios --output-dir /tmp/jamez-export",
-    "eas-build-post-install": "pnpm --filter @jamez/core build"
+    "prebuild:ios": "expo prebuild --platform ios"
   },
   "dependencies": {
     "@jamez/core": "workspace:*",

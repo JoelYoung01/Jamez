@@ -38,6 +38,9 @@ jobs:
       - name: Unit & integration tests
         run: pnpm test
 
+      - name: Validate native project generation (expo prebuild)
+        run: pnpm --filter @jamez/mobile exec expo prebuild --platform ios --no-install
+
       - name: Bundle iOS app (Metro sanity check)
         run: pnpm --filter @jamez/mobile export:check
 
