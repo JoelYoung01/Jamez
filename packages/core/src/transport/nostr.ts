@@ -55,6 +55,8 @@ interface RelayConnection {
   url: string
   socket: WebSocketLike | null
   open: boolean
+  /** True once the relay has acknowledged our REQ with EOSE. */
+  subscribed: boolean
   attempts: number
   reconnectTimer: ReturnType<typeof setTimeout> | null
 }
@@ -111,6 +113,7 @@ export class NostrRoomTransport implements RoomTransport {
       url,
       socket: null,
       open: false,
+      subscribed: false,
       attempts: 0,
       reconnectTimer: null,
     }))
@@ -125,6 +128,7 @@ export class NostrRoomTransport implements RoomTransport {
       const socket = conn.socket
       conn.socket = null
       conn.open = false
+      conn.subscribed = false
       if (socket) {
         socket.onopen = socket.onclose = socket.onerror = socket.onmessage = null
         try {
@@ -177,6 +181,7 @@ export class NostrRoomTransport implements RoomTransport {
 
     socket.onopen = () => {
       conn.open = true
+      conn.subscribed = false
       conn.attempts = 0
       const since = Math.floor(Date.now() / 1000) - 30
       socket.send(
@@ -186,12 +191,18 @@ export class NostrRoomTransport implements RoomTransport {
           { kinds: [JAMEZ_EVENT_KIND], '#t': [this.topic], since },
         ]),
       )
+      // Flush outbound traffic as soon as the socket is writable. "connected"
+      // status waits for EOSE so peers don't send *before* the relay has
+      // registered our subscription (ephemeral events are otherwise lost).
       this.flushQueue()
       this.recomputeStatus()
     }
 
     socket.onmessage = (ev) => {
-      this.handleFrame(typeof ev.data === 'string' ? ev.data : String(ev.data))
+      this.handleFrame(
+        typeof ev.data === 'string' ? ev.data : String(ev.data),
+        conn,
+      )
     }
 
     socket.onerror = () => {
@@ -200,6 +211,7 @@ export class NostrRoomTransport implements RoomTransport {
 
     socket.onclose = () => {
       conn.open = false
+      conn.subscribed = false
       conn.socket = null
       this.recomputeStatus()
       this.scheduleReconnect(conn)
@@ -237,7 +249,7 @@ export class NostrRoomTransport implements RoomTransport {
     }
   }
 
-  private handleFrame(raw: string): void {
+  private handleFrame(raw: string, conn: RelayConnection): void {
     let frame: unknown
     try {
       frame = JSON.parse(raw)
@@ -248,12 +260,19 @@ export class NostrRoomTransport implements RoomTransport {
     const [type] = frame
     if (type === 'EVENT' && frame.length >= 3) {
       this.handleEvent(frame[2] as NostrEvent)
+    } else if (type === 'EOSE' && frame[1] === SUBSCRIPTION_ID) {
+      // Relay has registered our REQ; safe to treat this connection as live
+      // for receive (and for tests that wait on status === 'connected').
+      if (!conn.subscribed) {
+        conn.subscribed = true
+        this.recomputeStatus()
+      }
     } else if (type === 'OK' && frame[2] === false) {
       this.log(`relay rejected event: ${String(frame[3] ?? '')}`)
     } else if (type === 'NOTICE') {
       this.log(`relay notice: ${String(frame[1] ?? '')}`)
     }
-    // EOSE / CLOSED are irrelevant for ephemeral traffic.
+    // CLOSED is handled via socket onclose / reconnect.
   }
 
   private handleEvent(event: NostrEvent): void {
@@ -273,8 +292,11 @@ export class NostrRoomTransport implements RoomTransport {
   }
 
   private recomputeStatus(): void {
-    const anyOpen = this.connections.some((c) => c.open)
-    this.setStatus(anyOpen ? 'connected' : this.stopped ? 'offline' : 'connecting')
+    // Require a live subscription (EOSE), not just an open socket. Public and
+    // local relays both ack REQ with EOSE; until then ephemeral EVENT frames
+    // published by peers can race past an unregistered filter and be dropped.
+    const anyReady = this.connections.some((c) => c.open && c.subscribed)
+    this.setStatus(anyReady ? 'connected' : this.stopped ? 'offline' : 'connecting')
   }
 
   private setStatus(status: TransportStatus): void {
