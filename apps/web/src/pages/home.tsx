@@ -17,13 +17,7 @@ export function HomePage() {
   return (
     <div className="grid gap-4">
       <section className="py-4 text-center">
-        <h1 className="text-4xl font-extrabold tracking-tight">
-          Game night, <span className="text-primary">scored</span>.
-        </h1>
-        <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-          Host a session, friends join with a code or QR — everyone submits their own scores, and
-          every stat stays on your devices.
-        </p>
+        <h1 className="text-4xl font-extrabold tracking-tight">Jamez</h1>
       </section>
 
       {activeCode && (

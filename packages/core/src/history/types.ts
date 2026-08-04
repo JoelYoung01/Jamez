@@ -2,7 +2,7 @@ import type { GameSummary } from '../games/types'
 import type { SessionState } from '../protocol/session-state'
 
 /**
- * Finished games are stored locally on every participant's device — there is
+ * Finished games are stored locally on every participant's device; there is
  * no server copy. Each app supplies its own storage adapter (localStorage on
  * web, AsyncStorage on mobile) implementing HistoryStore.
  */

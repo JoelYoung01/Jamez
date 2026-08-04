@@ -111,7 +111,7 @@ export function HostConfigPage() {
             <div>
               <Label htmlFor="pass-and-play">Pass & Play</Label>
               <p className="text-xs text-muted-foreground">
-                Everyone plays on this device — works with zero connectivity
+                Everyone plays on this device. Works with zero connectivity.
               </p>
             </div>
             <Switch id="pass-and-play" checked={passAndPlay} onCheckedChange={setPassAndPlay} />
@@ -124,7 +124,7 @@ export function HostConfigPage() {
         <p className="text-center text-xs text-muted-foreground/70">
           {passAndPlay
             ? "You'll add every player yourself on the next screen."
-            : 'A join code + QR appears next — friends hop in from their phones.'}
+            : 'A join code + QR appears next. Friends hop in from their phones.'}
         </p>
       </div>
     </RequireProfile>

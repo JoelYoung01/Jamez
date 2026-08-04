@@ -68,7 +68,7 @@ export default function HomeScreen() {
             Game night, <Text className="text-primary">scored</Text>.
           </Text>
           <Text className="mt-2 max-w-sm text-center text-sm text-muted-foreground">
-            Host a session, friends join with a code or QR — everyone submits their own scores, and
+            Host a session, friends join with a code or QR. Everyone submits their own scores, and
             every stat stays on your devices.
           </Text>
         </View>

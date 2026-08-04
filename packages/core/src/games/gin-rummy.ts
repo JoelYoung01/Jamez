@@ -162,7 +162,7 @@ const MAX_DEADWOOD = 98 // theoretical ceiling for ten unmatched cards
 export const ginRummyEngine: GameEngine<GinConfig, GinState, GinAction> = {
   id: 'gin-rummy',
   name: 'Gin Rummy',
-  tagline: 'Knocks, undercuts and boxes — tallied for you',
+  tagline: 'Knocks, undercuts and boxes, tallied for you',
   emoji: '🃏',
   accentColor: '#fb7185',
   minPlayers: 2,
@@ -212,7 +212,7 @@ export const ginRummyEngine: GameEngine<GinConfig, GinState, GinAction> = {
       return 'Deadwood is too large'
     }
     if (outcome === 'knock') {
-      if (knockerDeadwood === 0) return 'A knock with 0 deadwood is gin — pick Gin instead'
+      if (knockerDeadwood === 0) return 'A knock with 0 deadwood is gin. Pick Gin instead.'
       if (knockerDeadwood > 10) return 'You can only knock with 10 or less deadwood'
     } else if (knockerDeadwood !== 0) {
       return 'Gin means zero deadwood for the knocker'

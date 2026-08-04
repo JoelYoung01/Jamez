@@ -41,7 +41,7 @@ export default function ScanScreen() {
           <Card className="items-center gap-4 p-6">
             <Text className="text-4xl">📷</Text>
             <Text className="text-center text-sm text-muted-foreground">
-              Jamez needs the camera to scan the host's QR code. Nothing is recorded — it only
+              Jamez needs the camera to scan the host's QR code. Nothing is recorded; it only
               looks for the join code.
             </Text>
             <AppButton title="Allow camera access" onPress={() => void requestPermission()} />
@@ -58,7 +58,7 @@ export default function ScanScreen() {
               />
             </View>
             <Muted className="text-center">
-              Point at the QR on the host's screen — you'll hop straight into their lobby.
+              Point at the QR on the host's screen. You'll hop straight into their lobby.
             </Muted>
             <AppButton variant="outline" title="Type the code instead" onPress={() => router.replace('/join')} />
           </View>

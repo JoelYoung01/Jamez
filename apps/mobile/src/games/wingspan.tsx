@@ -72,7 +72,7 @@ function SheetEditor({
       ))}
       <ScoreStepper
         label="🍽️  Unused food"
-        hint="tiebreaker only — not added to the total"
+        hint="tiebreaker only; not added to the total"
         value={sheet.unusedFood}
         onChange={(value) => setValue('unusedFood', value)}
         disabled={!editable}
@@ -204,7 +204,7 @@ function WingspanPlay({ state: session, me, isHost, send }: GamePlayProps) {
           ) : (
             <Card className="p-5">
               <Text className="text-center text-sm text-muted-foreground">
-                You're spectating — check the standings tab.
+                You're spectating. Check the standings tab.
               </Text>
             </Card>
           )}

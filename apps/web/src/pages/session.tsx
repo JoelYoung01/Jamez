@@ -70,7 +70,7 @@ export function SessionPage() {
         <StatusCard
           emoji="🚪"
           title="Couldn't join"
-          body="The host turned this request down — the session may be full or already running."
+          body="The host turned this request down. The session may be full or already running."
           action={<BackHomeButton onClick={() => store.leaveSession()} />}
         />
       )
@@ -108,7 +108,7 @@ export function SessionPage() {
       {role === 'guest' && store.guestStatus === 'host_lost' && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
           <Loader2Icon className="size-4 animate-spin" />
-          Host went quiet — hang tight, we'll resync the moment they're back.
+          Host went quiet. Hang tight, we'll resync the moment they're back.
         </div>
       )}
       {state.phase === 'lobby' && <LobbyView />}
@@ -344,7 +344,7 @@ function PlayingView() {
   const ui = getGameUI(state.gameId)
   const me = state.players.find((p) => p.id === profileId) ?? null
 
-  if (!ui) return <StatusCard emoji="🤔" title="Unsupported game" body="This app version doesn't know this game yet — update and rejoin." />
+  if (!ui) return <StatusCard emoji="🤔" title="Unsupported game" body="This app version doesn't know this game yet. Update and rejoin." />
   const PlayView = ui.PlayView
 
   return (

@@ -36,7 +36,7 @@ export interface WingspanSheet {
   foodOnCards: number
   tuckedCards: number
   nectar: number
-  /** Tiebreaker only — not part of the total. */
+  /** Tiebreaker only; not part of the total. */
   unusedFood: number
   done: boolean
 }

@@ -57,8 +57,7 @@ export function AppShell() {
         <Outlet />
       </main>
       <footer className="mt-12 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground/60">
-        <Badge variant="outline" className="text-[10px]">P2P</Badge>
-        Scores live on your devices — no accounts, no server database.
+        <Badge variant="outline" className="text-[10px]">Jamez</Badge>
       </footer>
       <Toaster theme="dark" position="top-center" richColors />
     </div>

@@ -52,7 +52,7 @@ export default function HistoryScreen() {
             <Text className="text-3xl">🎲</Text>
             <CardTitle>No games yet</CardTitle>
             <Muted className="text-center">
-              Finish a session and it lands here — stored on this phone only.
+              Finish a session and it lands here. Stored on this phone only.
             </Muted>
           </Card>
         ) : (

@@ -157,7 +157,7 @@ export class GuestSession {
         }
         if (this._status !== 'joined') this.setStatus('joined')
         // A resumed host marks remote players disconnected until they check
-        // in again — answer immediately instead of waiting for the next
+        // in again; answer immediately instead of waiting for the next
         // heartbeat interval.
         const meNow = incoming.players.find((p) => p.id === this.profile.id)
         if (meNow && !meNow.connected) this.sendHello()
