@@ -4,9 +4,9 @@ name: iOS release
 # shared core) code lands on main. Mirrors the Sous Kit / RecipeDB flow:
 # expo prebuild → xcodebuild on a macOS runner → altool upload. No EAS.
 #
-# Requires the Apple credentials documented in the root README (App Store
-# Connect API key + team id). Until those secrets exist the signed build is
-# skipped with a warning so the workflow stays green.
+# Requires the Apple credentials in docs/ASC_Setup.md (App Store Connect API
+# key + team id). Until those secrets exist the signed build is skipped with
+# a warning so the workflow stays green.
 #
 # NOTE: the ASC API key must have the ADMIN role — cloud signing (creating the
 # distribution certificate/profile during export) is not permitted for App
@@ -50,7 +50,7 @@ jobs:
         run: |
           if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ] || [ -z "$ASC_PRIVATE_KEY" ] || [ -z "$APPLE_TEAM_ID" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Apple signing secrets (ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, APPLE_TEAM_ID) are not configured — skipping the signed iOS build. See README.md → iOS releases."
+            echo "::warning::Apple signing secrets (ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY, APPLE_TEAM_ID) are not configured — skipping the signed iOS build. See docs/ASC_Setup.md."
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
