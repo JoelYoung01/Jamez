@@ -4,7 +4,7 @@ import { createGuestSession } from '../protocol/guest'
 import { createHostSession } from '../protocol/host'
 import { wingspanEngine, type WingspanState } from '../games/wingspan'
 import { generateJoinCode } from '../util/ids'
-import { NostrRoomTransport } from './nostr'
+import { NostrRoomTransport, type WebSocketLike } from './nostr'
 
 let relayA: RelayHandle
 let relayB: RelayHandle
@@ -147,5 +147,41 @@ describe('nostr transport over a real relay', () => {
 
     host.end()
     guest.stop()
+  })
+})
+
+describe('nostr transport subscription readiness', () => {
+  it('stays connecting until the relay acks REQ with EOSE', async () => {
+    let socket: WebSocketLike | null = null
+    const transport = new NostrRoomTransport({
+      code: 'READY1',
+      relays: ['ws://mock.relay'],
+      webSocketFactory: () => {
+        socket = {
+          readyState: 0,
+          send: vi.fn(),
+          close: vi.fn(),
+          onopen: null,
+          onclose: null,
+          onerror: null,
+          onmessage: null,
+        }
+        return socket
+      },
+    })
+
+    transport.start()
+    expect(transport.status).toBe('connecting')
+
+    socket!.readyState = 1
+    socket!.onopen?.(undefined)
+    expect(transport.status).toBe('connecting')
+    expect(socket!.send).toHaveBeenCalledWith(expect.stringContaining('"REQ"'))
+
+    socket!.onmessage?.({ data: JSON.stringify(['EOSE', 'jamez']) })
+    expect(transport.status).toBe('connected')
+
+    transport.stop()
+    expect(transport.status).toBe('offline')
   })
 })
