@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils'
 
 interface ScoreStepperProps {
   label: string
+  /** Optional icon rendered before the label. */
+  icon?: React.ReactNode
   hint?: string
   value: number
   onChange: (value: number) => void
@@ -16,6 +18,7 @@ interface ScoreStepperProps {
 /** A score row: label on the left, [-] [value] [+] on the right. */
 export function ScoreStepper({
   label,
+  icon,
   hint,
   value,
   onChange,
@@ -47,7 +50,10 @@ export function ScoreStepper({
       )}
     >
       <div className="min-w-0">
-        <div className="text-sm font-medium">{label}</div>
+        <div className="flex items-center gap-1.5 text-sm font-medium">
+          {icon}
+          {label}
+        </div>
         {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
       </div>
       <div className="flex items-center gap-1.5">

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PageHeader } from '@/components/page-header'
 import { RequireProfile } from '@/components/require-profile'
 import { AppButton, Card, CardTitle, Muted, Screen } from '@/components/ui'
-import { getGameUI } from '@/games/registry'
+import { getGameIcon, getGameUI } from '@/games/registry'
 import { useSession } from '@/lib/session-store'
 
 export default function HostConfigScreen() {
@@ -33,6 +33,7 @@ export default function HostConfigScreen() {
     config: unknown
     onChange: (c: unknown) => void
   }>
+  const GameIcon = getGameIcon(gameId)
 
   const create = () => {
     const code = hostGame({ gameId, config, passAndPlay })
@@ -42,7 +43,7 @@ export default function HostConfigScreen() {
   return (
     <Screen>
       <View style={{ paddingTop: insets.top + 8 }}>
-        <PageHeader title={`Host ${game.name}`} emoji={game.emoji} />
+        <PageHeader title={`Host ${game.name}`} icon={<GameIcon size={20} color={game.accentColor} />} />
         <RequireProfile>
           <View className="gap-4">
             <Card className="p-4">

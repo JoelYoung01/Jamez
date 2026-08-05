@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { getGameUI } from '@/games/registry'
+import { getGameIcon, getGameUI } from '@/games/registry'
 import { useSession } from '@/lib/session-store'
 
 export function HostPage() {
@@ -22,31 +22,34 @@ export function HostPage() {
           </Button>
           <h1 className="text-lg font-semibold">Pick a game to host</h1>
         </div>
-        {gameEngines.map((game) => (
-          <Link key={game.id} to={`/host/${game.id}`} className="group">
-            <Card className="transition-all group-hover:border-primary/50 group-hover:bg-primary/5">
-              <CardContent className="flex items-center gap-4 p-4">
-                <span
-                  className="flex size-12 shrink-0 items-center justify-center rounded-xl text-2xl"
-                  style={{ backgroundColor: `${game.accentColor}1f` }}
-                >
-                  {game.emoji}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold">{game.name}</div>
-                  <div className="truncate text-sm text-muted-foreground">{game.tagline}</div>
-                  <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                    <UsersIcon className="size-3" />
-                    {game.minPlayers === game.maxPlayers
-                      ? `${game.maxPlayers} players`
-                      : `${game.minPlayers}–${game.maxPlayers} players`}
+        {gameEngines.map((game) => {
+          const Icon = getGameIcon(game.id)
+          return (
+            <Link key={game.id} to={`/host/${game.id}`} className="group">
+              <Card className="transition-all group-hover:border-primary/50 group-hover:bg-primary/5">
+                <CardContent className="flex items-center gap-4 p-4">
+                  <span
+                    className="flex size-12 shrink-0 items-center justify-center rounded-xl"
+                    style={{ backgroundColor: `${game.accentColor}1f` }}
+                  >
+                    <Icon className="size-6" style={{ color: game.accentColor }} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold">{game.name}</div>
+                    <div className="truncate text-sm text-muted-foreground">{game.tagline}</div>
+                    <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                      <UsersIcon className="size-3" />
+                      {game.minPlayers === game.maxPlayers
+                        ? `${game.maxPlayers} players`
+                        : `${game.minPlayers}–${game.maxPlayers} players`}
+                    </div>
                   </div>
-                </div>
-                <ArrowRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+                  <ArrowRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+                </CardContent>
+              </Card>
+            </Link>
+          )
+        })}
       </div>
     </RequireProfile>
   )
@@ -77,6 +80,7 @@ export function HostConfigPage() {
   }
 
   const SetupForm = ui.SetupForm as React.ComponentType<{ config: unknown; onChange: (c: unknown) => void }>
+  const GameIcon = getGameIcon(gameId)
 
   const create = () => {
     const code = hostGame({ gameId, config, passAndPlay })
@@ -93,7 +97,7 @@ export function HostConfigPage() {
             </Link>
           </Button>
           <h1 className="flex items-center gap-2 text-lg font-semibold">
-            <span>{game.emoji}</span> Host {game.name}
+            <GameIcon className="size-5" style={{ color: game.accentColor }} /> Host {game.name}
           </h1>
         </div>
 

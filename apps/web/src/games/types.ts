@@ -1,4 +1,5 @@
 import type { SessionPlayer, SessionState } from '@jamez/core'
+import type { LucideIcon } from 'lucide-react'
 import type * as React from 'react'
 
 export interface GamePlayProps {
@@ -24,6 +25,8 @@ export interface GameSetupProps<C = unknown> {
  */
 export interface GameUIModule {
   id: string
+  /** Icon shown on the shelf, host picker, session header and history rows. */
+  icon: LucideIcon
   SetupForm: React.ComponentType<GameSetupProps<never>> | React.ComponentType<GameSetupProps>
   PlayView: React.ComponentType<GamePlayProps>
   ResultsDetail?: React.ComponentType<{ state: SessionState }>

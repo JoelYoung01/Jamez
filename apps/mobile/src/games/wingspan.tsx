@@ -6,6 +6,19 @@ import {
   type WingspanState,
 } from '@jamez/core'
 import { clsx } from 'clsx'
+import {
+  BirdIcon,
+  CheckIcon,
+  CrownIcon,
+  EggIcon,
+  FeatherIcon,
+  FlowerIcon,
+  GiftIcon,
+  NutIcon,
+  TargetIcon,
+  UtensilsIcon,
+  type LucideIcon,
+} from 'lucide-react-native'
 import * as React from 'react'
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native'
 import { PlayerAvatar } from '@/components/player-avatar'
@@ -14,14 +27,14 @@ import { Segmented } from '@/components/segmented'
 import { Card } from '@/components/ui'
 import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
-const CATEGORIES: { key: string; label: string; hint?: string }[] = [
-  { key: 'birds', label: '🐦  Birds', hint: 'printed points on your bird cards' },
-  { key: 'bonusCards', label: '🎁  Bonus cards', hint: 'points from completed bonus cards' },
-  { key: 'roundGoals', label: '🎯  End-of-round goals', hint: 'total from the goal board' },
-  { key: 'eggs', label: '🥚  Eggs', hint: '1 pt per egg on birds' },
-  { key: 'foodOnCards', label: '🌰  Cached food', hint: '1 pt per food token on birds' },
-  { key: 'tuckedCards', label: '🪶  Tucked cards', hint: '1 pt per tucked card' },
-  { key: 'nectar', label: '🍯  Nectar', hint: '5/2 pts per habitat majority (Oceania)' },
+const CATEGORIES: { key: string; label: string; hint?: string; icon: LucideIcon }[] = [
+  { key: 'birds', label: 'Birds', hint: 'printed points on your bird cards', icon: BirdIcon },
+  { key: 'bonusCards', label: 'Bonus cards', hint: 'points from completed bonus cards', icon: GiftIcon },
+  { key: 'roundGoals', label: 'End-of-round goals', hint: 'total from the goal board', icon: TargetIcon },
+  { key: 'eggs', label: 'Eggs', hint: '1 pt per egg on birds', icon: EggIcon },
+  { key: 'foodOnCards', label: 'Cached food', hint: '1 pt per food token on birds', icon: NutIcon },
+  { key: 'tuckedCards', label: 'Tucked cards', hint: '1 pt per tucked card', icon: FeatherIcon },
+  { key: 'nectar', label: 'Nectar', hint: '5/2 pts per habitat majority (Oceania)', icon: FlowerIcon },
 ]
 
 function WingspanSetup({ config, onChange }: GameSetupProps<WingspanConfig>) {
@@ -64,6 +77,7 @@ function SheetEditor({
         <ScoreStepper
           key={category.key}
           label={category.label}
+          icon={<category.icon size={16} color="#a1a1ab" />}
           hint={category.hint}
           value={sheet[category.key as keyof typeof sheet] as number}
           onChange={(value) => setValue(category.key, value)}
@@ -71,7 +85,8 @@ function SheetEditor({
         />
       ))}
       <ScoreStepper
-        label="🍽️  Unused food"
+        label="Unused food"
+        icon={<UtensilsIcon size={16} color="#a1a1ab" />}
         hint="tiebreaker only; not added to the total"
         value={sheet.unusedFood}
         onChange={(value) => setValue('unusedFood', value)}
@@ -114,26 +129,32 @@ function Standings({ state, session }: { state: WingspanState; session: SessionS
         return (
           <View key={row.playerId} className="rounded-xl border border-line bg-field p-3">
             <View className="flex-row items-center gap-3">
-              <Text
-                className={clsx(
-                  'w-7 text-center font-mono text-sm font-bold',
-                  row.rank === 1 ? 'text-primary' : 'text-muted-foreground',
+              <View className="w-7 items-center">
+                {row.rank === 1 ? (
+                  <CrownIcon size={16} color="#fbbf24" />
+                ) : (
+                  <Text className="text-center font-mono text-sm font-bold text-muted-foreground">
+                    #{row.rank}
+                  </Text>
                 )}
-              >
-                {row.rank === 1 ? '👑' : `#${row.rank}`}
-              </Text>
+              </View>
               <PlayerAvatar player={player} size="sm" showPresence />
-              <Text className="flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
-                {player.name}
-                {sheet.done ? '  ✓' : ''}
-              </Text>
+              <View className="min-w-0 flex-1 flex-row items-center gap-1.5">
+                <Text className="shrink text-sm font-medium text-zinc-100" numberOfLines={1}>
+                  {player.name}
+                </Text>
+                {sheet.done && <CheckIcon size={14} color="#6ee7b7" />}
+              </View>
               <Text className="font-mono text-2xl font-bold text-zinc-100">{row.score}</Text>
             </View>
             <View className="mt-2 flex-row flex-wrap gap-x-3 gap-y-1 pl-10">
               {categories.map((c) => (
-                <Text key={c.key} className="font-mono text-xs text-muted-foreground">
-                  {c.label.slice(0, 2)} {sheet[c.key as keyof typeof sheet] as number}
-                </Text>
+                <View key={c.key} className="flex-row items-center gap-1">
+                  <c.icon size={12} color="#a1a1ab" />
+                  <Text className="font-mono text-xs text-muted-foreground">
+                    {sheet[c.key as keyof typeof sheet] as number}
+                  </Text>
+                </View>
               ))}
             </View>
           </View>
@@ -238,9 +259,12 @@ function WingspanResults({ state: session }: { state: SessionState }) {
               </View>
               <View className="mt-1.5 flex-row flex-wrap gap-x-3 gap-y-0.5">
                 {categories.map((c) => (
-                  <Text key={c.key} className="font-mono text-xs text-muted-foreground">
-                    {c.label.slice(0, 2)} {sheet[c.key as keyof typeof sheet] as number}
-                  </Text>
+                  <View key={c.key} className="flex-row items-center gap-1">
+                    <c.icon size={12} color="#a1a1ab" />
+                    <Text className="font-mono text-xs text-muted-foreground">
+                      {sheet[c.key as keyof typeof sheet] as number}
+                    </Text>
+                  </View>
                 ))}
               </View>
             </View>
@@ -253,6 +277,7 @@ function WingspanResults({ state: session }: { state: SessionState }) {
 
 export const wingspanUI: GameUIModule = {
   id: 'wingspan',
+  icon: FeatherIcon,
   SetupForm: WingspanSetup as GameUIModule['SetupForm'],
   PlayView: WingspanPlay,
   ResultsDetail: WingspanResults,

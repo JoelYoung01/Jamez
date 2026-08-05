@@ -5,7 +5,19 @@ import {
   type WingspanConfig,
   type WingspanState,
 } from '@jamez/core'
-import { CheckIcon } from 'lucide-react'
+import {
+  BirdIcon,
+  CheckIcon,
+  CrownIcon,
+  EggIcon,
+  FeatherIcon,
+  FlowerIcon,
+  GiftIcon,
+  NutIcon,
+  TargetIcon,
+  UtensilsIcon,
+  type LucideIcon,
+} from 'lucide-react'
 import * as React from 'react'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { ScoreStepper } from '@/components/score-stepper'
@@ -16,14 +28,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
-const CATEGORIES: { key: string; label: string; hint?: string; emoji: string }[] = [
-  { key: 'birds', label: 'Birds', hint: 'printed points on your bird cards', emoji: '🐦' },
-  { key: 'bonusCards', label: 'Bonus cards', hint: 'points from completed bonus cards', emoji: '🎁' },
-  { key: 'roundGoals', label: 'End-of-round goals', hint: 'total from the goal board', emoji: '🎯' },
-  { key: 'eggs', label: 'Eggs', hint: '1 pt per egg on birds', emoji: '🥚' },
-  { key: 'foodOnCards', label: 'Cached food', hint: '1 pt per food token on birds', emoji: '🌰' },
-  { key: 'tuckedCards', label: 'Tucked cards', hint: '1 pt per card tucked under birds', emoji: '🪶' },
-  { key: 'nectar', label: 'Nectar', hint: '5/2 pts per habitat majority (Oceania)', emoji: '🍯' },
+const CATEGORIES: { key: string; label: string; hint?: string; icon: LucideIcon }[] = [
+  { key: 'birds', label: 'Birds', hint: 'printed points on your bird cards', icon: BirdIcon },
+  { key: 'bonusCards', label: 'Bonus cards', hint: 'points from completed bonus cards', icon: GiftIcon },
+  { key: 'roundGoals', label: 'End-of-round goals', hint: 'total from the goal board', icon: TargetIcon },
+  { key: 'eggs', label: 'Eggs', hint: '1 pt per egg on birds', icon: EggIcon },
+  { key: 'foodOnCards', label: 'Cached food', hint: '1 pt per food token on birds', icon: NutIcon },
+  { key: 'tuckedCards', label: 'Tucked cards', hint: '1 pt per card tucked under birds', icon: FeatherIcon },
+  { key: 'nectar', label: 'Nectar', hint: '5/2 pts per habitat majority (Oceania)', icon: FlowerIcon },
 ]
 
 function WingspanSetup({ config, onChange }: GameSetupProps<WingspanConfig>) {
@@ -67,7 +79,8 @@ function SheetEditor({
       {categories.map((category) => (
         <ScoreStepper
           key={category.key}
-          label={`${category.emoji}  ${category.label}`}
+          label={category.label}
+          icon={<category.icon className="size-4 shrink-0 text-muted-foreground" />}
           hint={category.hint}
           value={sheet[category.key as keyof typeof sheet] as number}
           onChange={(value) => setValue(category.key, value)}
@@ -76,7 +89,8 @@ function SheetEditor({
       ))}
       <div className="mt-1 grid gap-2">
         <ScoreStepper
-          label="🍽️  Unused food"
+          label="Unused food"
+          icon={<UtensilsIcon className="size-4 shrink-0 text-muted-foreground" />}
           hint="tiebreaker only; not added to your total"
           value={sheet.unusedFood}
           onChange={(value) => setValue('unusedFood', value)}
@@ -121,11 +135,11 @@ function Standings({ state, session }: { state: WingspanState; session: SessionS
             <div className="flex items-center gap-3">
               <span
                 className={cn(
-                  'w-6 text-center font-mono text-sm font-bold',
+                  'flex w-6 justify-center text-center font-mono text-sm font-bold',
                   row.rank === 1 ? 'text-primary' : 'text-muted-foreground',
                 )}
               >
-                {row.rank === 1 ? '👑' : `#${row.rank}`}
+                {row.rank === 1 ? <CrownIcon className="size-4" /> : `#${row.rank}`}
               </span>
               <PlayerAvatar player={player} size="sm" showPresence />
               <span className="min-w-0 flex-1 truncate font-medium">
@@ -136,8 +150,8 @@ function Standings({ state, session }: { state: WingspanState; session: SessionS
             </div>
             <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 pl-9 text-xs text-muted-foreground">
               {categories.map((c) => (
-                <span key={c.key} className="tabular-nums">
-                  {c.emoji} {sheet[c.key as keyof typeof sheet] as number}
+                <span key={c.key} className="inline-flex items-center gap-1 tabular-nums">
+                  <c.icon className="size-3" /> {sheet[c.key as keyof typeof sheet] as number}
                 </span>
               ))}
             </div>
@@ -238,7 +252,9 @@ function WingspanResults({ state: session }: { state: SessionState }) {
             {categories.map((category) => (
               <tr key={category.key} className="border-t border-border/40">
                 <td className="py-1.5 text-muted-foreground">
-                  {category.emoji} {category.label}
+                  <span className="inline-flex items-center gap-1.5">
+                    <category.icon className="size-3.5" /> {category.label}
+                  </span>
                 </td>
                 {ranking.map((row) => (
                   <td key={row.playerId} className="py-1.5 text-right font-mono tabular-nums">
@@ -264,6 +280,7 @@ function WingspanResults({ state: session }: { state: SessionState }) {
 
 export const wingspanUI: GameUIModule = {
   id: 'wingspan',
+  icon: FeatherIcon,
   SetupForm: WingspanSetup as GameUIModule['SetupForm'],
   PlayView: WingspanPlay,
   ResultsDetail: WingspanResults,

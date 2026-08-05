@@ -163,7 +163,6 @@ export const ginRummyEngine: GameEngine<GinConfig, GinState, GinAction> = {
   id: 'gin-rummy',
   name: 'Gin Rummy',
   tagline: 'Knocks, undercuts and boxes, tallied for you',
-  emoji: '🃏',
   accentColor: '#fb7185',
   minPlayers: 2,
   maxPlayers: 2,

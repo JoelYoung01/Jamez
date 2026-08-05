@@ -1,6 +1,7 @@
 import { isValidJoinCode, JOIN_CODE_LENGTH, normalizeJoinCode } from '@jamez/core'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { router } from 'expo-router'
+import { CameraIcon } from 'lucide-react-native'
 import * as React from 'react'
 import { Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -39,7 +40,7 @@ export default function ScanScreen() {
           <Spinner />
         ) : !permission.granted ? (
           <Card className="items-center gap-4 p-6">
-            <Text className="text-4xl">📷</Text>
+            <CameraIcon size={36} color="#a1a1ab" />
             <Text className="text-center text-sm text-muted-foreground">
               Jamez needs the camera to scan the host's QR code. Nothing is recorded; it only
               looks for the join code.

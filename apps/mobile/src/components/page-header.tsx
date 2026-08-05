@@ -1,15 +1,16 @@
 import { router } from 'expo-router'
+import { ChevronLeftIcon } from 'lucide-react-native'
 import type * as React from 'react'
 import { Pressable, Text, View } from 'react-native'
 
 export function PageHeader({
   title,
-  emoji,
+  icon,
   right,
   back = true,
 }: {
   title: string
-  emoji?: string
+  icon?: React.ReactNode
   right?: React.ReactNode
   back?: boolean
 }) {
@@ -21,10 +22,10 @@ export function PageHeader({
           hitSlop={8}
           className="h-9 w-9 items-center justify-center rounded-lg bg-muted active:opacity-70"
         >
-          <Text className="text-base font-semibold text-zinc-100">‹</Text>
+          <ChevronLeftIcon size={18} color="#f4f4f5" />
         </Pressable>
       )}
-      {emoji ? <Text className="text-xl">{emoji}</Text> : null}
+      {icon}
       <Text className="flex-1 text-lg font-semibold text-zinc-100" numberOfLines={1}>
         {title}
       </Text>

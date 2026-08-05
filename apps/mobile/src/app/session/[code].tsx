@@ -5,6 +5,20 @@ import {
   type SessionState,
 } from '@jamez/core'
 import { router, useLocalSearchParams } from 'expo-router'
+import {
+  ChevronLeftIcon,
+  CircleHelpIcon,
+  DoorClosedIcon,
+  FlagIcon,
+  HandIcon,
+  MedalIcon,
+  MoonIcon,
+  RotateCcwIcon,
+  TrophyIcon,
+  UserPlusIcon,
+  XIcon,
+  type LucideIcon,
+} from 'lucide-react-native'
 import * as React from 'react'
 import { ActivityIndicator, Modal, Pressable, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -14,7 +28,7 @@ import { QrCard } from '@/components/qr-card'
 import { RequireProfile } from '@/components/require-profile'
 import { StatusPill } from '@/components/status-pill'
 import { AppButton, Card, CardTitle, Chip, Muted, Screen, SectionLabel } from '@/components/ui'
-import { getGameUI } from '@/games/registry'
+import { getGameIcon, getGameUI } from '@/games/registry'
 import { randomEmoji, useProfile } from '@/lib/profile'
 import { useSession } from '@/lib/session-store'
 
@@ -71,7 +85,7 @@ function SessionBody({ code }: { code: string }) {
     if (status === 'rejected') {
       return (
         <StatusCard
-          emoji="🚪"
+          icon={DoorClosedIcon}
           title="Couldn't join"
           body="The host turned this request down. The session may be full or already running."
           onDone={() => store.leaveSession()}
@@ -81,7 +95,7 @@ function SessionBody({ code }: { code: string }) {
     if (status === 'removed') {
       return (
         <StatusCard
-          emoji="👋"
+          icon={HandIcon}
           title="You were removed"
           body="The host removed you from this session."
           onDone={() => store.leaveSession()}
@@ -91,7 +105,7 @@ function SessionBody({ code }: { code: string }) {
     if (status === 'ended') {
       return (
         <StatusCard
-          emoji="🌙"
+          icon={MoonIcon}
           title="Session ended"
           body="The host wrapped up this session. Finished games are saved in your history."
           onDone={() => store.leaveSession()}
@@ -126,17 +140,18 @@ function SessionBody({ code }: { code: string }) {
 function SessionHeader({ state }: { state: SessionState }) {
   const store = useSession()
   const game = getGameEngine(state.gameId)
+  const GameIcon = getGameIcon(state.gameId)
   return (
     <View className="flex-row items-center justify-between gap-2">
-      <View className="min-w-0 flex-1 flex-row items-center gap-2">
+      <View className="min-w-0 flex-1 flex-row items-center gap-2.5">
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           hitSlop={8}
           className="h-9 w-9 items-center justify-center rounded-lg bg-muted active:opacity-70"
         >
-          <Text className="text-base font-semibold text-zinc-100">‹</Text>
+          <ChevronLeftIcon size={18} color="#f4f4f5" />
         </Pressable>
-        <Text className="text-2xl">{game?.emoji ?? '🎲'}</Text>
+        <GameIcon size={24} color={game?.accentColor ?? '#a1a1ab'} />
         <View className="min-w-0 flex-1">
           <Text className="font-semibold text-zinc-100" numberOfLines={1}>
             {game?.name ?? state.gameId}
@@ -169,19 +184,19 @@ function ConnectingCard({ code, label, waiting }: { code: string; label: string;
 }
 
 function StatusCard({
-  emoji,
+  icon: Icon,
   title,
   body,
   onDone,
 }: {
-  emoji: string
+  icon: LucideIcon
   title: string
   body: string
   onDone?: () => void
 }) {
   return (
     <Card className="items-center gap-3 px-6 py-12">
-      <Text className="text-4xl">{emoji}</Text>
+      <Icon size={40} color="#a1a1ab" />
       <Text className="text-lg font-semibold text-zinc-100">{title}</Text>
       <Text className="max-w-xs text-center text-sm text-muted-foreground">{body}</Text>
       <AppButton
@@ -214,7 +229,7 @@ function PlayerRow({
       {!player.remote && !player.isHost && <Chip tone="outline">local</Chip>}
       {canKick && (
         <Pressable onPress={onKick} hitSlop={8} className="h-7 w-7 items-center justify-center rounded-md active:opacity-70">
-          <Text className="text-sm text-muted-foreground">✕</Text>
+          <XIcon size={14} color="#a1a1ab" />
         </Pressable>
       )}
     </View>
@@ -237,7 +252,13 @@ function AddLocalPlayerButton() {
 
   return (
     <>
-      <AppButton variant="outline" size="sm" title="+ Local player" onPress={() => setOpen(true)} />
+      <AppButton
+        variant="outline"
+        size="sm"
+        title="Local player"
+        icon={<UserPlusIcon size={14} color="#f4f4f5" />}
+        onPress={() => setOpen(true)}
+      />
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable className="flex-1 justify-center bg-black/70 px-5" onPress={() => setOpen(false)}>
           <Pressable onPress={() => {}} className="rounded-2xl border border-line bg-card p-5">
@@ -351,8 +372,8 @@ function PlayingView() {
 
   if (!ui) {
     return (
-      <StatusCard
-        emoji="🤔"
+        <StatusCard
+        icon={CircleHelpIcon}
         title="Unsupported game"
         body="This app version doesn't know this game yet. Update and rejoin."
       />
@@ -370,7 +391,12 @@ function PlayingView() {
       />
       {isHost && (
         <View className="gap-2">
-          <AppButton variant="secondary" title="🏁 Finish & reveal results" onPress={() => store.finishGame()} />
+          <AppButton
+            variant="secondary"
+            title="Finish & reveal results"
+            icon={<FlagIcon size={16} color="#f4f4f5" />}
+            onPress={() => store.finishGame()}
+          />
           <EndSessionButton subtle />
         </View>
       )}
@@ -387,12 +413,16 @@ function FinishedView() {
   if (!summary) return null
 
   const medal = (rank: number) =>
-    rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`
+    rank <= 3 ? (
+      <MedalIcon size={20} color={rank === 1 ? '#facc15' : rank === 2 ? '#d4d4d8' : '#d97706'} />
+    ) : (
+      <Text className="text-sm font-bold text-muted-foreground">#{rank}</Text>
+    )
 
   return (
     <View className="gap-4">
       <Card className="items-center gap-2 border-primary/40 bg-primary/10 px-4 py-8">
-        <Text className="text-3xl">🏆</Text>
+        <TrophyIcon size={32} color="#fbbf24" />
         <Text className="text-center text-xl font-bold tracking-tight text-zinc-100">
           {summary.headline}
         </Text>
@@ -411,7 +441,7 @@ function FinishedView() {
                 winner ? 'border-primary/50 bg-primary/10' : 'border-line bg-background/40'
               }`}
             >
-              <Text className="w-8 text-center text-lg">{medal(entry.rank)}</Text>
+              <View className="w-8 items-center">{medal(entry.rank)}</View>
               <PlayerAvatar player={player} size="sm" />
               <Text className="min-w-0 flex-1 font-medium text-zinc-100" numberOfLines={1}>
                 {player.name}
@@ -427,7 +457,14 @@ function FinishedView() {
       {ui?.ResultsDetail && <ui.ResultsDetail state={state} />}
 
       <View className="gap-2">
-        {isHost && <AppButton size="lg" title="↻ Rematch" onPress={() => store.rematch()} />}
+        {isHost && (
+          <AppButton
+            size="lg"
+            title="Rematch"
+            icon={<RotateCcwIcon size={18} color="#251a02" />}
+            onPress={() => store.rematch()}
+          />
+        )}
         {isHost ? (
           <EndSessionButton />
         ) : (
