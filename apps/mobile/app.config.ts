@@ -22,7 +22,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   backgroundColor: '#0e0e12',
   ios: {
     // `||` (not `??`): CI passes unset GitHub vars through as empty strings.
-    bundleIdentifier: process.env.JAMEZ_IOS_BUNDLE_ID || 'com.jamez.app',
+    bundleIdentifier: process.env.JAMEZ_IOS_BUNDLE_ID || 'com.joelyoung.jamez',
     buildNumber: process.env.JAMEZ_IOS_BUILD_NUMBER || '1',
     supportsTablet: true,
     infoPlist: {
@@ -32,7 +32,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
   android: {
-    package: 'com.jamez.app',
+    package: 'com.joelyoung.jamez',
     adaptiveIcon: {
       backgroundColor: '#0e0e12',
       foregroundImage: './assets/images/android-icon-foreground.png',

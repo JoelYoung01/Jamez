@@ -93,7 +93,7 @@ One-time setup: repo **Settings → Pages → Source: GitHub Actions**. Deployed
 
 Same flow as Sous Kit: `.github/workflows/ios-release.yml` on a **macOS** runner: `expo prebuild` → `xcodebuild` → TestFlight. No Expo/EAS. Setup walkthrough (Apple + secrets): **[`docs/ASC_Setup.md`](docs/ASC_Setup.md)**.
 
-Triggers on `main` pushes that touch `apps/mobile/**` or `packages/core/**`, or *Actions → iOS release*. Bundle id `com.jamez.app` · scheme `jamez://join/CODE` (QR codes use the web URL so people without the app land in the browser).
+Triggers on `main` pushes that touch `apps/mobile/**` or `packages/core/**`, or *Actions → iOS release*. Bundle id `com.joelyoung.jamez` · scheme `jamez://join/CODE` (QR codes use the web URL so people without the app land in the browser).
 
 ## Adding a game
 
