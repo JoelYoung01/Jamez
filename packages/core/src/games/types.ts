@@ -30,7 +30,6 @@ export interface GameEngine<C = unknown, S = unknown, A extends { type: string }
   id: string
   name: string
   tagline: string
-  emoji: string
   /** Accent used by UIs for chips/headers, as a hex color. */
   accentColor: string
   minPlayers: number

@@ -9,6 +9,7 @@ import {
   type SessionState,
 } from '@jamez/core'
 import { clsx } from 'clsx'
+import { Undo2Icon, WalletCardsIcon, ZapIcon } from 'lucide-react-native'
 import * as React from 'react'
 import { Pressable, Switch, Text, TextInput, View } from 'react-native'
 import { PlayerAvatar } from '@/components/player-avatar'
@@ -160,17 +161,18 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
       {preview && (
         <View
           className={clsx(
-            'rounded-lg px-3 py-2',
+            'flex-row items-center justify-center gap-1 rounded-lg px-3 py-2',
             preview.undercut ? 'bg-destructive/10' : 'bg-emerald-400/10',
           )}
         >
+          {preview.undercut && <ZapIcon size={14} color="#f87171" />}
           <Text
             className={clsx(
               'text-center text-sm font-medium',
               preview.undercut ? 'text-destructive' : 'text-emerald-300',
             )}
           >
-            {preview.undercut ? '⚡ Undercut! ' : ''}
+            {preview.undercut ? 'Undercut! ' : ''}
             {playerOf(preview.winnerId)?.name} scores +{preview.points}
           </Text>
         </View>
@@ -232,8 +234,12 @@ function GinPlay(props: GamePlayProps) {
           <View className="flex-row items-center justify-between">
             <Text className="text-sm font-semibold text-zinc-100">Hands</Text>
             {isHost && (
-              <Pressable onPress={() => send({ type: 'undoHand' })} className="active:opacity-70">
-                <Text className="text-sm text-muted-foreground">↩︎ Undo last</Text>
+              <Pressable
+                onPress={() => send({ type: 'undoHand' })}
+                className="flex-row items-center gap-1 active:opacity-70"
+              >
+                <Undo2Icon size={14} color="#a1a1ab" />
+                <Text className="text-sm text-muted-foreground">Undo last</Text>
               </Pressable>
             )}
           </View>
@@ -308,6 +314,7 @@ function GinResults({ state: session }: { state: SessionState }) {
 
 export const ginRummyUI: GameUIModule = {
   id: 'gin-rummy',
+  icon: WalletCardsIcon,
   SetupForm: GinSetup as GameUIModule['SetupForm'],
   PlayView: GinPlay,
   ResultsDetail: GinResults,

@@ -8,7 +8,7 @@ import {
   type GinState,
   type SessionState,
 } from '@jamez/core'
-import { Undo2Icon } from 'lucide-react'
+import { Undo2Icon, WalletCardsIcon, ZapIcon } from 'lucide-react'
 import * as React from 'react'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Button } from '@/components/ui/button'
@@ -176,7 +176,12 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
               preview.undercut ? 'bg-rose-400/10 text-rose-300' : 'bg-emerald-400/10 text-emerald-300',
             )}
           >
-            {preview.undercut && '⚡ Undercut! '}
+            {preview.undercut && (
+              <>
+                <ZapIcon className="mr-1 inline size-3.5 align-[-2px]" />
+                Undercut!{' '}
+              </>
+            )}
             {playerOf(preview.winnerId)?.name} scores +{preview.points}
           </div>
         )}
@@ -324,6 +329,7 @@ function GinResults({ state: session }: { state: SessionState }) {
 
 export const ginRummyUI: GameUIModule = {
   id: 'gin-rummy',
+  icon: WalletCardsIcon,
   SetupForm: GinSetup as GameUIModule['SetupForm'],
   PlayView: GinPlay,
   ResultsDetail: GinResults,

@@ -55,6 +55,7 @@ export function AppButton({
   disabled = false,
   loading = false,
   icon,
+  iconRight,
   className,
 }: {
   title: string
@@ -64,6 +65,7 @@ export function AppButton({
   disabled?: boolean
   loading?: boolean
   icon?: React.ReactNode
+  iconRight?: React.ReactNode
   className?: string
 }) {
   return (
@@ -88,6 +90,7 @@ export function AppButton({
       >
         {title}
       </Text>
+      {iconRight}
     </Pressable>
   )
 }
@@ -95,10 +98,13 @@ export function AppButton({
 export function Chip({
   children,
   tone = 'default',
+  icon,
   className,
 }: {
   children: React.ReactNode
   tone?: 'default' | 'primary' | 'success' | 'outline' | 'destructive'
+  /** Optional icon rendered before the text. */
+  icon?: React.ReactNode
   className?: string
 }) {
   const tones = {
@@ -117,6 +123,7 @@ export function Chip({
   }
   return (
     <View className={clsx('flex-row items-center gap-1 self-start rounded-full px-2.5 py-1', tones[tone], className)}>
+      {icon}
       <Text className={clsx('text-xs font-medium', texts[tone])}>{children}</Text>
     </View>
   )

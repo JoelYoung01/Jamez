@@ -1,9 +1,12 @@
 import { clsx } from 'clsx'
+import { MinusIcon, PlusIcon } from 'lucide-react-native'
 import * as React from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
 
 interface ScoreStepperProps {
   label: string
+  /** Optional icon rendered before the label. */
+  icon?: React.ReactNode
   hint?: string
   value: number
   onChange: (value: number) => void
@@ -14,6 +17,7 @@ interface ScoreStepperProps {
 
 export function ScoreStepper({
   label,
+  icon,
   hint,
   value,
   onChange,
@@ -44,7 +48,10 @@ export function ScoreStepper({
       )}
     >
       <View className="min-w-0 flex-1">
-        <Text className="text-sm font-medium text-zinc-100">{label}</Text>
+        <View className="flex-row items-center gap-1.5">
+          {icon}
+          <Text className="text-sm font-medium text-zinc-100">{label}</Text>
+        </View>
         {hint ? <Text className="text-xs text-muted-foreground">{hint}</Text> : null}
       </View>
       <View className="flex-row items-center gap-1.5">
@@ -56,7 +63,7 @@ export function ScoreStepper({
             (disabled || value <= min) && 'opacity-40',
           )}
         >
-          <Text className="text-lg font-bold text-zinc-200">−</Text>
+          <MinusIcon size={16} color="#e4e4e7" />
         </Pressable>
         <TextInput
           value={text}
@@ -75,7 +82,7 @@ export function ScoreStepper({
             (disabled || value >= max) && 'opacity-40',
           )}
         >
-          <Text className="text-lg font-bold text-zinc-200">+</Text>
+          <PlusIcon size={16} color="#e4e4e7" />
         </Pressable>
       </View>
     </View>

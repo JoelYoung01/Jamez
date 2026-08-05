@@ -115,7 +115,6 @@ export const wingspanEngine: GameEngine<WingspanConfig, WingspanState, WingspanA
   id: 'wingspan',
   name: 'Wingspan',
   tagline: 'End-of-game scoring for the modern classic',
-  emoji: '🪶',
   accentColor: '#34d399',
   minPlayers: 1,
   maxPlayers: 5,

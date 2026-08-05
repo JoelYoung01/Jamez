@@ -5,14 +5,20 @@ import {
   type SessionState,
 } from '@jamez/core'
 import {
+  CircleHelpIcon,
+  DoorClosedIcon,
   FlagIcon,
+  HandIcon,
   Loader2Icon,
   LogOutIcon,
+  MedalIcon,
+  MoonIcon,
   PlayIcon,
   RotateCcwIcon,
   TrophyIcon,
   UserPlusIcon,
   XIcon,
+  type LucideIcon,
 } from 'lucide-react'
 import * as React from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -33,7 +39,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { getGameUI } from '@/games/registry'
+import { getGameIcon, getGameUI } from '@/games/registry'
 import { randomEmoji, useProfile } from '@/lib/profile'
 import { useSession } from '@/lib/session-store'
 import { cn } from '@/lib/utils'
@@ -68,7 +74,7 @@ export function SessionPage() {
     if (status === 'rejected') {
       return (
         <StatusCard
-          emoji="🚪"
+          icon={DoorClosedIcon}
           title="Couldn't join"
           body="The host turned this request down. The session may be full or already running."
           action={<BackHomeButton onClick={() => store.leaveSession()} />}
@@ -78,7 +84,7 @@ export function SessionPage() {
     if (status === 'removed') {
       return (
         <StatusCard
-          emoji="👋"
+          icon={HandIcon}
           title="You were removed"
           body="The host removed you from this session."
           action={<BackHomeButton onClick={() => store.leaveSession()} />}
@@ -88,7 +94,7 @@ export function SessionPage() {
     if (status === 'ended') {
       return (
         <StatusCard
-          emoji="🌙"
+          icon={MoonIcon}
           title="Session ended"
           body="The host wrapped up this session. Finished games are saved in your history."
           action={<BackHomeButton onClick={() => store.leaveSession()} />}
@@ -121,10 +127,11 @@ export function SessionPage() {
 function SessionHeader({ state }: { state: SessionState }) {
   const store = useSession()
   const game = getGameEngine(state.gameId)
+  const GameIcon = getGameIcon(state.gameId)
   return (
     <div className="flex items-center justify-between gap-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="text-2xl">{game?.emoji ?? '🎲'}</span>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <GameIcon className="size-6 shrink-0" style={{ color: game?.accentColor }} />
         <div className="min-w-0">
           <div className="truncate font-semibold leading-tight">{game?.name ?? state.gameId}</div>
           <div className="font-mono text-xs tracking-widest text-muted-foreground">{state.code}</div>
@@ -159,12 +166,12 @@ function ConnectingCard({ code, label, waiting }: { code: string; label: string;
 }
 
 function StatusCard({
-  emoji,
+  icon: Icon,
   title,
   body,
   action,
 }: {
-  emoji: string
+  icon: LucideIcon
   title: string
   body: string
   action?: React.ReactNode
@@ -172,7 +179,7 @@ function StatusCard({
   return (
     <Card>
       <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-        <span className="text-4xl">{emoji}</span>
+        <Icon className="size-10 text-muted-foreground" />
         <div className="text-lg font-semibold">{title}</div>
         <p className="max-w-xs text-sm text-muted-foreground">{body}</p>
         {action}
@@ -344,7 +351,7 @@ function PlayingView() {
   const ui = getGameUI(state.gameId)
   const me = state.players.find((p) => p.id === profileId) ?? null
 
-  if (!ui) return <StatusCard emoji="🤔" title="Unsupported game" body="This app version doesn't know this game yet. Update and rejoin." />
+  if (!ui) return <StatusCard icon={CircleHelpIcon} title="Unsupported game" body="This app version doesn't know this game yet. Update and rejoin." />
   const PlayView = ui.PlayView
 
   return (
@@ -371,7 +378,17 @@ function FinishedView() {
   const summary = state.summary
   if (!summary) return null
 
-  const medal = (rank: number) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`)
+  const medal = (rank: number) =>
+    rank <= 3 ? (
+      <MedalIcon
+        className={cn(
+          'mx-auto size-5',
+          rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-zinc-300' : 'text-amber-600',
+        )}
+      />
+    ) : (
+      `#${rank}`
+    )
 
   return (
     <div className="grid gap-4">

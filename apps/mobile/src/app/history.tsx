@@ -1,8 +1,10 @@
 import { getGameEngine } from '@jamez/core'
+import { DicesIcon, Trash2Icon } from 'lucide-react-native'
 import { Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PageHeader } from '@/components/page-header'
 import { AppButton, Card, CardTitle, Chip, Muted, Screen } from '@/components/ui'
+import { getGameIcon } from '@/games/registry'
 import { formatDate } from '@/lib/format'
 import { historyStore, useHistory, useStats } from '@/lib/history'
 import { useProfile } from '@/lib/profile'
@@ -31,9 +33,10 @@ export default function HistoryScreen() {
           <View className="mt-3 gap-2">
             {Object.entries(stats.byGame).map(([gameId, gameStats]) => {
               const game = getGameEngine(gameId)
+              const Icon = getGameIcon(gameId)
               return (
                 <Card key={gameId} className="flex-row items-center gap-3 p-3.5">
-                  <Text className="text-2xl">{game?.emoji ?? '🎲'}</Text>
+                  <Icon size={22} color={game?.accentColor ?? '#a1a1ab'} />
                   <View className="min-w-0 flex-1">
                     <Text className="text-sm font-medium text-zinc-100">{game?.name ?? gameId}</Text>
                     <Muted>
@@ -49,7 +52,7 @@ export default function HistoryScreen() {
 
         {records.length === 0 ? (
           <Card className="mt-3 items-center gap-1.5 px-6 py-10">
-            <Text className="text-3xl">🎲</Text>
+            <DicesIcon size={32} color="#a1a1ab" />
             <CardTitle>No games yet</CardTitle>
             <Muted className="text-center">
               Finish a session and it lands here. Stored on this phone only.
@@ -60,10 +63,11 @@ export default function HistoryScreen() {
             <Text className="text-sm font-semibold text-muted-foreground">All games</Text>
             {records.map((record) => {
               const game = getGameEngine(record.gameId)
+              const Icon = getGameIcon(record.gameId)
               const won = record.summary.winnerIds.includes(myId)
               return (
                 <Card key={record.id} className="flex-row items-center gap-3 p-3.5">
-                  <Text className="text-2xl">{game?.emoji ?? '🎲'}</Text>
+                  <Icon size={22} color={game?.accentColor ?? '#a1a1ab'} />
                   <View className="min-w-0 flex-1">
                     <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
                       {record.summary.headline}
@@ -78,7 +82,7 @@ export default function HistoryScreen() {
                     hitSlop={8}
                     className="h-7 w-7 items-center justify-center rounded-md active:opacity-70"
                   >
-                    <Text className="text-xs text-muted-foreground">🗑️</Text>
+                    <Trash2Icon size={14} color="#a1a1ab" />
                   </Pressable>
                 </Card>
               )

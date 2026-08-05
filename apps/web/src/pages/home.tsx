@@ -1,6 +1,7 @@
 import { gameEngines, getGameEngine } from '@jamez/core'
 import { ArrowRightIcon, RadioTowerIcon, TicketIcon, TrophyIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { getGameIcon } from '@/games/registry'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -91,11 +92,14 @@ export function HomePage() {
 
       <div className="flex flex-wrap items-center justify-center gap-2 py-2">
         <span className="text-xs text-muted-foreground">On the shelf:</span>
-        {gameEngines.map((game) => (
-          <Badge key={game.id} variant="secondary">
-            {game.emoji} {game.name}
-          </Badge>
-        ))}
+        {gameEngines.map((game) => {
+          const Icon = getGameIcon(game.id)
+          return (
+            <Badge key={game.id} variant="secondary">
+              <Icon className="size-3" style={{ color: game.accentColor }} /> {game.name}
+            </Badge>
+          )
+        })}
         <Badge variant="outline">more coming</Badge>
       </div>
 
@@ -112,10 +116,11 @@ export function HomePage() {
           <div className="grid gap-2">
             {recent.map((record) => {
               const game = getGameEngine(record.gameId)
+              const Icon = getGameIcon(record.gameId)
               return (
                 <Card key={record.id}>
                   <CardContent className="flex items-center gap-3 p-3.5">
-                    <span className="text-2xl">{game?.emoji ?? '🎲'}</span>
+                    <Icon className="size-6 shrink-0" style={{ color: game?.accentColor }} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{record.summary.headline}</div>
                       <div className="text-xs text-muted-foreground">

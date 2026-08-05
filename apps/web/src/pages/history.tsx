@@ -1,6 +1,7 @@
 import { getGameEngine } from '@jamez/core'
-import { ArrowLeftIcon, Trash2Icon } from 'lucide-react'
+import { ArrowLeftIcon, DicesIcon, Trash2Icon } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { getGameIcon } from '@/games/registry'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,10 +38,14 @@ export function HistoryPage() {
         <div className="grid gap-2">
           {Object.entries(stats.byGame).map(([gameId, gameStats]) => {
             const game = getGameEngine(gameId)
+            const Icon = getGameIcon(gameId)
             return (
               <Card key={gameId}>
                 <CardContent className="flex items-center gap-3 p-3.5">
-                  <span className="text-2xl">{game?.emoji ?? '🎲'}</span>
+                  <Icon
+                    className="size-6 shrink-0 text-muted-foreground"
+                    style={{ color: game?.accentColor }}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium">{game?.name ?? gameId}</div>
                     <div className="text-xs text-muted-foreground">
@@ -62,7 +67,7 @@ export function HistoryPage() {
       {records.length === 0 ? (
         <Card>
           <CardHeader className="items-center pb-5 text-center">
-            <span className="text-3xl">🎲</span>
+            <DicesIcon className="size-8 text-muted-foreground" />
             <CardTitle>No games yet</CardTitle>
             <CardDescription>
               Finish a session and it lands here. Stored on this device only.
@@ -74,11 +79,15 @@ export function HistoryPage() {
           <h2 className="mt-2 text-sm font-semibold text-muted-foreground">All games</h2>
           {records.map((record) => {
             const game = getGameEngine(record.gameId)
+            const Icon = getGameIcon(record.gameId)
             const won = record.summary.winnerIds.includes(myId)
             return (
               <Card key={record.id}>
                 <CardContent className="flex items-center gap-3 p-3.5">
-                  <span className="text-2xl">{game?.emoji ?? '🎲'}</span>
+                  <Icon
+                    className="size-6 shrink-0 text-muted-foreground"
+                    style={{ color: game?.accentColor }}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{record.summary.headline}</div>
                     <div className="truncate text-xs text-muted-foreground">
