@@ -16,6 +16,7 @@ import {
 } from '@jamez/core'
 import { create } from 'zustand'
 import { historyStore } from './history'
+import { endSessionLiveActivity, syncSessionLiveActivity } from './live-activity'
 import { currentProfile } from './profile'
 import { activeRelays } from './settings'
 import { toast } from './toast'
@@ -103,6 +104,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       h.onState.subscribe((state) => {
         set({ state })
         saveHistoryIfFinished(state, profile.id)
+        syncSessionLiveActivity({ role: 'host', code: state.code, state })
       }),
       h.transport.onStatus.subscribe((transportStatus) => set({ transportStatus })),
     )
@@ -114,6 +116,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       passAndPlay,
       transportStatus: h.transport.status,
     })
+    syncSessionLiveActivity({ role: 'host', code: h.code, state: h.current })
   }
 
   return {
@@ -159,8 +162,14 @@ export const useSession = create<SessionStoreState>()((set, get) => {
         guest.onState.subscribe((state) => {
           set({ state })
           saveHistoryIfFinished(state, profile.id)
+          syncSessionLiveActivity({ role: 'guest', code: state.code, state })
         }),
-        guest.onStatus.subscribe((guestStatus) => set({ guestStatus })),
+        guest.onStatus.subscribe((guestStatus) => {
+          set({ guestStatus })
+          if (guestStatus === 'ended' || guestStatus === 'removed') {
+            void endSessionLiveActivity('default')
+          }
+        }),
         guest.onReject.subscribe(({ reason }) => toast.error(reason)),
         guest.transport.onStatus.subscribe((transportStatus) => set({ transportStatus })),
       )
@@ -172,6 +181,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
         passAndPlay: false,
         transportStatus: guest.transport.status,
       })
+      syncSessionLiveActivity({ role: 'guest', code: normalized, state: null })
       guest.start()
     },
 
@@ -233,6 +243,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       host?.end()
       clearHostSnapshot()
       cleanupRefs()
+      void endSessionLiveActivity('default')
       set({
         role: null,
         code: null,
@@ -246,6 +257,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
     leaveSession() {
       guest?.leave()
       cleanupRefs()
+      void endSessionLiveActivity('immediate')
       set({
         role: null,
         code: null,

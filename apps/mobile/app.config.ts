@@ -10,6 +10,9 @@ import type { ConfigContext, ExpoConfig } from 'expo/config'
  * - JAMEZ_IOS_BUNDLE_ID    — Apple bundle identifier (must match App Store Connect)
  * - JAMEZ_IOS_BUILD_NUMBER — CFBundleVersion; unique per TestFlight upload
  */
+// `||` (not `??`): CI passes unset GitHub vars through as empty strings.
+const iosBundleId = process.env.JAMEZ_IOS_BUNDLE_ID || 'com.joelyoung.jamez'
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Jamez',
@@ -21,8 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   userInterfaceStyle: 'dark',
   backgroundColor: '#0e0e12',
   ios: {
-    // `||` (not `??`): CI passes unset GitHub vars through as empty strings.
-    bundleIdentifier: process.env.JAMEZ_IOS_BUNDLE_ID || 'com.joelyoung.jamez',
+    bundleIdentifier: iosBundleId,
     buildNumber: process.env.JAMEZ_IOS_BUILD_NUMBER || '1',
     supportsTablet: true,
     infoPlist: {
@@ -60,6 +62,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         cameraPermission:
           "Jamez uses the camera to scan a host's QR code so you can join their game session.",
+      },
+    ],
+    [
+      'expo-widgets',
+      {
+        // Widget extension + App Group for Live Activities (Lock Screen card +
+        // Dynamic Island). No home-screen widgets yet — WidgetLiveActivity is
+        // always registered by the extension even with an empty `widgets` list.
+        bundleIdentifier: `${iosBundleId}.widgets`,
+        groupIdentifier: `group.${iosBundleId}`,
+        frequentUpdates: true,
+        widgets: [],
       },
     ],
   ],
