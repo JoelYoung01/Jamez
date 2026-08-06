@@ -13,6 +13,7 @@
     "prebuild:ios": "expo prebuild --platform ios"
   },
   "dependencies": {
+    "@expo/ui": "~57.0.9",
     "@jamez/core": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",
     "clsx": "^2.1.1",
@@ -25,6 +26,7 @@
     "expo-splash-screen": "~57.0.5",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.2",
+    "expo-widgets": "~57.0.8",
     "fast-text-encoding": "^1.0.6",
     "lucide-react-native": "^1.28.0",
     "nativewind": "^4.2.6",
