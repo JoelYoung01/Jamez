@@ -16,6 +16,8 @@ import {
   CoinsIcon,
   DollarSignIcon,
   GitMergeIcon,
+  MinusIcon,
+  PlusIcon,
   Settings2Icon,
   UserPlusIcon,
   UserRoundCheckIcon,
@@ -438,6 +440,15 @@ function CashDialog({
     setOpen(false)
   }
 
+  const bumpChip = (chipId: string, delta: number) => {
+    setChipDrafts((prev) => {
+      const cur = Number.parseInt(prev[chipId] ?? '', 10)
+      const n = Number.isNaN(cur) ? 0 : cur
+      const next = Math.max(0, Math.min(999, n + delta))
+      return { ...prev, [chipId]: next === 0 ? '' : String(next) }
+    })
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -481,18 +492,38 @@ function CashDialog({
                     <div className="text-[11px] text-muted-foreground">{chip.value} pts each</div>
                   </div>
                   <span className="text-muted-foreground">×</span>
-                  <Input
-                    inputMode="numeric"
-                    placeholder="0"
-                    className="h-9 w-16 text-center font-mono tabular-nums"
-                    value={chipDrafts[chip.id] ?? ''}
-                    onChange={(e) =>
-                      setChipDrafts((prev) => ({
-                        ...prev,
-                        [chip.id]: e.target.value.replace(/\D/g, ''),
-                      }))
-                    }
-                  />
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon-sm"
+                      aria-label={`Decrease ${chip.label}`}
+                      onClick={() => bumpChip(chip.id, -1)}
+                    >
+                      <MinusIcon />
+                    </Button>
+                    <Input
+                      inputMode="numeric"
+                      placeholder="0"
+                      className="h-9 w-12 px-1 text-center font-mono tabular-nums"
+                      value={chipDrafts[chip.id] ?? ''}
+                      onChange={(e) =>
+                        setChipDrafts((prev) => ({
+                          ...prev,
+                          [chip.id]: e.target.value.replace(/\D/g, ''),
+                        }))
+                      }
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon-sm"
+                      aria-label={`Increase ${chip.label}`}
+                      onClick={() => bumpChip(chip.id, 1)}
+                    >
+                      <PlusIcon />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

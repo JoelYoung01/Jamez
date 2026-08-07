@@ -9,7 +9,7 @@ import {
   type PokerCurrencyMode,
   type SessionPlayer,
 } from '@jamez/core'
-import { CoinsIcon, DollarSignIcon, Settings2Icon } from 'lucide-react-native'
+import { CoinsIcon, DollarSignIcon, MinusIcon, PlusIcon, Settings2Icon } from 'lucide-react-native'
 import * as React from 'react'
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
@@ -389,6 +389,15 @@ function CashSheet({
     if (!error) onClose()
   }, [balance, mode, numeric, onClose, player.id, points, send, unit])
 
+  const bumpChip = (chipId: string, delta: number) => {
+    setChipDrafts((prev) => {
+      const cur = Number.parseInt(prev[chipId] ?? '', 10)
+      const n = Number.isNaN(cur) ? 0 : cur
+      const next = Math.max(0, Math.min(999, n + delta))
+      return { ...prev, [chipId]: next === 0 ? '' : String(next) }
+    })
+  }
+
   // Bottom sheet sits under the keyboard unless we lift it by the keyboard frame.
   // (RN Modals don't inherit the activity's adjustResize on Android.)
   // Local keyboard chrome — suppress the app-wide Android host while open.
@@ -441,20 +450,36 @@ function CashSheet({
                       <Muted>{chip.value} pts each</Muted>
                     </View>
                     <Text className="text-muted-foreground">×</Text>
-                    <AppTextInput
-                      keyboardAccessory={false}
-                      keyboardType="number-pad"
-                      value={chipDrafts[chip.id] ?? ''}
-                      onChangeText={(t) =>
-                        setChipDrafts((prev) => ({
-                          ...prev,
-                          [chip.id]: t.replace(/\D/g, ''),
-                        }))
-                      }
-                      placeholder="0"
-                      placeholderTextColor="#71717a"
-                      className="h-10 w-16 rounded-lg border border-line bg-background px-2 text-center font-mono text-base text-zinc-100"
-                    />
+                    <View className="flex-row items-center gap-1">
+                      <Pressable
+                        accessibilityLabel={`Decrease ${chip.label}`}
+                        onPress={() => bumpChip(chip.id, -1)}
+                        className="h-9 w-9 items-center justify-center rounded-lg bg-muted active:opacity-70"
+                      >
+                        <MinusIcon size={16} color="#e4e4e7" />
+                      </Pressable>
+                      <AppTextInput
+                        keyboardAccessory={false}
+                        keyboardType="number-pad"
+                        value={chipDrafts[chip.id] ?? ''}
+                        onChangeText={(t) =>
+                          setChipDrafts((prev) => ({
+                            ...prev,
+                            [chip.id]: t.replace(/\D/g, ''),
+                          }))
+                        }
+                        placeholder="0"
+                        placeholderTextColor="#71717a"
+                        className="h-10 w-12 rounded-lg border border-line bg-background px-1 text-center font-mono text-base text-zinc-100"
+                      />
+                      <Pressable
+                        accessibilityLabel={`Increase ${chip.label}`}
+                        onPress={() => bumpChip(chip.id, 1)}
+                        className="h-9 w-9 items-center justify-center rounded-lg bg-muted active:opacity-70"
+                      >
+                        <PlusIcon size={16} color="#e4e4e7" />
+                      </Pressable>
+                    </View>
                   </View>
                 ))}
               </View>
