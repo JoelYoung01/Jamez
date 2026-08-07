@@ -588,7 +588,7 @@ function HostSessionControls() {
           navigate('/')
         }}
       >
-        {ongoing ? 'Yes, end it' : 'Yes, end it'}
+        Yes, end it
       </Button>
       <Button variant="secondary" onClick={() => setMode('idle')}>
         Keep playing
