@@ -271,12 +271,13 @@ describe('host/guest session over memory transport', () => {
     g2.stop()
   })
 
-  it('rejects finish on ongoing poker bank sessions', () => {
+  it('allows finish on ongoing poker bank sessions to archive standings', () => {
     const code = generateJoinCode()
     const host = makeHost(code, pokerBankEngine as never)
     expect(host.startGame()).toBeNull()
-    expect(host.finish()).toMatch(/park or dissolve/)
-    expect(host.current.phase).toBe('playing')
+    expect(host.finish()).toBeNull()
+    expect(host.current.phase).toBe('finished')
+    expect(host.current.summary).toBeTruthy()
     host.end()
   })
 

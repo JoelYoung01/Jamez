@@ -5,6 +5,7 @@ import {
   createNostrTransport,
   generateJoinCode,
   getGameEngine,
+  historyRecordFromOngoingArchive,
   historyRecordFromState,
   isOngoingGame,
   type GuestSession,
@@ -71,6 +72,8 @@ interface SessionStoreState {
   ) => string | null
   parkSession: () => void
   endSession: () => void
+  /** End for everyone and drop the room without writing history. */
+  discardSession: () => void
   leaveSession: () => void
 }
 
@@ -280,6 +283,27 @@ export const useSession = create<SessionStoreState>()((set, get) => {
 
     endSession() {
       const state = host?.current
+      const profile = currentProfile()
+      if (host && state) {
+        const engine = getGameEngine(state.gameId)
+        if (engine && isOngoingGame(engine)) {
+          if (state.phase === 'playing') {
+            host.finish()
+          } else {
+            const record = historyRecordFromOngoingArchive(state, profile.id)
+            if (record) void historyStore.save(record)
+          }
+        }
+      }
+      host?.end()
+      if (state) clearHostSnapshot(state)
+      cleanupRefs()
+      void endSessionLiveActivity('default')
+      set(resetSessionFields())
+    },
+
+    discardSession() {
+      const state = host?.current
       host?.end()
       if (state) clearHostSnapshot(state)
       cleanupRefs()
@@ -300,4 +324,12 @@ export function sessionIsOngoing(state: SessionState | null | undefined): boolea
   if (!state) return false
   const engine = getGameEngine(state.gameId)
   return engine ? isOngoingGame(engine) : false
+}
+
+/** Archive a parked ongoing room to history, then remove it from the vault. */
+export async function archiveParkedSession(snap: HostSnapshot): Promise<void> {
+  const profile = currentProfile()
+  const record = historyRecordFromOngoingArchive(snap.state, profile.id)
+  if (record) await historyStore.save(record)
+  await clearHostSnapshotAsync(snap.state)
 }

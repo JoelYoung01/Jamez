@@ -9,6 +9,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Switch,
   Text,
   View,
 } from 'react-native'
@@ -19,9 +20,11 @@ import { QrCard } from '@/components/qr-card'
 import { AppButton, Card, CardTitle, Chip, Muted } from '@/components/ui'
 import { getGameIcon } from '@/games/registry'
 import { formatDate } from '@/lib/format'
+import { useHistory } from '@/lib/history'
 import { useKeyboardHeight } from '@/lib/keyboard'
 import { listLongTermSessions, type LongTermRoom } from '@/lib/long-term-sessions'
 import {
+  archiveParkedSession,
   clearHostSnapshotAsync,
   listHostSnapshots,
   useSession,
@@ -47,11 +50,14 @@ function roomMatchesFilter(room: LongTermRoom, query: string): boolean {
 export default function ContinueScreen() {
   const insets = useSafeAreaInsets()
   const keyboardHeight = useKeyboardHeight()
+  const history = useHistory()
   const activeCode = useSession((s) => s.code)
   const state = useSession((s) => s.state)
   const endSession = useSession((s) => s.endSession)
+  const discardSession = useSession((s) => s.discardSession)
   const [vault, setVault] = React.useState<HostSnapshot[]>([])
   const [filter, setFilter] = React.useState('')
+  const [showEnded, setShowEnded] = React.useState(false)
   const [inviteRoom, setInviteRoom] = React.useState<LongTermRoom | null>(null)
 
   const refreshVault = React.useCallback(() => {
@@ -70,37 +76,61 @@ export default function ContinueScreen() {
     }, [refreshVault]),
   )
 
-  const rooms = listLongTermSessions(vault, {
+  const rooms = listLongTermSessions(
+    vault,
+    {
+      code: activeCode ?? '',
+      gameId: state?.gameId ?? '',
+      nickname: state?.nickname,
+    },
+    { includeEnded: showEnded, history },
+  )
+  const openCount = listLongTermSessions(vault, {
     code: activeCode ?? '',
     gameId: state?.gameId ?? '',
     nickname: state?.nickname,
-  })
+  }).length
   const filteredRooms = rooms.filter((room) => roomMatchesFilter(room, filter))
+  const empty = openCount === 0 && !showEnded
 
   const openRoom = (room: LongTermRoom) => {
+    if (room.ended && room.historyId) {
+      router.push(`/history/${room.historyId}`)
+      return
+    }
     router.push(`/session/${room.code}`)
   }
 
-  const removeRoom = async (room: LongTermRoom) => {
+  const endRoom = async (room: LongTermRoom) => {
+    if (room.ended) return
     if (room.live) {
       endSession()
     } else {
-      await clearHostSnapshotAsync({ gameId: room.gameId, code: room.code })
+      const snap = vault.find((v) => v.state.code === room.code && v.state.gameId === room.gameId)
+      if (snap) await archiveParkedSession(snap)
+      else await clearHostSnapshotAsync({ gameId: room.gameId, code: room.code })
     }
+    refreshVault()
+  }
+
+  const deleteRoom = async (room: LongTermRoom) => {
+    if (room.ended) return
+    if (room.live) discardSession()
+    else await clearHostSnapshotAsync({ gameId: room.gameId, code: room.code })
     refreshVault()
   }
 
   const confirmEnd = (room: LongTermRoom) => {
     Alert.alert(
       'End this game?',
-      'The room will close and be removed. Connected guests will be disconnected.',
+      'Standings are saved to history, the room closes, and guests are disconnected.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'End',
           style: 'destructive',
           onPress: () => {
-            void removeRoom(room)
+            void endRoom(room)
           },
         },
       ],
@@ -110,14 +140,14 @@ export default function ContinueScreen() {
   const confirmDelete = (room: LongTermRoom) => {
     Alert.alert(
       'Delete this game?',
-      'Remove it from your list. This cannot be undone.',
+      'Remove it without saving standings. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            void removeRoom(room)
+            void deleteRoom(room)
           },
         },
       ],
@@ -125,6 +155,7 @@ export default function ContinueScreen() {
   }
 
   const showRoomActions = (room: LongTermRoom) => {
+    if (room.ended) return
     const title = sessionDisplayName({
       nickname: room.nickname,
       gameId: room.gameId,
@@ -155,11 +186,9 @@ export default function ContinueScreen() {
 
   const filterBarHeight = 56
   const keyboardOpen = keyboardHeight > 0
-  // iOS overlays the keyboard; pin the filter above it. Android adjustResize already
-  // shrinks the window, so absolute bottom: 0 stays above the keyboard.
   const filterOffset = Platform.OS === 'ios' && keyboardOpen ? keyboardHeight : 0
   const listBottomPad =
-    (rooms.length > 0 ? filterBarHeight + 20 : 32) +
+    (!empty || showEnded ? filterBarHeight + 20 : 32) +
     (Platform.OS === 'ios' && keyboardOpen ? keyboardHeight : Math.max(insets.bottom, 8))
 
   const inviteTitle = inviteRoom
@@ -185,7 +214,17 @@ export default function ContinueScreen() {
         <View className="w-full max-w-xl gap-3 self-center">
           <PageHeader title="Return to a game" />
 
-          {rooms.length === 0 ? (
+          <Card className="flex-row items-center justify-between px-3.5 py-3">
+            <Muted className="flex-1 pr-3">Show ended banks</Muted>
+            <Switch
+              value={showEnded}
+              onValueChange={setShowEnded}
+              trackColor={{ false: '#232329', true: '#fbbf24' }}
+              thumbColor="#ffffff"
+            />
+          </Card>
+
+          {empty ? (
             <Card className="items-center gap-2 px-6 py-10">
               <MoonIcon size={32} color="#a1a1ab" />
               <CardTitle>No long-term games</CardTitle>
@@ -203,7 +242,11 @@ export default function ContinueScreen() {
               <Muted>Tap to open · long-press for End or Delete</Muted>
               {filteredRooms.length === 0 ? (
                 <Card className="items-center px-6 py-8">
-                  <Muted className="text-center">No games match “{filter.trim()}”.</Muted>
+                  <Muted className="text-center">
+                    {rooms.length === 0
+                      ? 'No ended banks in history yet.'
+                      : `No games match “${filter.trim()}”.`}
+                  </Muted>
                 </Card>
               ) : (
                 filteredRooms.map((room) => {
@@ -213,11 +256,20 @@ export default function ContinueScreen() {
                     nickname: room.nickname,
                     gameId: room.gameId,
                   })
+                  const status = room.live
+                    ? 'Live now'
+                    : room.ended
+                      ? `Ended · ${formatDate(room.at)}`
+                      : `Parked · ${formatDate(room.at)}`
                   return (
                     <Card
                       key={room.key}
                       className={`flex-row items-center gap-2 p-3.5 ${
-                        room.live ? 'border-primary/40 bg-primary/10' : ''
+                        room.live
+                          ? 'border-primary/40 bg-primary/10'
+                          : room.ended
+                            ? 'opacity-80'
+                            : ''
                       }`}
                     >
                       <Pressable
@@ -233,19 +285,27 @@ export default function ContinueScreen() {
                           </Text>
                           <Muted>
                             {room.nickname ? `${game?.name} · ` : ''}
-                            {room.live ? 'Live now' : `Parked · ${formatDate(room.at)}`}
+                            {status}
                           </Muted>
                         </View>
                       </Pressable>
-                      <Pressable
-                        onPress={() => setInviteRoom(room)}
-                        hitSlop={6}
-                        className="rounded-md px-1.5 py-1 active:opacity-70"
-                        accessibilityRole="button"
-                        accessibilityLabel={`Show invite for ${room.code}`}
-                      >
-                        <Text className="font-mono text-xs text-muted-foreground">{room.code}</Text>
-                      </Pressable>
+                      {!room.ended ? (
+                        <Pressable
+                          onPress={() => setInviteRoom(room)}
+                          hitSlop={6}
+                          className="rounded-md px-1.5 py-1 active:opacity-70"
+                          accessibilityRole="button"
+                          accessibilityLabel={`Show invite for ${room.code}`}
+                        >
+                          <Text className="font-mono text-xs text-muted-foreground">
+                            {room.code}
+                          </Text>
+                        </Pressable>
+                      ) : (
+                        <Text className="px-1.5 font-mono text-xs text-muted-foreground">
+                          {room.code}
+                        </Text>
+                      )}
                       {room.live ? (
                         <Pressable
                           onPress={() => setInviteRoom(room)}
@@ -256,6 +316,7 @@ export default function ContinueScreen() {
                           <Chip tone="primary">Live</Chip>
                         </Pressable>
                       ) : null}
+                      {room.ended ? <Chip tone="outline">Ended</Chip> : null}
                     </Card>
                   )
                 })
@@ -265,7 +326,7 @@ export default function ContinueScreen() {
         </View>
       </ScrollView>
 
-      {rooms.length > 0 ? (
+      {!empty || showEnded ? (
         <View
           className="absolute inset-x-0 border-t border-line bg-background/95 px-4 pt-2"
           style={{
@@ -300,10 +361,7 @@ export default function ContinueScreen() {
           className="flex-1 justify-center bg-black/70 px-5"
           onPress={() => setInviteRoom(null)}
         >
-          <Pressable
-            onPress={() => {}}
-            className="rounded-2xl border border-line bg-card p-5"
-          >
+          <Pressable onPress={() => {}} className="rounded-2xl border border-line bg-card p-5">
             <Text className="mb-4 text-lg font-semibold text-zinc-100">
               Invite · {inviteTitle}
             </Text>

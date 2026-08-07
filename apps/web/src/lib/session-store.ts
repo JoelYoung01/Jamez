@@ -5,6 +5,7 @@ import {
   createNostrTransport,
   generateJoinCode,
   getGameEngine,
+  historyRecordFromOngoingArchive,
   historyRecordFromState,
   isOngoingGame,
   type GuestSession,
@@ -70,8 +71,13 @@ interface SessionStoreState {
   ) => string | null
   /** Stop broadcasting but keep the snapshot (ongoing banks / resume later). */
   parkSession: () => void
-  /** End for everyone and delete the host snapshot (dissolve). */
+  /**
+   * End for everyone. Ongoing banks archive standings to history first, then
+   * the host snapshot is cleared (dissolve). Match games just dissolve.
+   */
   endSession: () => void
+  /** End for everyone and drop the room without writing history. */
+  discardSession: () => void
   leaveSession: () => void
 }
 
@@ -275,6 +281,27 @@ export const useSession = create<SessionStoreState>()((set) => {
 
     endSession() {
       const state = host?.current
+      const profile = currentProfile()
+      if (host && state) {
+        const engine = getGameEngine(state.gameId)
+        if (engine && isOngoingGame(engine)) {
+          if (state.phase === 'playing') {
+            // Snapshot standings → saveHistoryIfFinished via onState.
+            host.finish()
+          } else {
+            const record = historyRecordFromOngoingArchive(state, profile.id)
+            if (record) void historyStore.save(record)
+          }
+        }
+      }
+      host?.end()
+      if (state) clearHostSnapshot(state)
+      cleanupRefs()
+      set(resetSessionFields())
+    },
+
+    discardSession() {
+      const state = host?.current
       host?.end()
       if (state) clearHostSnapshot(state)
       cleanupRefs()
@@ -292,6 +319,14 @@ export const useSession = create<SessionStoreState>()((set) => {
 /** Most recent resumable host snapshot (for the home resume card). */
 export function resumableHostSnapshot(): HostSnapshot | null {
   return listResumableHostSnapshots()[0] ?? null
+}
+
+/** Archive a parked ongoing room to history, then remove it from the vault. */
+export async function archiveParkedSession(snap: HostSnapshot): Promise<void> {
+  const profile = currentProfile()
+  const record = historyRecordFromOngoingArchive(snap.state, profile.id)
+  if (record) await historyStore.save(record)
+  await clearHostSnapshotAsync(snap.state)
 }
 
 export function sessionIsOngoing(state: SessionState | null | undefined): boolean {

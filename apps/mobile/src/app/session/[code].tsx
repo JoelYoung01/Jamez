@@ -583,7 +583,7 @@ function HostSessionControls() {
         )}
         <AppButton
           variant="destructive"
-          title={ongoing ? 'Dissolve bank' : 'End session for everyone'}
+          title={ongoing ? 'End & save standings' : 'End session for everyone'}
           onPress={() => setMode('end')}
         />
       </View>
@@ -610,7 +610,7 @@ function HostSessionControls() {
     <View className="flex-row gap-2">
       <AppButton
         variant="destructive"
-        title={ongoing ? 'Yes, dissolve' : 'Yes, end it'}
+        title="Yes, end it"
         className="flex-1"
         onPress={() => {
           store.endSession()

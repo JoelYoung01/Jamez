@@ -1,16 +1,20 @@
 import {
   buildActivityFeed,
   getGameEngine,
+  isEndedLongTermRecord,
   sessionDisplayName,
   type ActivityItem,
   type HistoryRecord,
 } from '@jamez/core'
 import { ArrowLeftIcon, DicesIcon, Trash2Icon } from 'lucide-react'
+import * as React from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getGameIcon } from '@/games/registry'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { historyStore, useHistory, useStats } from '@/lib/history'
 import { useProfile } from '@/lib/profile'
 import { listHostSnapshots } from '@/lib/session-store'
@@ -22,7 +26,12 @@ export function HistoryPage() {
   const myId = useProfile((s) => s.playerId)
   const navigate = useNavigate()
   const vault = listHostSnapshots()
-  const feed = buildActivityFeed({ history: records, vault })
+  const [showEnded, setShowEnded] = React.useState(true)
+  const feed = buildActivityFeed({
+    history: records,
+    vault,
+    includeEndedLongTerm: showEnded,
+  })
 
   return (
     <div className="grid gap-4">
@@ -33,6 +42,13 @@ export function HistoryPage() {
           </Link>
         </Button>
         <h1 className="text-lg font-semibold">History & stats</h1>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/40 px-3 py-2.5">
+        <Label htmlFor="show-ended-history" className="text-sm font-normal text-muted-foreground">
+          Show ended banks
+        </Label>
+        <Switch id="show-ended-history" checked={showEnded} onCheckedChange={setShowEnded} />
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -80,8 +96,8 @@ export function HistoryPage() {
             <DicesIcon className="size-8 text-muted-foreground" />
             <CardTitle>No games yet</CardTitle>
             <CardDescription>
-              Finish a session and it lands here. Parked banks show up too. Stored on this device
-              only.
+              Finish a session and it lands here. Parked and ended banks show up too. Stored on
+              this device only.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -264,6 +280,7 @@ function HistoryActivityRow({
   const game = getGameEngine(record.gameId)
   const Icon = getGameIcon(record.gameId)
   const won = record.summary.winnerIds.includes(myId)
+  const endedBank = isEndedLongTermRecord(record)
   const title = record.nickname
     ? sessionDisplayName({ nickname: record.nickname, gameId: record.gameId })
     : record.summary.headline
@@ -280,10 +297,12 @@ function HistoryActivityRow({
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{title}</div>
             <div className="truncate text-xs text-muted-foreground">
+              {endedBank ? 'Ended · ' : null}
               {formatDate(record.finishedAt)} · {record.players.map((p) => p.name).join(', ')}
             </div>
           </div>
-          {won && <Badge>won</Badge>}
+          {endedBank && <Badge variant="outline">Ended</Badge>}
+          {won && !endedBank && <Badge>won</Badge>}
           {canOpen && <Badge variant="outline">Open</Badge>}
         </button>
         <Button

@@ -555,7 +555,7 @@ function HostSessionControls() {
           </Button>
         )}
         <Button variant="destructive" onClick={() => setMode('end')}>
-          <LogOutIcon /> {ongoing ? 'Dissolve bank' : 'End session for everyone'}
+          <LogOutIcon /> {ongoing ? 'End & save standings' : 'End session for everyone'}
         </Button>
       </div>
     )
@@ -588,7 +588,7 @@ function HostSessionControls() {
           navigate('/')
         }}
       >
-        {ongoing ? 'Yes, dissolve' : 'Yes, end it'}
+        {ongoing ? 'Yes, end it' : 'Yes, end it'}
       </Button>
       <Button variant="secondary" onClick={() => setMode('idle')}>
         Keep playing

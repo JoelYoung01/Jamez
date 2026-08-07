@@ -4,6 +4,7 @@ import {
   type SessionPhase,
   type SessionState,
 } from '../protocol/session-state'
+import { isEndedLongTermRecord } from './long-term'
 import type { HistoryRecord } from './types'
 
 /** Preferred title: nickname when set, otherwise the game's shelf name. */
@@ -42,12 +43,18 @@ export type ActivityItem =
  * Merge parked host vault sessions with finished history into one feed,
  * newest first. Parked sessions that already have a history row (unusual)
  * are omitted so they don't double-list.
+ *
+ * Set `includeEndedLongTerm: false` to hide archived ongoing rooms (Poker Bank
+ * standings) while keeping parked banks and match history.
  */
 export function buildActivityFeed(opts: {
   history: HistoryRecord[]
   /** Host vault snapshots (any phase). */
   vault: Array<{ state: SessionState; savedAt: number }>
+  /** Default true — show ended long-term games from history. */
+  includeEndedLongTerm?: boolean
 }): ActivityItem[] {
+  const includeEnded = opts.includeEndedLongTerm !== false
   const items: ActivityItem[] = []
   const historyIds = new Set(opts.history.map((h) => h.id))
 
@@ -73,6 +80,7 @@ export function buildActivityFeed(opts: {
   }
 
   for (const record of opts.history) {
+    if (!includeEnded && isEndedLongTermRecord(record)) continue
     const vault =
       vaultBySessionId.get(record.id) ?? vaultByRoom.get(`${record.gameId}:${record.code}`)
     items.push({

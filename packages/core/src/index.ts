@@ -139,3 +139,9 @@ export {
   sessionDisplayName,
   type ActivityItem,
 } from './history/activity'
+export {
+  historyRecordFromOngoingArchive,
+  isEndedLongTermRecord,
+  listLongTermSessions,
+  type LongTermRoom,
+} from './history/long-term'

@@ -14,8 +14,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { useHistory } from '@/lib/history'
 import { listLongTermSessions, type LongTermRoom } from '@/lib/long-term-sessions'
 import {
+  archiveParkedSession,
   clearHostSnapshotAsync,
   listHostSnapshots,
   useSession,
@@ -40,32 +44,65 @@ function roomMatchesFilter(room: LongTermRoom, query: string): boolean {
 
 export function ContinuePage() {
   const navigate = useNavigate()
+  const history = useHistory()
   const activeCode = useSession((s) => s.code)
   const state = useSession((s) => s.state)
   const endSession = useSession((s) => s.endSession)
+  const discardSession = useSession((s) => s.discardSession)
   const [vaultTick, setVaultTick] = React.useState(0)
-  const vault = React.useMemo(() => listHostSnapshots(), [vaultTick, activeCode, state?.nickname])
-  const rooms = listLongTermSessions(vault, {
+  const vault = React.useMemo(
+    () => listHostSnapshots(),
+    [vaultTick, activeCode, state?.nickname, history],
+  )
+  const [menuKey, setMenuKey] = React.useState<string | null>(null)
+  const [filter, setFilter] = React.useState('')
+  const [showEnded, setShowEnded] = React.useState(false)
+  const [inviteRoom, setInviteRoom] = React.useState<LongTermRoom | null>(null)
+
+  const rooms = listLongTermSessions(
+    vault,
+    {
+      code: activeCode ?? '',
+      gameId: state?.gameId ?? '',
+      nickname: state?.nickname,
+    },
+    { includeEnded: showEnded, history },
+  )
+  const openCount = listLongTermSessions(vault, {
     code: activeCode ?? '',
     gameId: state?.gameId ?? '',
     nickname: state?.nickname,
-  })
-  const [menuKey, setMenuKey] = React.useState<string | null>(null)
-  const [filter, setFilter] = React.useState('')
-  const [inviteRoom, setInviteRoom] = React.useState<LongTermRoom | null>(null)
-
+  }).length
   const filteredRooms = rooms.filter((room) => roomMatchesFilter(room, filter))
 
   const refresh = () => setVaultTick((n) => n + 1)
 
   const openRoom = (room: LongTermRoom) => {
     setMenuKey(null)
+    if (room.ended && room.historyId) {
+      navigate(`/history/${room.historyId}`)
+      return
+    }
     navigate(`/session/${room.code}`)
   }
 
-  const removeRoom = async (room: LongTermRoom) => {
+  const endRoom = async (room: LongTermRoom) => {
     setMenuKey(null)
-    if (room.live) endSession()
+    if (room.ended) return
+    if (room.live) {
+      endSession()
+    } else {
+      const snap = vault.find((v) => v.state.code === room.code && v.state.gameId === room.gameId)
+      if (snap) await archiveParkedSession(snap)
+      else await clearHostSnapshotAsync({ gameId: room.gameId, code: room.code })
+    }
+    refresh()
+  }
+
+  const deleteRoom = async (room: LongTermRoom) => {
+    setMenuKey(null)
+    if (room.ended) return
+    if (room.live) discardSession()
     else await clearHostSnapshotAsync({ gameId: room.gameId, code: room.code })
     refresh()
   }
@@ -73,17 +110,23 @@ export function ContinuePage() {
   const confirmEnd = (room: LongTermRoom) => {
     if (
       !window.confirm(
-        'End this game? The room will close and be removed. Connected guests will be disconnected.',
+        'End this game? Standings are saved to history, the room closes, and guests are disconnected.',
       )
     ) {
       return
     }
-    void removeRoom(room)
+    void endRoom(room)
   }
 
   const confirmDelete = (room: LongTermRoom) => {
-    if (!window.confirm('Delete this game from your list? This cannot be undone.')) return
-    void removeRoom(room)
+    if (
+      !window.confirm(
+        'Delete this game without saving standings? This cannot be undone.',
+      )
+    ) {
+      return
+    }
+    void deleteRoom(room)
   }
 
   const inviteTitle = inviteRoom
@@ -92,6 +135,8 @@ export function ContinuePage() {
         gameId: inviteRoom.gameId,
       })
     : ''
+
+  const empty = openCount === 0 && !showEnded
 
   return (
     <div className="grid gap-4 pb-20">
@@ -104,7 +149,14 @@ export function ContinuePage() {
         <h1 className="text-lg font-semibold">Return to a game</h1>
       </div>
 
-      {rooms.length === 0 ? (
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/40 px-3 py-2.5">
+        <Label htmlFor="show-ended" className="text-sm font-normal text-muted-foreground">
+          Show ended banks
+        </Label>
+        <Switch id="show-ended" checked={showEnded} onCheckedChange={setShowEnded} />
+      </div>
+
+      {empty ? (
         <Card>
           <CardHeader className="items-center pb-5 text-center">
             <MoonIcon className="size-8 text-muted-foreground" />
@@ -127,7 +179,9 @@ export function ContinuePage() {
           {filteredRooms.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                No games match “{filter.trim()}”.
+                {rooms.length === 0
+                  ? 'No ended banks in history yet.'
+                  : `No games match “${filter.trim()}”.`}
               </CardContent>
             </Card>
           ) : (
@@ -139,16 +193,29 @@ export function ContinuePage() {
                 gameId: room.gameId,
               })
               const menuOpen = menuKey === room.key
+              const status = room.live
+                ? 'Live now'
+                : room.ended
+                  ? `Ended · ${formatDate(room.at)}`
+                  : `Parked · ${formatDate(room.at)}`
               return (
                 <div
                   key={room.key}
                   className="relative"
                   onContextMenu={(e) => {
                     e.preventDefault()
-                    setMenuKey(room.key)
+                    if (!room.ended) setMenuKey(room.key)
                   }}
                 >
-                  <Card className={room.live ? 'border-primary/40 bg-primary/5' : undefined}>
+                  <Card
+                    className={
+                      room.live
+                        ? 'border-primary/40 bg-primary/5'
+                        : room.ended
+                          ? 'opacity-80'
+                          : undefined
+                    }
+                  >
                     <CardContent className="flex items-center gap-2 p-3.5">
                       <button
                         type="button"
@@ -160,18 +227,24 @@ export function ContinuePage() {
                           <div className="truncate text-sm font-medium">{title}</div>
                           <div className="text-xs text-muted-foreground">
                             {room.nickname ? `${game?.name} · ` : null}
-                            {room.live ? 'Live now' : `Parked · ${formatDate(room.at)}`}
+                            {status}
                           </div>
                         </div>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setInviteRoom(room)}
-                        className="shrink-0 rounded-md px-1.5 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
-                        aria-label={`Show invite for ${room.code}`}
-                      >
-                        {room.code}
-                      </button>
+                      {!room.ended ? (
+                        <button
+                          type="button"
+                          onClick={() => setInviteRoom(room)}
+                          className="shrink-0 rounded-md px-1.5 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+                          aria-label={`Show invite for ${room.code}`}
+                        >
+                          {room.code}
+                        </button>
+                      ) : (
+                        <span className="shrink-0 px-1.5 font-mono text-xs text-muted-foreground">
+                          {room.code}
+                        </span>
+                      )}
                       {room.live ? (
                         <button
                           type="button"
@@ -182,15 +255,18 @@ export function ContinuePage() {
                           <Badge variant="default">Live</Badge>
                         </button>
                       ) : null}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Actions for ${title}`}
-                        onClick={() => setMenuKey((k) => (k === room.key ? null : room.key))}
-                      >
-                        <MoreHorizontalIcon />
-                      </Button>
+                      {room.ended ? <Badge variant="outline">Ended</Badge> : null}
+                      {!room.ended ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Actions for ${title}`}
+                          onClick={() => setMenuKey((k) => (k === room.key ? null : room.key))}
+                        >
+                          <MoreHorizontalIcon />
+                        </Button>
+                      ) : null}
                     </CardContent>
                   </Card>
                   {menuOpen ? (
@@ -215,7 +291,7 @@ export function ContinuePage() {
         </div>
       )}
 
-      {rooms.length > 0 ? (
+      {!empty || showEnded ? (
         <div className="fixed inset-x-0 bottom-0 z-40">
           <div className="mx-auto w-full max-w-xl px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
             <div className="relative rounded-xl border border-border bg-card/95 shadow-lg backdrop-blur">
