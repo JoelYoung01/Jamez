@@ -12,7 +12,6 @@ import { clsx } from 'clsx'
 import { ChevronLeftIcon, ChevronRightIcon, Undo2Icon, WalletCardsIcon, ZapIcon } from 'lucide-react-native'
 import * as React from 'react'
 import {
-  InputAccessoryView,
   Keyboard,
   Platform,
   Pressable,
@@ -22,7 +21,10 @@ import {
   View,
 } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
-import { KeyboardDismissBar, dismissKeyboard } from '@/components/keyboard-dismiss'
+import {
+  KeyboardDismissAccessory,
+  dismissKeyboard,
+} from '@/components/keyboard-dismiss'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
 import { AppButton, Card, SectionLabel } from '@/components/ui'
@@ -92,11 +94,7 @@ function DeadwoodKeyboardAccessory({
   // so show the same controls under the fields while a deadwood input is focused
   // (the app-wide Android dismiss host still covers the keyboard itself).
   if (Platform.OS === 'ios') {
-    return (
-      <InputAccessoryView nativeID={DEADWOOD_ACCESSORY_ID}>
-        <KeyboardDismissBar leading={leading} className="border-t border-line" />
-      </InputAccessoryView>
-    )
+    return <KeyboardDismissAccessory nativeID={DEADWOOD_ACCESSORY_ID} leading={leading} />
   }
 
   if (!focused) return null
