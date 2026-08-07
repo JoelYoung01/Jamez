@@ -173,6 +173,53 @@ function EditGuestDialog({
   )
 }
 
+/** Allow typing partial decimals (e.g. clear → "0.25"); coerce on blur. */
+function parsePointsPerDollar(raw: string): number {
+  const n = Number.parseFloat(raw.trim())
+  if (!Number.isFinite(n) || n <= 0) return 1
+  return Math.min(1_000_000, n)
+}
+
+function PointsPerDollarField({
+  value,
+  onChange,
+  className,
+}: {
+  value: number
+  onChange: (next: number) => void
+  className?: string
+}) {
+  const [text, setText] = React.useState(String(value))
+
+  React.useEffect(() => {
+    setText(String(value))
+  }, [value])
+
+  const commit = () => {
+    const next = parsePointsPerDollar(text)
+    onChange(next)
+    setText(String(next))
+  }
+
+  return (
+    <Input
+      inputMode="decimal"
+      className={cn('h-9 font-mono tabular-nums', className)}
+      value={text}
+      onChange={(e) => {
+        const t = e.target.value
+        setText(t)
+        const n = Number.parseFloat(t.trim())
+        if (Number.isFinite(n) && n > 0) onChange(Math.min(1_000_000, n))
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit()
+      }}
+    />
+  )
+}
+
 function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
   const set = (patch: Partial<PokerBankConfig>) => onChange({ ...config, ...patch })
 
@@ -210,14 +257,9 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
       </div>
       <div className="grid gap-1.5">
         <Label className="text-xs text-muted-foreground">Points per dollar</Label>
-        <Input
-          inputMode="decimal"
-          className="h-9 font-mono tabular-nums"
-          value={String(config.pointsPerDollar)}
-          onChange={(e) => {
-            const n = Number.parseFloat(e.target.value)
-            set({ pointsPerDollar: Number.isFinite(n) && n > 0 ? n : 1 })
-          }}
+        <PointsPerDollarField
+          value={config.pointsPerDollar}
+          onChange={(pointsPerDollar) => set({ pointsPerDollar })}
         />
         <p className="text-[11px] text-muted-foreground">
           Cash-in amounts can be entered in either unit; chip math always uses points.
@@ -443,15 +485,7 @@ function BankSettingsDialog({ game, send }: { game: PokerBankState; send: GamePl
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">Points per dollar</Label>
-              <Input
-                inputMode="decimal"
-                className="h-9 font-mono tabular-nums"
-                value={String(pointsPerDollar)}
-                onChange={(e) => {
-                  const n = Number.parseFloat(e.target.value)
-                  setPointsPerDollar(Number.isFinite(n) && n > 0 ? n : 1)
-                }}
-              />
+              <PointsPerDollarField value={pointsPerDollar} onChange={setPointsPerDollar} />
             </div>
           </div>
           <div className="grid gap-1.5">

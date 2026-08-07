@@ -24,6 +24,52 @@ import { randomEmoji } from '@/lib/profile'
 import { useSession } from '@/lib/session-store'
 import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
+/** Allow typing partial decimals (e.g. clear → "0.25"); coerce on blur. */
+function parsePointsPerDollar(raw: string): number {
+  const n = Number.parseFloat(raw.trim())
+  if (!Number.isFinite(n) || n <= 0) return 1
+  return Math.min(1_000_000, n)
+}
+
+function PointsPerDollarField({
+  value,
+  onChange,
+  className,
+}: {
+  value: number
+  onChange: (next: number) => void
+  className?: string
+}) {
+  const [text, setText] = React.useState(String(value))
+
+  React.useEffect(() => {
+    setText(String(value))
+  }, [value])
+
+  const commit = () => {
+    const next = parsePointsPerDollar(text)
+    onChange(next)
+    setText(String(next))
+  }
+
+  return (
+    <AppTextInput
+      keyboardType="decimal-pad"
+      value={text}
+      onChangeText={(t) => {
+        setText(t)
+        const n = Number.parseFloat(t.trim())
+        if (Number.isFinite(n) && n > 0) onChange(Math.min(1_000_000, n))
+      }}
+      onBlur={commit}
+      onSubmitEditing={commit}
+      className={
+        className ?? 'h-11 rounded-xl border border-line bg-background px-3 font-mono text-zinc-100'
+      }
+    />
+  )
+}
+
 function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
   const set = (patch: Partial<PokerBankConfig>) => onChange({ ...config, ...patch })
   const updateChip = (index: number, patch: Partial<PokerChipDenom>) => {
@@ -57,14 +103,9 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
       </View>
       <View className="gap-1.5">
         <Muted>Points per dollar</Muted>
-        <AppTextInput
-          keyboardType="decimal-pad"
-          value={String(config.pointsPerDollar)}
-          onChangeText={(t) => {
-            const n = Number.parseFloat(t)
-            set({ pointsPerDollar: Number.isFinite(n) && n > 0 ? n : 1 })
-          }}
-          className="h-11 rounded-xl border border-line bg-background px-3 font-mono text-zinc-100"
+        <PointsPerDollarField
+          value={config.pointsPerDollar}
+          onChange={(pointsPerDollar) => set({ pointsPerDollar })}
         />
       </View>
       <View className="gap-2">
@@ -159,15 +200,7 @@ function BankSettingsSheet({
 
             <View className="gap-1.5">
               <Muted>Points per dollar</Muted>
-              <AppTextInput
-                keyboardType="decimal-pad"
-                value={String(pointsPerDollar)}
-                onChangeText={(t) => {
-                  const n = Number.parseFloat(t)
-                  setPointsPerDollar(Number.isFinite(n) && n > 0 ? n : 1)
-                }}
-                className="h-11 rounded-xl border border-line bg-background px-3 font-mono text-zinc-100"
-              />
+              <PointsPerDollarField value={pointsPerDollar} onChange={setPointsPerDollar} />
             </View>
 
             <View className="gap-1.5">
