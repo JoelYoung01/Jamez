@@ -257,4 +257,13 @@ describe('host/guest session over memory transport', () => {
     g1.stop()
     g2.stop()
   })
+
+  it('rejects finish on ongoing poker bank sessions', () => {
+    const code = generateJoinCode()
+    const host = makeHost(code, pokerBankEngine as never)
+    expect(host.startGame()).toBeNull()
+    expect(host.finish()).toMatch(/park or dissolve/)
+    expect(host.current.phase).toBe('playing')
+    host.end()
+  })
 })
