@@ -40,6 +40,7 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(
       onSubmitEditing,
       onFocus,
       onBlur,
+      style,
       ...props
     },
     ref,
@@ -114,6 +115,9 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(
         <TextInput
           ref={setRefs}
           {...props}
+          // iOS can leak letterSpacing from other TextInputs onto placeholders;
+          // pin 0 here so callers can still override via `style`.
+          style={[{ letterSpacing: 0 }, style]}
           onSubmitEditing={onSubmitEditing}
           onFocus={(e) => {
             setFocusedKeyboardField(autoId)
