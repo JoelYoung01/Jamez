@@ -97,7 +97,7 @@ export default function HomeScreen() {
         </View>
 
         <View className="gap-3">
-          <View className="flex-row gap-3">
+          <View className="flex-row items-start gap-3">
             <HomeTile
               icon={<RadioTowerIcon size={20} color="#fbbf24" />}
               title="Host"
@@ -113,7 +113,7 @@ export default function HomeScreen() {
               onPress={() => router.push('/join')}
             />
           </View>
-          <View className="flex-row gap-3">
+          <View className="flex-row items-start gap-3">
             <HomeTile
               icon={<MoonIcon size={20} color="#fbbf24" />}
               title="Return to game"
@@ -181,7 +181,7 @@ function HomeTile({
 }) {
   return (
     <Pressable onPress={onPress} className="min-w-0 flex-1 active:opacity-80">
-      <Card className="relative h-full p-4">
+      <Card className="relative p-4">
         {badge ? (
           <View className="absolute right-2.5 top-2.5 rounded-full bg-primary px-2 py-0.5">
             <Text className="text-[10px] font-bold text-primary-foreground">{badge}</Text>
