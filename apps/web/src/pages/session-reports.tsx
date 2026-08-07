@@ -246,7 +246,7 @@ export function SessionReportsPage() {
         <CardContent>
           {report.rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No ledger activity yet. Cash in or out to start the chart.
+              No ledger activity yet. Deposit or withdraw to start the chart.
             </p>
           ) : (
             <BalanceOverTimeChart report={report} config={game.config} />

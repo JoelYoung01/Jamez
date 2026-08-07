@@ -113,7 +113,7 @@ describe('poker bank engine', () => {
         { type: 'deposit', playerId: 'host', amount: 10, unit: 'points' },
         guestCtx,
       ),
-    ).toBe('You can only cash in or out for yourself')
+    ).toBe('You can only deposit or withdraw for yourself')
 
     expect(
       pokerBankEngine.validateAction(
@@ -287,7 +287,7 @@ describe('poker bank engine', () => {
     expect(
       buildCashTransferSummary({ mode: 'withdraw', points: 0, balance: 500, config }),
     ).toEqual({
-      primary: 'Nothing to cash out yet',
+      primary: 'Nothing to withdraw yet',
       secondary: 'Holding 500 pts',
       tone: 'muted',
     })

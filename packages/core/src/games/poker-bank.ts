@@ -225,7 +225,7 @@ export function buildCashTransferSummary(input: {
       })}`
     }
   } else {
-    primary = mode === 'withdraw' ? 'Nothing to cash out yet' : 'Nothing to cash in yet'
+    primary = mode === 'withdraw' ? 'Nothing to withdraw yet' : 'Nothing to deposit yet'
   }
 
   if (mode === 'withdraw') {
@@ -411,7 +411,7 @@ function grantStart(
 export const pokerBankEngine: GameEngine<PokerBankConfig, PokerBankState, PokerBankAction> = {
   id: 'poker-bank',
   name: 'Poker Bank',
-  tagline: 'Long-running chip bank with cash-in / cash-out',
+  tagline: 'Long-running chip bank with deposit / withdraw',
   accentColor: '#e11d48',
   minPlayers: 1,
   maxPlayers: 24,
@@ -448,7 +448,7 @@ export const pokerBankEngine: GameEngine<PokerBankConfig, PokerBankState, PokerB
     const bank = state.banks[action.playerId]
     if (!bank) return 'Unknown player'
     if (action.playerId !== ctx.actorId && !ctx.isHost) {
-      return 'You can only cash in or out for yourself'
+      return 'You can only deposit or withdraw for yourself'
     }
     if (!(action.amount > 0) || !Number.isFinite(action.amount)) {
       return 'Amount must be greater than zero'

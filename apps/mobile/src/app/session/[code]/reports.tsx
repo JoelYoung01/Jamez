@@ -240,7 +240,7 @@ export default function SessionReportsScreen() {
           </Muted>
           {report.rows.length === 0 ? (
             <Muted className="py-8 text-center">
-              No ledger activity yet. Cash in or out to start the chart.
+              No ledger activity yet. Deposit or withdraw to start the chart.
             </Muted>
           ) : (
             <BalanceOverTimeChart report={report} config={game.config} />

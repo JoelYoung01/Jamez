@@ -439,12 +439,12 @@ function CashSheet({
               }}
             >
             <Text className="mb-1 text-lg font-semibold text-zinc-100">
-              {mode === 'deposit' ? 'Cash in' : 'Cash out'} · {player.name}
+              {mode === 'deposit' ? 'Deposit' : 'Withdraw'} · {player.name}
             </Text>
             <Muted className="mb-3">
               {mode === 'deposit'
-                ? `Put chips into ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}.`
-                : `Take chips out of ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}.`}
+                ? `Add chips to ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}.`
+                : `Remove chips from ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}.`}
             </Muted>
             <Segmented
               value={unit}
@@ -946,14 +946,14 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                 <View className="flex-row gap-2">
                   <AppButton
                     size="sm"
-                    title="Cash in"
+                    title="Deposit"
                     className="flex-1"
                     onPress={() => setCash({ mode: 'deposit', player })}
                   />
                   <AppButton
                     size="sm"
                     variant="secondary"
-                    title="Cash out"
+                    title="Withdraw"
                     className="flex-1"
                     onPress={() => setCash({ mode: 'withdraw', player })}
                   />

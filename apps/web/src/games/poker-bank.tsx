@@ -323,7 +323,7 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
           onChange={(pointsPerDollar) => set({ pointsPerDollar })}
         />
         <p className="text-[11px] text-muted-foreground">
-          Cash-in amounts can be entered in either unit; chip math always uses points.
+          Deposit amounts can be entered in either unit; chip math always uses points.
         </p>
       </div>
 
@@ -476,20 +476,20 @@ function CashDialog({
       <DialogTrigger asChild>
         <Button variant={mode === 'deposit' ? 'default' : 'secondary'} size="sm">
           {mode === 'deposit' ? <ArrowDownLeftIcon /> : <ArrowUpRightIcon />}
-          {mode === 'deposit' ? 'Cash in' : 'Cash out'}
+          {mode === 'deposit' ? 'Deposit' : 'Withdraw'}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {mode === 'deposit' ? 'Cash in' : 'Cash out'} · {player.name}
+            {mode === 'deposit' ? 'Deposit' : 'Withdraw'} · {player.name}
           </DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
           <p className="text-xs text-muted-foreground">
             {mode === 'deposit'
-              ? `Put chips into ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`
-              : `Take chips out of ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`}
+              ? `Add chips to ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`
+              : `Remove chips from ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`}
             {game.config.currencyMode === 'dollars' ? ` (${balance} pts)` : ''}.
           </p>
           <Segmented

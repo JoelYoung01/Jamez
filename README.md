@@ -109,7 +109,7 @@ Design rule of thumb: guests may edit **their own** scores (`validateAction` enf
 
 - **🐦 Wingspan:** full end-game score sheet (birds, bonus cards, end-of-round goals, eggs, cached food, tucked cards + optional Oceania nectar), live standings, official tie-breaker (unused food).
 - **🃏 Gin Rummy:** hand-by-hand recorder (knock / gin / big gin / undercut with configurable bonuses), running totals to a target score, boxes, and the official final tally with line bonuses.
-- **🪙 Poker Bank:** long-running chip bank (`sessionMode: 'ongoing'`). Starting stacks, cash in/out with chip breakdowns, host-configured chip colors, guest seats that real devices can claim, and account merges. Host can park & resume across nights; state is stored in a game-scoped host vault.
+- **🪙 Poker Bank:** long-running chip bank (`sessionMode: 'ongoing'`). Starting stacks, deposit/withdraw with chip breakdowns, host-configured chip colors, guest seats that real devices can claim, and account merges. Host can park & resume across nights; state is stored in a game-scoped host vault.
 
 ## Roadmap ideas
 
