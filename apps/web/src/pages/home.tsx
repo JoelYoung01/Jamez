@@ -7,7 +7,7 @@ import {
 } from '@jamez/core'
 import {
   ArrowRightIcon,
-  LayoutGridIcon,
+  ChartColumnIcon,
   MoonIcon,
   RadioTowerIcon,
   TicketIcon,
@@ -70,11 +70,11 @@ export function HomePage() {
           badge={longTermCount > 0 ? String(longTermCount) : undefined}
         />
         <HomeTile
-          to="/host"
-          icon={<LayoutGridIcon className="size-5" />}
-          title="Browse shelf"
-          description="See every game on the shelf."
-          cta="Browse games"
+          to="/stats"
+          icon={<ChartColumnIcon className="size-5" />}
+          title="Stats"
+          description="Reports and deeper game breakdowns."
+          cta="View reports"
         />
       </div>
 
@@ -120,19 +120,19 @@ function HomeTile({
   badge?: string
 }) {
   return (
-    <Link to={to} className="group min-w-0">
-      <Card className="relative h-full transition-all group-hover:border-primary/50 group-hover:bg-primary/5">
+    <Link to={to} className="group flex h-full min-w-0">
+      <Card className="relative flex h-full w-full flex-col transition-all group-hover:border-primary/50 group-hover:bg-primary/5">
         {badge ? (
           <Badge className="absolute right-2.5 top-2.5 tabular-nums">{badge}</Badge>
         ) : null}
-        <CardHeader className="p-4 pb-2">
+        <CardHeader className="flex-1 p-4 pb-2">
           <span className="mb-2 flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
             {icon}
           </span>
           <CardTitle className="text-base leading-tight">{title}</CardTitle>
           <CardDescription className="text-xs leading-snug">{description}</CardDescription>
         </CardHeader>
-        <CardContent className="p-4 pt-1 text-xs font-medium text-primary">
+        <CardContent className="mt-auto p-4 pt-1 text-xs font-medium text-primary">
           {cta} <ArrowRightIcon className="ml-0.5 inline size-3" />
         </CardContent>
       </Card>

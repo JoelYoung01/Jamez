@@ -237,11 +237,13 @@ export class HostSession {
     return null
   }
 
+  /**
+   * Snapshot standings and mark the session finished. Match games use this when
+   * the ruleset ends; ongoing rooms (Poker Bank) use it to archive standings
+   * before dissolving so the bank remains findable in history.
+   */
   finish(): string | null {
     if (this.state.phase !== 'playing') return 'Game is not in progress'
-    if (this.game.sessionMode === 'ongoing') {
-      return 'Ongoing games do not finish — park or dissolve the session instead'
-    }
     this.mutate((s) => {
       s.summary = this.game.summary(s.game, s.players)
       s.phase = 'finished'

@@ -8,8 +8,8 @@ import {
 import { Link, router, useFocusEffect } from 'expo-router'
 import {
   ArrowRightIcon,
+  ChartColumnIcon,
   DicesIcon,
-  LayoutGridIcon,
   MoonIcon,
   RadioTowerIcon,
   SettingsIcon,
@@ -97,7 +97,7 @@ export default function HomeScreen() {
         </View>
 
         <View className="gap-3">
-          <View className="flex-row items-start gap-3">
+          <View className="flex-row items-stretch gap-3">
             <HomeTile
               icon={<RadioTowerIcon size={20} color="#fbbf24" />}
               title="Host"
@@ -113,7 +113,7 @@ export default function HomeScreen() {
               onPress={() => router.push('/join')}
             />
           </View>
-          <View className="flex-row items-start gap-3">
+          <View className="flex-row items-stretch gap-3">
             <HomeTile
               icon={<MoonIcon size={20} color="#fbbf24" />}
               title="Return to game"
@@ -123,11 +123,11 @@ export default function HomeScreen() {
               onPress={() => router.push('/continue')}
             />
             <HomeTile
-              icon={<LayoutGridIcon size={20} color="#fbbf24" />}
-              title="Browse shelf"
-              description="See every game on the shelf."
-              cta="Browse games"
-              onPress={() => router.push('/host')}
+              icon={<ChartColumnIcon size={20} color="#fbbf24" />}
+              title="Stats"
+              description="Reports and deeper game breakdowns."
+              cta="View reports"
+              onPress={() => router.push('/stats')}
             />
           </View>
         </View>
@@ -181,7 +181,7 @@ function HomeTile({
 }) {
   return (
     <Pressable onPress={onPress} className="min-w-0 flex-1 active:opacity-80">
-      <Card className="relative p-4">
+      <Card className="relative h-full flex-1 p-4">
         {badge ? (
           <View className="absolute right-2.5 top-2.5 rounded-full bg-primary px-2 py-0.5">
             <Text className="text-[10px] font-bold text-primary-foreground">{badge}</Text>
@@ -191,7 +191,7 @@ function HomeTile({
           {icon}
         </View>
         <Text className="text-base font-semibold leading-tight text-zinc-100">{title}</Text>
-        <Muted className="mt-0.5 text-xs leading-snug">{description}</Muted>
+        <Muted className="mt-0.5 flex-1 text-xs leading-snug">{description}</Muted>
         <View className="mt-2 flex-row items-center gap-0.5">
           <Text className="text-xs font-medium text-primary">{cta}</Text>
           <ArrowRightIcon size={12} color="#fbbf24" />

@@ -1,13 +1,14 @@
 import {
   buildActivityFeed,
   getGameEngine,
+  isEndedLongTermRecord,
   sessionDisplayName,
   type ActivityItem,
 } from '@jamez/core'
 import { router, useFocusEffect } from 'expo-router'
 import { DicesIcon, Trash2Icon } from 'lucide-react-native'
 import * as React from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { Pressable, Switch, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PageHeader } from '@/components/page-header'
 import { AppButton, Card, CardTitle, Chip, Muted, Screen } from '@/components/ui'
@@ -23,6 +24,7 @@ export default function HistoryScreen() {
   const stats = useStats()
   const myId = useProfile((s) => s.playerId)
   const [vault, setVault] = React.useState<HostSnapshot[]>([])
+  const [showEnded, setShowEnded] = React.useState(true)
 
   useFocusEffect(
     React.useCallback(() => {
@@ -36,12 +38,26 @@ export default function HistoryScreen() {
     }, []),
   )
 
-  const feed = buildActivityFeed({ history: records, vault })
+  const feed = buildActivityFeed({
+    history: records,
+    vault,
+    includeEndedLongTerm: showEnded,
+  })
 
   return (
     <Screen>
       <View style={{ paddingTop: insets.top + 8 }}>
         <PageHeader title="History & stats" />
+
+        <Card className="mb-3 flex-row items-center justify-between px-3.5 py-3">
+          <Muted className="flex-1 pr-3">Show ended banks</Muted>
+          <Switch
+            value={showEnded}
+            onValueChange={setShowEnded}
+            trackColor={{ false: '#232329', true: '#fbbf24' }}
+            thumbColor="#ffffff"
+          />
+        </Card>
 
         <View className="flex-row gap-2">
           <StatTile label="Games" value={stats.gamesPlayed} />
@@ -78,8 +94,8 @@ export default function HistoryScreen() {
             <DicesIcon size={32} color="#a1a1ab" />
             <CardTitle>No games yet</CardTitle>
             <Muted className="text-center">
-              Finish a session and it lands here. Parked banks show up too. Stored on this phone
-              only.
+              Finish a session and it lands here. Parked and ended banks show up too. Stored on
+              this phone only.
             </Muted>
           </Card>
         ) : (
@@ -130,6 +146,7 @@ function HistoryActivityRow({ item, myId }: { item: ActivityItem; myId: string }
   const game = getGameEngine(record.gameId)
   const Icon = getGameIcon(record.gameId)
   const won = record.summary.winnerIds.includes(myId)
+  const endedBank = isEndedLongTermRecord(record)
   const title = record.nickname
     ? sessionDisplayName({ nickname: record.nickname, gameId: record.gameId })
     : record.summary.headline
@@ -148,11 +165,13 @@ function HistoryActivityRow({ item, myId }: { item: ActivityItem; myId: string }
             {title}
           </Text>
           <Muted className="mt-0.5">
+            {endedBank ? 'Ended · ' : ''}
             {formatDate(record.finishedAt)} · {record.players.map((p) => p.name).join(', ')}
           </Muted>
         </View>
-        {won && <Chip tone="primary">won</Chip>}
-        {canOpen && <Chip tone="outline">Open</Chip>}
+        {endedBank ? <Chip tone="outline">Ended</Chip> : null}
+        {won && !endedBank ? <Chip tone="primary">won</Chip> : null}
+        {canOpen ? <Chip tone="outline">Open</Chip> : null}
       </Pressable>
       <Pressable
         onPress={() => void historyStore.remove(record.id)}

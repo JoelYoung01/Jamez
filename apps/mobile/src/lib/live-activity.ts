@@ -69,17 +69,9 @@ function statusLine(state: SessionState): string {
   return lines[0] ?? 'Game in progress'
 }
 
+/** Compact Dynamic Island trailing — always the join code (short + useful). */
 function trailingText(state: SessionState): string {
-  if (state.phase === 'lobby') return state.code
-  if (state.phase === 'finished') return 'Done'
-  const lines = standingsLines(state)
-  // Prefer a short score fragment from the leader line ("12" from "1. 🦊 Ada · 12")
-  const leader = lines[0]
-  if (leader) {
-    const score = leader.split('·').pop()?.trim()
-    if (score) return score
-  }
-  return phaseLabel(state.phase)
+  return state.code
 }
 
 export function buildSessionLiveProps(

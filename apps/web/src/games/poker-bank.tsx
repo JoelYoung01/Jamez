@@ -14,9 +14,12 @@ import {
   ArrowDownLeftIcon,
   ArrowUpRightIcon,
   ChartLineIcon,
+  ChevronDownIcon,
   CoinsIcon,
   DollarSignIcon,
   GitMergeIcon,
+  MinusIcon,
+  PlusIcon,
   Settings2Icon,
   UserPlusIcon,
   UserRoundCheckIcon,
@@ -440,6 +443,15 @@ function CashDialog({
     setOpen(false)
   }
 
+  const bumpChip = (chipId: string, delta: number) => {
+    setChipDrafts((prev) => {
+      const cur = Number.parseInt(prev[chipId] ?? '', 10)
+      const n = Number.isNaN(cur) ? 0 : cur
+      const next = Math.max(0, Math.min(999, n + delta))
+      return { ...prev, [chipId]: next === 0 ? '' : String(next) }
+    })
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -483,18 +495,38 @@ function CashDialog({
                     <div className="text-[11px] text-muted-foreground">{chip.value} pts each</div>
                   </div>
                   <span className="text-muted-foreground">×</span>
-                  <Input
-                    inputMode="numeric"
-                    placeholder="0"
-                    className="h-9 w-16 text-center font-mono tabular-nums"
-                    value={chipDrafts[chip.id] ?? ''}
-                    onChange={(e) =>
-                      setChipDrafts((prev) => ({
-                        ...prev,
-                        [chip.id]: e.target.value.replace(/\D/g, ''),
-                      }))
-                    }
-                  />
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon-sm"
+                      aria-label={`Decrease ${chip.label}`}
+                      onClick={() => bumpChip(chip.id, -1)}
+                    >
+                      <MinusIcon />
+                    </Button>
+                    <Input
+                      inputMode="numeric"
+                      placeholder="0"
+                      className="h-9 w-12 px-1 text-center font-mono tabular-nums"
+                      value={chipDrafts[chip.id] ?? ''}
+                      onChange={(e) =>
+                        setChipDrafts((prev) => ({
+                          ...prev,
+                          [chip.id]: e.target.value.replace(/\D/g, ''),
+                        }))
+                      }
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon-sm"
+                      aria-label={`Increase ${chip.label}`}
+                      onClick={() => bumpChip(chip.id, 1)}
+                    >
+                      <PlusIcon />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -697,10 +729,9 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
   const claimSeat = useSession((s) => s.claimSeat)
   const mergePlayers = useSession((s) => s.mergePlayers)
   const engine = getGameEngine(state.gameId)
-  if (!engine?.claimSeat && !engine?.mergePlayers) return null
-
   const guests = state.players.filter((p) => !p.remote && !p.isHost)
   const remotes = state.players.filter((p) => p.remote)
+  const [open, setOpen] = React.useState(false)
   const [claimerId, setClaimerId] = React.useState(remotes[0]?.id ?? '')
   const [seatId, setSeatId] = React.useState(guests[0]?.id ?? '')
   const [fromId, setFromId] = React.useState('')
@@ -711,114 +742,131 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
     if (!guests.find((p) => p.id === seatId)) setSeatId(guests[0]?.id ?? '')
   }, [remotes, guests, claimerId, seatId])
 
+  if (!engine?.claimSeat && !engine?.mergePlayers) return null
+
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm">Seats & accounts</CardTitle>
-        <CardDescription className="text-xs">
-          Let a phone claim a guest seat, or merge two accounts later.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        {engine.claimSeat && (
-          <div className="grid gap-2 rounded-xl border border-border/50 p-3">
-            <div className="flex items-center gap-1.5 text-xs font-medium">
-              <UserRoundCheckIcon className="size-3.5" /> Claim guest seat
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-accent/20"
+      >
+        <div className="min-w-0 flex-1">
+          <CardTitle className="text-sm">Seats & accounts</CardTitle>
+          <CardDescription className="text-xs">
+            Claim a guest seat or merge accounts.
+          </CardDescription>
+        </div>
+        <ChevronDownIcon
+          className={cn(
+            'size-4 shrink-0 text-muted-foreground transition-transform',
+            open && 'rotate-180',
+          )}
+        />
+      </button>
+      {open ? (
+        <CardContent className="grid gap-4 pt-0">
+          {engine.claimSeat && (
+            <div className="grid gap-2 rounded-xl border border-border/50 p-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium">
+                <UserRoundCheckIcon className="size-3.5" /> Claim guest seat
+              </div>
+              {guests.length === 0 || remotes.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Need a host-created guest and a joined player.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+                      value={claimerId}
+                      onChange={(e) => setClaimerId(e.target.value)}
+                    >
+                      {remotes.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} (player)
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+                      value={seatId}
+                      onChange={(e) => setSeatId(e.target.value)}
+                    >
+                      {guests.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} (guest)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={!claimerId || !seatId}
+                    onClick={() => claimSeat(claimerId, seatId)}
+                  >
+                    Claim seat
+                  </Button>
+                </>
+              )}
             </div>
-            {guests.length === 0 || remotes.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                Need a host-created guest and a joined player.
-              </p>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                    value={claimerId}
-                    onChange={(e) => setClaimerId(e.target.value)}
-                  >
-                    {remotes.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} (player)
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                    value={seatId}
-                    onChange={(e) => setSeatId(e.target.value)}
-                  >
-                    {guests.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} (guest)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <Button
-                  size="sm"
-                  disabled={!claimerId || !seatId}
-                  onClick={() => claimSeat(claimerId, seatId)}
-                >
-                  Claim seat
-                </Button>
-              </>
-            )}
-          </div>
-        )}
+          )}
 
-        {engine.mergePlayers && (
-          <div className="grid gap-2 rounded-xl border border-border/50 p-3">
-            <div className="flex items-center gap-1.5 text-xs font-medium">
-              <GitMergeIcon className="size-3.5" /> Merge accounts
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Guest → player always lands on the player. Player → player: pick who keeps the
-              combined stack.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <select
-                className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                value={fromId}
-                onChange={(e) => setFromId(e.target.value)}
+          {engine.mergePlayers && (
+            <div className="grid gap-2 rounded-xl border border-border/50 p-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium">
+                <GitMergeIcon className="size-3.5" /> Merge accounts
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Guest → player always lands on the player. Player → player: pick who keeps the
+                combined stack.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+                  value={fromId}
+                  onChange={(e) => setFromId(e.target.value)}
+                >
+                  <option value="">Merge away…</option>
+                  {state.players
+                    .filter((p) => !p.isHost)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {!p.remote ? ' (guest)' : ''}
+                      </option>
+                    ))}
+                </select>
+                <select
+                  className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+                  value={toId}
+                  onChange={(e) => setToId(e.target.value)}
+                >
+                  <option value="">Into…</option>
+                  {state.players
+                    .filter((p) => p.id !== fromId)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {!p.remote && !p.isHost ? ' (guest)' : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!fromId || !toId}
+                onClick={() => mergePlayers(fromId, toId)}
               >
-                <option value="">Merge away…</option>
-                {state.players
-                  .filter((p) => !p.isHost)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                      {!p.remote ? ' (guest)' : ''}
-                    </option>
-                  ))}
-              </select>
-              <select
-                className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                value={toId}
-                onChange={(e) => setToId(e.target.value)}
-              >
-                <option value="">Into…</option>
-                {state.players
-                  .filter((p) => p.id !== fromId)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                      {!p.remote && !p.isHost ? ' (guest)' : ''}
-                    </option>
-                  ))}
-              </select>
+                Merge
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!fromId || !toId}
-              onClick={() => mergePlayers(fromId, toId)}
-            >
-              Merge
-            </Button>
-          </div>
-        )}
-      </CardContent>
+          )}
+        </CardContent>
+      ) : null}
     </Card>
   )
 }

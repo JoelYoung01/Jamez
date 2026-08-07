@@ -10,13 +10,25 @@ import {
   type SessionPlayer,
 } from '@jamez/core'
 import { router } from 'expo-router'
-import { ChartLineIcon, CoinsIcon, DollarSignIcon, Settings2Icon } from 'lucide-react-native'
+import {
+  ChartLineIcon,
+  ChevronDownIcon,
+  CoinsIcon,
+  DollarSignIcon,
+  MinusIcon,
+  PlusIcon,
+  Settings2Icon,
+} from 'lucide-react-native'
 import * as React from 'react'
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
 import { ColorPicker } from '@/components/color-picker'
 import { EmojiGrid } from '@/components/emoji-grid'
-import { KeyboardDismissButton } from '@/components/keyboard-dismiss'
+import {
+  KeyboardActionButtons,
+  KeyboardForm,
+  useSuppressAndroidKeyboardHost,
+} from '@/components/keyboard-dismiss'
 import { PokerChip } from '@/components/poker-chip'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
@@ -373,10 +385,31 @@ function CashSheet({
   const breakdown =
     mode === 'withdraw' && unit !== 'chips' ? chipBreakdown(points, game.config.chips) : []
   const balance = game.banks[player.id]?.balance ?? 0
+  useSuppressAndroidKeyboardHost()
+
+  const confirm = React.useCallback(() => {
+    if (!(points > 0) || (mode === 'withdraw' && points > balance)) return
+    const error = send({
+      type: mode,
+      playerId: player.id,
+      amount: unit === 'chips' ? points : numeric,
+      unit: unit === 'chips' ? 'points' : unit,
+    })
+    if (!error) onClose()
+  }, [balance, mode, numeric, onClose, player.id, points, send, unit])
+
+  const bumpChip = (chipId: string, delta: number) => {
+    setChipDrafts((prev) => {
+      const cur = Number.parseInt(prev[chipId] ?? '', 10)
+      const n = Number.isNaN(cur) ? 0 : cur
+      const next = Math.max(0, Math.min(999, n + delta))
+      return { ...prev, [chipId]: next === 0 ? '' : String(next) }
+    })
+  }
 
   // Bottom sheet sits under the keyboard unless we lift it by the keyboard frame.
   // (RN Modals don't inherit the activity's adjustResize on Android.)
-  // Keep dismiss inside this sheet so we don't stack a second accessory bar.
+  // Local keyboard chrome — suppress the app-wide Android host while open.
   return (
     <Modal transparent animationType="slide" visible onRequestClose={onClose}>
       <View className="flex-1 justify-end bg-black/60">
@@ -385,16 +418,17 @@ function CashSheet({
           className="rounded-t-3xl border border-line bg-card"
           style={{ marginBottom: keyboardHeight, maxHeight: '85%' }}
         >
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            bounces={false}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{
-              padding: 16,
-              // Room for the floating dismiss over the bottom-right edge.
-              paddingBottom: keyboardHeight > 0 ? 56 : 16,
-            }}
-          >
+          <KeyboardForm onSubmit={confirm}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                padding: 16,
+                // Room for the floating check/dismiss cluster over the bottom-right edge.
+                paddingBottom: keyboardHeight > 0 ? 56 : 16,
+              }}
+            >
             <Text className="mb-1 text-lg font-semibold text-zinc-100">
               {mode === 'deposit' ? 'Cash in' : 'Cash out'} · {player.name}
             </Text>
@@ -425,20 +459,36 @@ function CashSheet({
                       <Muted>{chip.value} pts each</Muted>
                     </View>
                     <Text className="text-muted-foreground">×</Text>
-                    <AppTextInput
-                      keyboardAccessory={false}
-                      keyboardType="number-pad"
-                      value={chipDrafts[chip.id] ?? ''}
-                      onChangeText={(t) =>
-                        setChipDrafts((prev) => ({
-                          ...prev,
-                          [chip.id]: t.replace(/\D/g, ''),
-                        }))
-                      }
-                      placeholder="0"
-                      placeholderTextColor="#71717a"
-                      className="h-10 w-16 rounded-lg border border-line bg-background px-2 text-center font-mono text-base text-zinc-100"
-                    />
+                    <View className="flex-row items-center gap-1">
+                      <Pressable
+                        accessibilityLabel={`Decrease ${chip.label}`}
+                        onPress={() => bumpChip(chip.id, -1)}
+                        className="h-9 w-9 items-center justify-center rounded-lg bg-muted active:opacity-70"
+                      >
+                        <MinusIcon size={16} color="#e4e4e7" />
+                      </Pressable>
+                      <AppTextInput
+                        keyboardAccessory={false}
+                        keyboardType="number-pad"
+                        value={chipDrafts[chip.id] ?? ''}
+                        onChangeText={(t) =>
+                          setChipDrafts((prev) => ({
+                            ...prev,
+                            [chip.id]: t.replace(/\D/g, ''),
+                          }))
+                        }
+                        placeholder="0"
+                        placeholderTextColor="#71717a"
+                        className="h-10 w-12 rounded-lg border border-line bg-background px-1 text-center font-mono text-base text-zinc-100"
+                      />
+                      <Pressable
+                        accessibilityLabel={`Increase ${chip.label}`}
+                        onPress={() => bumpChip(chip.id, 1)}
+                        className="h-9 w-9 items-center justify-center rounded-lg bg-muted active:opacity-70"
+                      >
+                        <PlusIcon size={16} color="#e4e4e7" />
+                      </Pressable>
+                    </View>
                   </View>
                 ))}
               </View>
@@ -486,23 +536,16 @@ function CashSheet({
                 title="Confirm"
                 className="flex-1"
                 disabled={!(points > 0) || (mode === 'withdraw' && points > balance)}
-                onPress={() => {
-                  const error = send({
-                    type: mode,
-                    playerId: player.id,
-                    amount: unit === 'chips' ? points : numeric,
-                    unit: unit === 'chips' ? 'points' : unit,
-                  })
-                  if (!error) onClose()
-                }}
+                onPress={confirm}
               />
             </View>
           </ScrollView>
           {keyboardHeight > 0 ? (
             <View pointerEvents="box-none" className="absolute bottom-1.5 right-2">
-              <KeyboardDismissButton floating />
+              <KeyboardActionButtons floating />
             </View>
           ) : null}
+          </KeyboardForm>
         </View>
       </View>
     </Modal>
@@ -514,77 +557,94 @@ function ClaimMergePanel() {
   const state = store.state!
   const guests = state.players.filter((p) => !p.remote && !p.isHost)
   const remotes = state.players.filter((p) => p.remote)
+  const [open, setOpen] = React.useState(false)
   const [claimerId, setClaimerId] = React.useState(remotes[0]?.id ?? '')
   const [seatId, setSeatId] = React.useState(guests[0]?.id ?? '')
   const [fromId, setFromId] = React.useState('')
   const [toId, setToId] = React.useState('')
 
   return (
-    <Card className="gap-3 p-4">
-      <CardTitle>Seats & accounts</CardTitle>
-      <Muted>Claim a guest seat when someone joins, or merge accounts later.</Muted>
+    <Card className="overflow-hidden">
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        className="flex-row items-center gap-3 p-4 active:opacity-80"
+      >
+        <View className="min-w-0 flex-1 gap-0.5">
+          <CardTitle>Seats & accounts</CardTitle>
+          <Muted>Claim a guest seat or merge accounts.</Muted>
+        </View>
+        <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
+          <ChevronDownIcon size={18} color="#a1a1ab" />
+        </View>
+      </Pressable>
 
-      <View className="gap-2 rounded-xl border border-line p-3">
-        <Text className="text-xs font-medium text-zinc-100">Claim guest seat</Text>
-        {guests.length === 0 || remotes.length === 0 ? (
-          <Muted>Need a host-created guest and a joined player.</Muted>
-        ) : (
-          <>
+      {open ? (
+        <View className="gap-3 px-4 pb-4">
+          <View className="gap-2 rounded-xl border border-line p-3">
+            <Text className="text-xs font-medium text-zinc-100">Claim guest seat</Text>
+            {guests.length === 0 || remotes.length === 0 ? (
+              <Muted>Need a host-created guest and a joined player.</Muted>
+            ) : (
+              <>
+                <View className="flex-row flex-wrap gap-1.5">
+                  {remotes.map((p) => (
+                    <Pressable key={p.id} onPress={() => setClaimerId(p.id)}>
+                      <Chip tone={claimerId === p.id ? 'default' : 'outline'}>{p.name}</Chip>
+                    </Pressable>
+                  ))}
+                </View>
+                <View className="flex-row flex-wrap gap-1.5">
+                  {guests.map((p) => (
+                    <Pressable key={p.id} onPress={() => setSeatId(p.id)}>
+                      <Chip tone={seatId === p.id ? 'default' : 'outline'}>{p.name} (guest)</Chip>
+                    </Pressable>
+                  ))}
+                </View>
+                <AppButton
+                  size="sm"
+                  title="Claim seat"
+                  disabled={!claimerId || !seatId}
+                  onPress={() => store.claimSeat(claimerId, seatId)}
+                />
+              </>
+            )}
+          </View>
+
+          <View className="gap-2 rounded-xl border border-line p-3">
+            <Text className="text-xs font-medium text-zinc-100">Merge accounts</Text>
+            <Muted>Guest → player keeps the player. Player → player: pick the survivor.</Muted>
             <View className="flex-row flex-wrap gap-1.5">
-              {remotes.map((p) => (
-                <Pressable key={p.id} onPress={() => setClaimerId(p.id)}>
-                  <Chip tone={claimerId === p.id ? 'default' : 'outline'}>{p.name}</Chip>
-                </Pressable>
-              ))}
+              {state.players
+                .filter((p) => !p.isHost)
+                .map((p) => (
+                  <Pressable key={p.id} onPress={() => setFromId(p.id)}>
+                    <Chip tone={fromId === p.id ? 'default' : 'outline'}>
+                      Away: {p.name}
+                    </Chip>
+                  </Pressable>
+                ))}
             </View>
             <View className="flex-row flex-wrap gap-1.5">
-              {guests.map((p) => (
-                <Pressable key={p.id} onPress={() => setSeatId(p.id)}>
-                  <Chip tone={seatId === p.id ? 'default' : 'outline'}>{p.name} (guest)</Chip>
-                </Pressable>
-              ))}
+              {state.players
+                .filter((p) => p.id !== fromId)
+                .map((p) => (
+                  <Pressable key={p.id} onPress={() => setToId(p.id)}>
+                    <Chip tone={toId === p.id ? 'default' : 'outline'}>Into: {p.name}</Chip>
+                  </Pressable>
+                ))}
             </View>
             <AppButton
               size="sm"
-              title="Claim seat"
-              disabled={!claimerId || !seatId}
-              onPress={() => store.claimSeat(claimerId, seatId)}
+              variant="secondary"
+              title="Merge"
+              disabled={!fromId || !toId}
+              onPress={() => store.mergePlayers(fromId, toId)}
             />
-          </>
-        )}
-      </View>
-
-      <View className="gap-2 rounded-xl border border-line p-3">
-        <Text className="text-xs font-medium text-zinc-100">Merge accounts</Text>
-        <Muted>Guest → player keeps the player. Player → player: pick the survivor.</Muted>
-        <View className="flex-row flex-wrap gap-1.5">
-          {state.players
-            .filter((p) => !p.isHost)
-            .map((p) => (
-              <Pressable key={p.id} onPress={() => setFromId(p.id)}>
-                <Chip tone={fromId === p.id ? 'default' : 'outline'}>
-                  Away: {p.name}
-                </Chip>
-              </Pressable>
-            ))}
+          </View>
         </View>
-        <View className="flex-row flex-wrap gap-1.5">
-          {state.players
-            .filter((p) => p.id !== fromId)
-            .map((p) => (
-              <Pressable key={p.id} onPress={() => setToId(p.id)}>
-                <Chip tone={toId === p.id ? 'default' : 'outline'}>Into: {p.name}</Chip>
-              </Pressable>
-            ))}
-        </View>
-        <AppButton
-          size="sm"
-          variant="secondary"
-          title="Merge"
-          disabled={!fromId || !toId}
-          onPress={() => store.mergePlayers(fromId, toId)}
-        />
-      </View>
+      ) : null}
     </Card>
   )
 }
