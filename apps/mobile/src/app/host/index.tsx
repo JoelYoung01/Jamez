@@ -49,26 +49,29 @@ export default function HostScreen() {
   const screenWidth = Dimensions.get('window').width
   const fullWidth = screenWidth - H_PAD * 2
   const keyboardOpen = keyboardHeight > 0
-  // iOS overlays the keyboard; pin the bar to its top. Android adjustResize
+  // iOS overlays the keyboard; pin the bar just above it. Android adjustResize
   // already shrinks the window, so bottom: 0 sits above the keyboard.
+  const keyboardGap = 10
   const bottomOffset =
     Platform.OS === 'ios' && keyboardOpen
-      ? keyboardHeight
+      ? keyboardHeight + keyboardGap
       : Math.max(insets.bottom, 12) + (expanded && !keyboardOpen ? 8 : 4)
 
   const filtered = gameEngines.filter((game) => gameMatchesFilter(game, filter))
 
   const expand = () => {
     setExpanded(true)
+    // Focus immediately so the keyboard rises with the FAB→bar morph
+    // (a delayed focus made the two animations feel sequential).
+    requestAnimationFrame(() => {
+      inputRef.current?.focus()
+    })
     Animated.spring(progress, {
       toValue: 1,
       useNativeDriver: false,
       speed: 18,
       bounciness: 6,
     }).start()
-    requestAnimationFrame(() => {
-      setTimeout(() => inputRef.current?.focus(), 120)
-    })
   }
 
   const collapse = React.useCallback(() => {
@@ -117,7 +120,9 @@ export default function HostScreen() {
 
   const listBottomPad =
     (expanded ? BAR_HEIGHT + 24 : FAB_SIZE + 28) +
-    (Platform.OS === 'ios' && keyboardOpen ? keyboardHeight : Math.max(insets.bottom, 8))
+    (Platform.OS === 'ios' && keyboardOpen
+      ? keyboardHeight + keyboardGap
+      : Math.max(insets.bottom, 8))
 
   return (
     <View className="flex-1 bg-background">

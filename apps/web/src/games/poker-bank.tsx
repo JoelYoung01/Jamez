@@ -1,7 +1,9 @@
 import {
+  buildCashTransferSummary,
   chipBreakdown,
   formatPokerAmount,
   getGameEngine,
+  isPlayerActive,
   pointsFromChipCounts,
   toPoints,
   type PokerBankConfig,
@@ -25,7 +27,7 @@ import {
   UserRoundCheckIcon,
 } from 'lucide-react'
 import * as React from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ColorPicker } from '@/components/color-picker'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { PokerChip } from '@/components/poker-chip'
@@ -75,6 +77,7 @@ function GuestProfileFields({
           placeholder="e.g. Cousin Mike"
           maxLength={24}
           autoFocus
+          enterKeyHint="done"
           onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
         />
       </div>
@@ -107,9 +110,9 @@ function AddGuestButton() {
           <UserPlusIcon /> Add guest
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent keyboardAvoid>
         <DialogHeader>
-          <DialogTitle>Add a guest seat</DialogTitle>
+          <DialogTitle>Add to session roster</DialogTitle>
         </DialogHeader>
         <GuestProfileFields
           nameId="guest-name"
@@ -121,7 +124,7 @@ function AddGuestButton() {
         />
         <DialogFooter>
           <Button onClick={add} disabled={!name.trim()}>
-            Add guest
+            Add to roster
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -138,6 +141,7 @@ function EditGuestDialog({
   children: React.ReactNode
 }) {
   const updateLocalPlayer = useSession((s) => s.updateLocalPlayer)
+  const deactivatePlayer = useSession((s) => s.deactivatePlayer)
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState(player.name)
   const [emoji, setEmoji] = React.useState(player.emoji)
@@ -155,10 +159,15 @@ function EditGuestDialog({
     setOpen(false)
   }
 
+  const remove = () => {
+    deactivatePlayer(player.id)
+    setOpen(false)
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent>
+      <DialogContent keyboardAvoid>
         <DialogHeader>
           <DialogTitle>Edit guest</DialogTitle>
         </DialogHeader>
@@ -170,7 +179,10 @@ function EditGuestDialog({
           onEmojiChange={setEmoji}
           onSubmit={save}
         />
-        <DialogFooter>
+        <DialogFooter className="sm:justify-between">
+          <Button type="button" variant="ghost" onClick={remove} className="text-muted-foreground">
+            Mark not present
+          </Button>
           <Button onClick={save} disabled={!name.trim()}>
             Save
           </Button>
@@ -311,7 +323,7 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
           onChange={(pointsPerDollar) => set({ pointsPerDollar })}
         />
         <p className="text-[11px] text-muted-foreground">
-          Cash-in amounts can be entered in either unit; chip math always uses points.
+          Deposit amounts can be entered in either unit; chip math always uses points.
         </p>
       </div>
 
@@ -420,6 +432,13 @@ function CashDialog({
   const breakdown =
     mode === 'withdraw' && unit !== 'chips' ? chipBreakdown(points, game.config.chips) : []
   const balance = game.banks[player.id]?.balance ?? 0
+  const summary = buildCashTransferSummary({
+    mode,
+    points,
+    balance,
+    config: game.config,
+    includeDollarEquiv: unit === 'dollars',
+  })
 
   React.useEffect(() => {
     if (!open) return
@@ -457,20 +476,20 @@ function CashDialog({
       <DialogTrigger asChild>
         <Button variant={mode === 'deposit' ? 'default' : 'secondary'} size="sm">
           {mode === 'deposit' ? <ArrowDownLeftIcon /> : <ArrowUpRightIcon />}
-          {mode === 'deposit' ? 'Cash in' : 'Cash out'}
+          {mode === 'deposit' ? 'Deposit' : 'Withdraw'}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {mode === 'deposit' ? 'Cash in' : 'Cash out'} · {player.name}
+            {mode === 'deposit' ? 'Deposit' : 'Withdraw'} · {player.name}
           </DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
           <p className="text-xs text-muted-foreground">
             {mode === 'deposit'
-              ? `Put chips into ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`
-              : `Take chips out of ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`}
+              ? `Add chips to ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`
+              : `Remove chips from ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`}
             {game.config.currencyMode === 'dollars' ? ` (${balance} pts)` : ''}.
           </p>
           <Segmented
@@ -552,14 +571,12 @@ function CashDialog({
               />
             </div>
           )}
-          {points > 0 && (
-            <p className="text-xs text-muted-foreground">
-              = {formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}
-              {game.config.currencyMode === 'dollars' || unit === 'dollars'
-                ? ` · ${formatPokerAmount(points, game.config)}`
-                : ''}
+          <div className="grid gap-0.5 text-xs">
+            <p className="text-muted-foreground">{summary.primary}</p>
+            <p className={summary.tone === 'danger' ? 'text-destructive' : 'text-muted-foreground'}>
+              {summary.secondary}
             </p>
-          )}
+          </div>
           {mode === 'withdraw' && breakdown.length > 0 && (
             <div className="rounded-xl border border-border/60 bg-background/40 p-3">
               <div className="mb-2 text-xs font-medium text-muted-foreground">Take these chips</div>
@@ -728,9 +745,11 @@ function BankSettingsDialog({ game, send }: { game: PokerBankState; send: GamePl
 function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
   const claimSeat = useSession((s) => s.claimSeat)
   const mergePlayers = useSession((s) => s.mergePlayers)
+  const reactivatePlayer = useSession((s) => s.reactivatePlayer)
   const engine = getGameEngine(state.gameId)
   const guests = state.players.filter((p) => !p.remote && !p.isHost)
-  const remotes = state.players.filter((p) => p.remote)
+  const remotes = state.players.filter((p) => p.remote && isPlayerActive(p))
+  const inactive = state.players.filter((p) => !isPlayerActive(p))
   const [open, setOpen] = React.useState(false)
   const [claimerId, setClaimerId] = React.useState(remotes[0]?.id ?? '')
   const [seatId, setSeatId] = React.useState(guests[0]?.id ?? '')
@@ -797,7 +816,8 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
                     >
                       {guests.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} (guest)
+                          {p.name}
+                          {isPlayerActive(p) ? ' (guest)' : ' (not present)'}
                         </option>
                       ))}
                     </select>
@@ -831,7 +851,7 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
                 >
                   <option value="">Merge away…</option>
                   {state.players
-                    .filter((p) => !p.isHost)
+                    .filter((p) => !p.isHost && isPlayerActive(p))
                     .map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
@@ -846,7 +866,7 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
                 >
                   <option value="">Into…</option>
                   {state.players
-                    .filter((p) => p.id !== fromId)
+                    .filter((p) => p.id !== fromId && isPlayerActive(p))
                     .map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
@@ -865,6 +885,27 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
               </Button>
             </div>
           )}
+
+          {inactive.length > 0 ? (
+            <div className="grid gap-2 rounded-xl border border-border/50 p-3">
+              <div className="text-xs font-medium">Not present</div>
+              <p className="text-[11px] text-muted-foreground">
+                On the session roster but hidden from the table — mark at the table or claim later.
+              </p>
+              <div className="grid gap-2">
+                {inactive.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {p.emoji} {p.name}
+                    </span>
+                    <Button size="sm" variant="outline" onClick={() => reactivatePlayer(p.id)}>
+                      At the table
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       ) : null}
     </Card>
@@ -872,10 +913,13 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
 }
 
 function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
+  const deactivatePlayer = useSession((s) => s.deactivatePlayer)
+  const leaveSession = useSession((s) => s.leaveSession)
+  const navigate = useNavigate()
   const game = state.game as PokerBankState
-  const ranked = [...state.players].sort(
-    (a, b) => (game.banks[b.id]?.balance ?? 0) - (game.banks[a.id]?.balance ?? 0),
-  )
+  const ranked = state.players
+    .filter(isPlayerActive)
+    .sort((a, b) => (game.banks[b.id]?.balance ?? 0) - (game.banks[a.id]?.balance ?? 0))
   const recent = [...game.ledger].slice(-8).reverse()
 
   return (
@@ -883,7 +927,7 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-2 pb-2">
           <div>
-            <CardTitle className="text-sm">Bank</CardTitle>
+            <CardTitle className="text-sm">At the table</CardTitle>
             <CardDescription className="text-xs">
               Start {formatPokerAmount(game.config.startingStack, game.config)}
               {' · '}
@@ -954,17 +998,43 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                 ) : (
                   <div className="flex min-w-0 flex-1 items-center gap-3">{identity}</div>
                 )}
-                {canAct && (
-                  <div className="flex flex-wrap gap-2">
-                    <CashDialog mode="deposit" player={player} game={game} send={send} />
-                    <CashDialog mode="withdraw" player={player} game={game} send={send} />
-                  </div>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {canAct && (
+                    <>
+                      <CashDialog mode="deposit" player={player} game={game} send={send} />
+                      <CashDialog mode="withdraw" player={player} game={game} send={send} />
+                    </>
+                  )}
+                  {isHost && !player.isHost && !isGuest ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground"
+                      onClick={() => deactivatePlayer(player.id)}
+                    >
+                      Not present
+                    </Button>
+                  ) : null}
+                </div>
               </CardContent>
             </Card>
           )
         })}
       </div>
+
+      {!isHost && me ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            leaveSession()
+            navigate('/')
+          }}
+        >
+          Leave table
+        </Button>
+      ) : null}
 
       {isHost && (
         <div className="flex flex-wrap gap-2">

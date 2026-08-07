@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionPlayer } from '../protocol/session-state'
 import {
+  buildCashTransferSummary,
   chipBreakdown,
   clonePokerBankConfig,
   formatPokerAmount,
@@ -112,7 +113,7 @@ describe('poker bank engine', () => {
         { type: 'deposit', playerId: 'host', amount: 10, unit: 'points' },
         guestCtx,
       ),
-    ).toBe('You can only cash in or out for yourself')
+    ).toBe('You can only deposit or withdraw for yourself')
 
     expect(
       pokerBankEngine.validateAction(
@@ -171,6 +172,29 @@ describe('poker bank engine', () => {
     expect(claimed.banks.phone?.balance).toBe(800)
     expect(claimed.banks.seat).toBeUndefined()
     expect(claimed.ledger.at(-1)?.kind).toBe('claim')
+    // Seat history is remapped onto the claimer; claimer's pre-claim rows drop.
+    expect(claimed.ledger.every((e) => e.playerId !== 'seat')).toBe(true)
+    expect(claimed.ledger.filter((e) => e.playerId === 'phone' && e.kind === 'start')).toHaveLength(
+      1,
+    )
+    expect(claimed.ledger.find((e) => e.kind === 'start' && e.playerId === 'phone')?.points).toBe(
+      500,
+    )
+  })
+
+  it('keeps merged-away player ledger rows separate', () => {
+    const host = player('host', 'Host')
+    const a = player('a', 'A', true)
+    const b = player('b', 'B', true)
+    let state = started(host, a, b)
+    state = {
+      ...state,
+      banks: { ...state.banks, a: { balance: 100 }, b: { balance: 250 } },
+    }
+    const merged = pokerBankEngine.mergePlayers!(state, 'a', 'b')
+    // Source rows stay under fromId so history does not stitch into the survivor.
+    expect(merged.ledger.some((e) => e.playerId === 'a')).toBe(true)
+    expect(merged.ledger.at(-1)).toMatchObject({ kind: 'merge', playerId: 'b', points: 100 })
   })
 
   it('merges balances into the survivor', () => {
@@ -187,7 +211,7 @@ describe('poker bank engine', () => {
     expect(merged.banks.a).toBeUndefined()
   })
 
-  it('breaks amounts into chips greedily', () => {
+  it('breaks amounts into a playable chip stack', () => {
     const chips = pokerBankEngine.defaultConfig().chips
     expect(chips.map((c) => [c.id, c.value])).toEqual([
       ['white', 1],
@@ -197,12 +221,20 @@ describe('poker bank engine', () => {
       ['black', 500],
       ['purple', 1000],
     ])
-    const parts = chipBreakdown(137, chips)
-    expect(parts.map((p) => [p.chip.id, p.count])).toEqual([
-      ['blue', 1],
-      ['green', 1],
+    // Not a single black — five blues you can actually bet with.
+    expect(chipBreakdown(500, chips).map((p) => [p.chip.id, p.count])).toEqual([['blue', 5]])
+    // Small exact amounts may still use the matching bottom-tier chip.
+    expect(chipBreakdown(5, chips).map((p) => [p.chip.id, p.count])).toEqual([['red', 1]])
+    // Mid amounts prefer a mix under the per-color cap (no lone blue brick).
+    expect(chipBreakdown(137, chips).map((p) => [p.chip.id, p.count])).toEqual([
+      ['green', 5],
       ['red', 2],
       ['white', 2],
+    ])
+    // Larger cash-outs raise the ceiling only after capping lower colors.
+    expect(chipBreakdown(2000, chips).map((p) => [p.chip.id, p.count])).toEqual([
+      ['black', 2],
+      ['blue', 10],
     ])
   })
 
@@ -248,5 +280,40 @@ describe('poker bank engine', () => {
       })?.startingStack,
     ).toBe(500)
     expect(pokerBankConfigFromSession({ gameId: 'wingspan', gameConfig: lobby })).toBeNull()
+  })
+
+  it('summarizes cash transfers with leftover and overdraw copy', () => {
+    const config = { currencyMode: 'points' as const, pointsPerDollar: 1 }
+    expect(
+      buildCashTransferSummary({ mode: 'withdraw', points: 0, balance: 500, config }),
+    ).toEqual({
+      primary: 'Nothing to withdraw yet',
+      secondary: 'Holding 500 pts',
+      tone: 'muted',
+    })
+    expect(
+      buildCashTransferSummary({ mode: 'withdraw', points: 200, balance: 500, config }),
+    ).toEqual({
+      primary: '= 200 pts',
+      secondary: '300 pts left in bank',
+      tone: 'muted',
+    })
+    expect(
+      buildCashTransferSummary({ mode: 'withdraw', points: 500, balance: 500, config }),
+    ).toMatchObject({ secondary: 'Clears the bank', tone: 'muted' })
+    expect(
+      buildCashTransferSummary({ mode: 'withdraw', points: 600, balance: 500, config }),
+    ).toEqual({
+      primary: '= 600 pts',
+      secondary: 'Not enough — short 100 pts (holding 500 pts)',
+      tone: 'danger',
+    })
+    expect(
+      buildCashTransferSummary({ mode: 'deposit', points: 50, balance: 500, config }),
+    ).toEqual({
+      primary: '= 50 pts',
+      secondary: 'Bank will be 550 pts',
+      tone: 'muted',
+    })
   })
 })

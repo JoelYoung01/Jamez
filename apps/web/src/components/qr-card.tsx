@@ -13,27 +13,16 @@ export function joinUrl(code: string): string {
 }
 
 export function QrCard({ code }: QrCardProps) {
-  const [copiedCode, setCopiedCode] = React.useState(false)
-  const [copiedLink, setCopiedLink] = React.useState(false)
+  const [copied, setCopied] = React.useState(false)
   const url = joinUrl(code)
 
-  const copyCode = async () => {
-    try {
-      await navigator.clipboard.writeText(code)
-      setCopiedCode(true)
-      window.setTimeout(() => setCopiedCode(false), 1500)
-    } catch {
-      // clipboard unavailable (e.g. http on LAN); the code is on screen anyway
-    }
-  }
-
-  const copyLink = async () => {
+  const copyJoinLink = async () => {
     try {
       await navigator.clipboard.writeText(url)
-      setCopiedLink(true)
-      window.setTimeout(() => setCopiedLink(false), 1500)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
     } catch {
-      // clipboard unavailable
+      // clipboard unavailable (e.g. http on LAN); the code is on screen anyway
     }
   }
 
@@ -49,17 +38,17 @@ export function QrCard({ code }: QrCardProps) {
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label={copiedCode ? 'Code copied' : 'Copy game code'}
-            onClick={copyCode}
+            aria-label={copied ? 'Join link copied' : 'Copy join link'}
+            onClick={copyJoinLink}
             className="shrink-0 text-muted-foreground hover:text-primary"
           >
             <span
               className={cn(
                 'inline-flex transition-transform duration-200 ease-out',
-                copiedCode ? 'scale-125' : 'scale-100',
+                copied ? 'scale-125' : 'scale-100',
               )}
             >
-              {copiedCode ? (
+              {copied ? (
                 <CheckIcon className="size-4 text-emerald-400" />
               ) : (
                 <CopyIcon className="size-4" />
@@ -71,10 +60,6 @@ export function QrCard({ code }: QrCardProps) {
           Scan the code or share the link. Friends without the app land in the web app.
         </div>
       </div>
-      <Button variant="secondary" size="sm" onClick={copyLink}>
-        {copiedLink ? <CheckIcon /> : <CopyIcon />}
-        {copiedLink ? 'Copied' : 'Copy join link'}
-      </Button>
     </div>
   )
 }

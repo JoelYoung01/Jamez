@@ -173,9 +173,6 @@ export function ContinuePage() {
         </Card>
       ) : (
         <div className="grid gap-2">
-          <p className="text-xs text-muted-foreground">
-            Click to open · right-click or ⋯ for End / Delete
-          </p>
           {filteredRooms.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">

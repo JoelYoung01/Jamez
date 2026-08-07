@@ -7,11 +7,46 @@ const Dialog = DialogPrimitive.Root
 const DialogTrigger = DialogPrimitive.Trigger
 const DialogClose = DialogPrimitive.Close
 
+/** Shift a centered dialog up when the mobile keyboard covers the lower half. */
+function useKeyboardAvoidOffset(enabled: boolean) {
+  const [offsetY, setOffsetY] = React.useState(0)
+
+  React.useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return
+    const viewport = window.visualViewport
+    if (!viewport) return
+
+    const update = () => {
+      // How much of the layout viewport is covered by the keyboard / browser chrome.
+      const covered = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+      // Nudge up by half the coverage so the dialog stays optically centered in the visible area.
+      setOffsetY(covered > 80 ? Math.min(covered * 0.45, 220) : 0)
+    }
+
+    update()
+    viewport.addEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
+    return () => {
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
+    }
+  }, [enabled])
+
+  return offsetY
+}
+
 function DialogContent({
   className,
   children,
+  keyboardAvoid = false,
+  style,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content>) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  /** Lift the dialog when the on-screen keyboard opens (mobile web). */
+  keyboardAvoid?: boolean
+}) {
+  const offsetY = useKeyboardAvoidOffset(keyboardAvoid)
+
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay
@@ -26,6 +61,10 @@ function DialogContent({
           'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
           className,
         )}
+        style={{
+          ...style,
+          ...(offsetY > 0 ? { transform: `translate(-50%, calc(-50% - ${offsetY}px))` } : null),
+        }}
         {...props}
       >
         {children}

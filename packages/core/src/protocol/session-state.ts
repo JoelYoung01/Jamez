@@ -24,6 +24,19 @@ export interface SessionPlayer extends PlayerProfile {
   remote: boolean
   connected: boolean
   joinedAt: number
+  /**
+   * Whether this player is at the table for the current sitting of the session.
+   * Orthogonal to `connected` (on the wire right now): closing the app must not
+   * flip this. Explicit join / host check-in sets it true; explicit leave /
+   * host “not present” sets it false. Omitted / undefined means at the table
+   * (back-compat with older snapshots).
+   */
+  active?: boolean
+}
+
+/** At the table unless explicitly marked not present (`active: false`). */
+export function isPlayerActive(player: Pick<SessionPlayer, 'active'>): boolean {
+  return player.active !== false
 }
 
 export interface SessionState<GS = unknown> {

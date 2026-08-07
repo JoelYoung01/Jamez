@@ -85,9 +85,9 @@ The e2e run drops screenshots of every step in `e2e/artifacts/`. CI runs all of 
 
 Already wired: `.github/workflows/deploy-web.yml` builds and publishes on every push to `main`.
 
-One-time setup: repo **Settings → Pages → Source: GitHub Actions**. Deployed at **https://playjames.com** (custom domain on GitHub Pages). QR codes and join links point there automatically (a `404.html` fallback keeps `/join/CODE` deep links working).
+One-time setup: repo **Settings → Pages → Source: GitHub Actions**. Deployed at **https://playjamez.com** (custom domain on GitHub Pages). QR codes and join links point there automatically (a `404.html` fallback keeps `/join/CODE` deep links working).
 
-`VITE_BASE` is `/` in `.github/workflows/deploy-web.yml` for the custom domain. Mobile QR codes use `extra.webAppUrl` in `apps/mobile/app.config.ts` (`https://playjames.com`).
+`VITE_BASE` is `/` in `.github/workflows/deploy-web.yml` for the custom domain. Mobile QR codes use `extra.webAppUrl` in `apps/mobile/app.config.ts` (`https://playjamez.com`).
 
 ## iOS releases (TestFlight)
 
@@ -109,7 +109,7 @@ Design rule of thumb: guests may edit **their own** scores (`validateAction` enf
 
 - **🐦 Wingspan:** full end-game score sheet (birds, bonus cards, end-of-round goals, eggs, cached food, tucked cards + optional Oceania nectar), live standings, official tie-breaker (unused food).
 - **🃏 Gin Rummy:** hand-by-hand recorder (knock / gin / big gin / undercut with configurable bonuses), running totals to a target score, boxes, and the official final tally with line bonuses.
-- **🪙 Poker Bank:** long-running chip bank (`sessionMode: 'ongoing'`). Starting stacks, cash in/out with chip breakdowns, host-configured chip colors, guest seats that real devices can claim, and account merges. Host can park & resume across nights; state is stored in a game-scoped host vault.
+- **🪙 Poker Bank:** long-running chip bank (`sessionMode: 'ongoing'`). Starting stacks, deposit/withdraw with chip breakdowns, host-configured chip colors, guest seats that real devices can claim, and account merges. Host can park & resume across nights; state is stored in a game-scoped host vault.
 
 ## Roadmap ideas
 

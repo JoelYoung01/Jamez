@@ -80,6 +80,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
   ],
   extra: {
-    webAppUrl: 'https://playjames.com',
+    webAppUrl: 'https://playjamez.com',
   },
 })

@@ -1,5 +1,6 @@
 import {
   getGameEngine,
+  isPlayerActive,
   normalizeJoinCode,
   sessionDisplayName,
   SESSION_NICKNAME_MAX,
@@ -100,8 +101,8 @@ function SessionBody({ code }: { code: string }) {
       return (
         <StatusCard
           icon={HandIcon}
-          title="You were removed"
-          body="The host removed you from this session."
+          title="Not at the table"
+          body="You're still on this session's roster. Rejoin with the code when you're back, or head home."
           onDone={() => store.leaveSession()}
         />
       )
@@ -373,7 +374,10 @@ function LobbyView() {
   const game = getGameEngine(state.gameId)
   const ui = getGameUI(state.gameId)
   const summary = ui?.configSummary?.(state.gameConfig) ?? []
-  const canStart = state.players.length >= (game?.minPlayers ?? 1)
+  const atTable = state.players.filter(isPlayerActive)
+  const notPresent = state.players.filter((p) => !isPlayerActive(p))
+  const ongoing = sessionIsOngoing(state)
+  const canStart = atTable.length >= (game?.minPlayers ?? 1)
 
   return (
     <View className="gap-4">
@@ -387,7 +391,7 @@ function LobbyView() {
         <View className="mb-3 flex-row items-start justify-between gap-2">
           <View className="min-w-0 flex-1">
             <CardTitle>
-              Players ({state.players.length}
+              {ongoing ? 'At the table' : 'Players'} ({atTable.length}
               {game ? `/${game.maxPlayers}` : ''})
             </CardTitle>
             {summary.length > 0 && (
@@ -403,19 +407,48 @@ function LobbyView() {
           {isHost && <AddLocalPlayerButton />}
         </View>
         <View className="gap-2">
-          {state.players.map((player) => (
+          {atTable.map((player) => (
             <PlayerRow
               key={player.id}
               player={player}
               canKick={isHost && !player.isHost}
-              onKick={() => store.removePlayer(player.id)}
+              onKick={() =>
+                ongoing ? store.deactivatePlayer(player.id) : store.removePlayer(player.id)
+              }
             />
           ))}
-          {state.players.length === 1 && !store.passAndPlay && (
+          {atTable.length === 1 && !store.passAndPlay && (
             <Text className="py-2 text-center text-xs text-muted-foreground/70">
               Waiting for friends… they can scan the QR or enter the code in the app or website.
             </Text>
           )}
+          {isHost && ongoing && notPresent.length > 0 ? (
+            <View className="mt-2 gap-2 rounded-xl border border-line p-3">
+              <Text className="text-xs font-medium text-zinc-100">Not present</Text>
+              <Muted>On the session roster — mark at the table when they show up.</Muted>
+              {notPresent.map((player) => (
+                <View key={player.id} className="flex-row items-center gap-2">
+                  <Text className="min-w-0 flex-1 text-sm text-zinc-300" numberOfLines={1}>
+                    {player.emoji} {player.name}
+                  </Text>
+                  <AppButton
+                    size="sm"
+                    variant="outline"
+                    title="At the table"
+                    onPress={() => store.reactivatePlayer(player.id)}
+                  />
+                  <Pressable
+                    onPress={() => store.removePlayer(player.id)}
+                    hitSlop={8}
+                    accessibilityLabel={`Remove ${player.name}`}
+                    className="h-7 w-7 items-center justify-center rounded-md active:opacity-70"
+                  >
+                    <XIcon size={14} color="#a1a1ab" />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
       </Card>
 
@@ -424,7 +457,7 @@ function LobbyView() {
           size="lg"
           title={
             canStart
-              ? sessionIsOngoing(state)
+              ? ongoing
                 ? 'Open the bank'
                 : 'Start the game'
               : `Need ${game?.minPlayers ?? 1}+ players to start`

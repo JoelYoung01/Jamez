@@ -34,7 +34,7 @@ jobs:
 
       - name: Build
         env:
-          # Custom domain (playjames.com) serves from the site root.
+          # Custom domain (playjamez.com) serves from the site root.
           VITE_BASE: /
         run: pnpm build
 

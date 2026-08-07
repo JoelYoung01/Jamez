@@ -1,6 +1,8 @@
 import {
+  buildCashTransferSummary,
   chipBreakdown,
   formatPokerAmount,
+  isPlayerActive,
   pointsFromChipCounts,
   toPoints,
   type PokerBankConfig,
@@ -385,6 +387,13 @@ function CashSheet({
   const breakdown =
     mode === 'withdraw' && unit !== 'chips' ? chipBreakdown(points, game.config.chips) : []
   const balance = game.banks[player.id]?.balance ?? 0
+  const summary = buildCashTransferSummary({
+    mode,
+    points,
+    balance,
+    config: game.config,
+    includeDollarEquiv: unit === 'dollars',
+  })
   useSuppressAndroidKeyboardHost()
 
   const confirm = React.useCallback(() => {
@@ -430,12 +439,12 @@ function CashSheet({
               }}
             >
             <Text className="mb-1 text-lg font-semibold text-zinc-100">
-              {mode === 'deposit' ? 'Cash in' : 'Cash out'} · {player.name}
+              {mode === 'deposit' ? 'Deposit' : 'Withdraw'} · {player.name}
             </Text>
             <Muted className="mb-3">
               {mode === 'deposit'
-                ? `Put chips into ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}.`
-                : `Take chips out of ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}.`}
+                ? `Add chips to ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}.`
+                : `Remove chips from ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}.`}
             </Muted>
             <Segmented
               value={unit}
@@ -509,14 +518,18 @@ function CashSheet({
                 />
               </View>
             )}
-            {points > 0 ? (
-              <Muted className="mt-2">
-                = {formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}
-                {game.config.currencyMode === 'dollars' || unit === 'dollars'
-                  ? ` · ${formatPokerAmount(points, game.config)}`
-                  : ''}
-              </Muted>
-            ) : null}
+            <View className="mt-2 gap-0.5">
+              <Muted>{summary.primary}</Muted>
+              <Text
+                className={
+                  summary.tone === 'danger'
+                    ? 'text-xs text-destructive'
+                    : 'text-xs text-muted-foreground'
+                }
+              >
+                {summary.secondary}
+              </Text>
+            </View>
             {mode === 'withdraw' && breakdown.length > 0 && (
               <View className="mt-3 flex-row flex-wrap gap-3 rounded-xl border border-line p-3">
                 {breakdown.map(({ chip, count }) => (
@@ -556,7 +569,8 @@ function ClaimMergePanel() {
   const store = useSession()
   const state = store.state!
   const guests = state.players.filter((p) => !p.remote && !p.isHost)
-  const remotes = state.players.filter((p) => p.remote)
+  const remotes = state.players.filter((p) => p.remote && isPlayerActive(p))
+  const inactive = state.players.filter((p) => !isPlayerActive(p))
   const [open, setOpen] = React.useState(false)
   const [claimerId, setClaimerId] = React.useState(remotes[0]?.id ?? '')
   const [seatId, setSeatId] = React.useState(guests[0]?.id ?? '')
@@ -598,7 +612,10 @@ function ClaimMergePanel() {
                 <View className="flex-row flex-wrap gap-1.5">
                   {guests.map((p) => (
                     <Pressable key={p.id} onPress={() => setSeatId(p.id)}>
-                      <Chip tone={seatId === p.id ? 'default' : 'outline'}>{p.name} (guest)</Chip>
+                      <Chip tone={seatId === p.id ? 'default' : 'outline'}>
+                        {p.name}
+                        {isPlayerActive(p) ? ' (guest)' : ' (not present)'}
+                      </Chip>
                     </Pressable>
                   ))}
                 </View>
@@ -617,7 +634,7 @@ function ClaimMergePanel() {
             <Muted>Guest → player keeps the player. Player → player: pick the survivor.</Muted>
             <View className="flex-row flex-wrap gap-1.5">
               {state.players
-                .filter((p) => !p.isHost)
+                .filter((p) => !p.isHost && isPlayerActive(p))
                 .map((p) => (
                   <Pressable key={p.id} onPress={() => setFromId(p.id)}>
                     <Chip tone={fromId === p.id ? 'default' : 'outline'}>
@@ -628,7 +645,7 @@ function ClaimMergePanel() {
             </View>
             <View className="flex-row flex-wrap gap-1.5">
               {state.players
-                .filter((p) => p.id !== fromId)
+                .filter((p) => p.id !== fromId && isPlayerActive(p))
                 .map((p) => (
                   <Pressable key={p.id} onPress={() => setToId(p.id)}>
                     <Chip tone={toId === p.id ? 'default' : 'outline'}>Into: {p.name}</Chip>
@@ -643,6 +660,26 @@ function ClaimMergePanel() {
               onPress={() => store.mergePlayers(fromId, toId)}
             />
           </View>
+
+          {inactive.length > 0 ? (
+            <View className="gap-2 rounded-xl border border-line p-3">
+              <Text className="text-xs font-medium text-zinc-100">Not present</Text>
+              <Muted>On the session roster but hidden from the table — mark at the table or claim later.</Muted>
+              {inactive.map((p) => (
+                <View key={p.id} className="flex-row items-center gap-2">
+                  <Text className="min-w-0 flex-1 text-sm text-zinc-300" numberOfLines={1}>
+                    {p.emoji} {p.name}
+                  </Text>
+                  <AppButton
+                    size="sm"
+                    variant="outline"
+                    title="At the table"
+                    onPress={() => store.reactivatePlayer(p.id)}
+                  />
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
       ) : null}
     </Card>
@@ -656,6 +693,7 @@ function GuestProfileModal({
   initialEmoji,
   onClose,
   onConfirm,
+  onRemove,
 }: {
   title: string
   confirmLabel: string
@@ -663,42 +701,83 @@ function GuestProfileModal({
   initialEmoji: string
   onClose: () => void
   onConfirm: (profile: { name: string; emoji: string }) => void
+  /** Soft-remove (hide from the main roster without deleting history). */
+  onRemove?: () => void
 }) {
+  const keyboardHeight = useKeyboardHeight()
   const [name, setName] = React.useState(initialName)
   const [emoji, setEmoji] = React.useState(initialEmoji)
+  useSuppressAndroidKeyboardHost()
+
+  const save = React.useCallback(() => {
+    if (!name.trim()) return
+    onConfirm({ name: name.trim(), emoji })
+  }, [emoji, name, onConfirm])
 
   return (
     <Modal transparent animationType="fade" visible onRequestClose={onClose}>
-      <Pressable className="flex-1 items-center justify-center bg-black/60 px-6" onPress={onClose}>
-        <Pressable className="w-full gap-3 rounded-2xl border border-line bg-card p-4" onPress={() => {}}>
-          <Text className="text-lg font-semibold text-zinc-100">{title}</Text>
-          <View>
-            <SectionLabel>Name</SectionLabel>
-            <AppTextInput
-              autoFocus
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. Cousin Mike"
-              placeholderTextColor="#71717a"
-              maxLength={24}
-              className="h-11 rounded-xl border border-line bg-background px-3 text-zinc-100"
-            />
-          </View>
-          <View>
-            <SectionLabel>Emoji</SectionLabel>
-            <EmojiGrid value={emoji} onChange={setEmoji} />
-          </View>
-          <View className="flex-row gap-2">
-            <AppButton title="Cancel" variant="secondary" className="flex-1" onPress={onClose} />
-            <AppButton
-              title={confirmLabel}
-              className="flex-1"
-              disabled={!name.trim()}
-              onPress={() => onConfirm({ name: name.trim(), emoji })}
-            />
-          </View>
-        </Pressable>
-      </Pressable>
+      <View className="flex-1 justify-end bg-black/60">
+        <Pressable className="absolute inset-0" onPress={onClose} accessibilityLabel="Dismiss" />
+        <View
+          className="rounded-t-3xl border border-line bg-card"
+          style={{ marginBottom: keyboardHeight, maxHeight: '90%' }}
+        >
+          <KeyboardForm onSubmit={save}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                padding: 16,
+                gap: 12,
+                paddingBottom: keyboardHeight > 0 ? 56 : 16,
+              }}
+            >
+              <Text className="text-lg font-semibold text-zinc-100">{title}</Text>
+              <View>
+                <SectionLabel>Name</SectionLabel>
+                <AppTextInput
+                  autoFocus
+                  keyboardAccessory={false}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="e.g. Cousin Mike"
+                  placeholderTextColor="#71717a"
+                  maxLength={24}
+                  returnKeyType="done"
+                  onSubmitEditing={save}
+                  className="h-11 rounded-xl border border-line bg-background px-3 text-zinc-100"
+                />
+              </View>
+              <View>
+                <SectionLabel>Emoji</SectionLabel>
+                <EmojiGrid value={emoji} onChange={setEmoji} />
+              </View>
+              <View className="flex-row gap-2">
+                <AppButton title="Cancel" variant="secondary" className="flex-1" onPress={onClose} />
+                <AppButton
+                  title={confirmLabel}
+                  className="flex-1"
+                  disabled={!name.trim()}
+                  onPress={save}
+                />
+              </View>
+              {onRemove ? (
+                <AppButton
+                  title="Mark not present"
+                  variant="secondary"
+                  onPress={onRemove}
+                />
+              ) : null}
+            </ScrollView>
+            {keyboardHeight > 0 ? (
+              <View pointerEvents="box-none" className="absolute bottom-1.5 right-2">
+                <KeyboardActionButtons floating />
+              </View>
+            ) : null}
+          </KeyboardForm>
+        </View>
+      </View>
     </Modal>
   )
 }
@@ -712,7 +791,7 @@ function AddGuestButton() {
       <AppButton size="sm" variant="outline" title="Add guest" onPress={() => setOpen(true)} />
       {open ? (
         <GuestProfileModal
-          title="Add a guest seat"
+          title="Add to session roster"
           confirmLabel="Add"
           initialName=""
           initialEmoji={randomEmoji()}
@@ -737,6 +816,7 @@ function GuestIdentity({
   editable: boolean
 }) {
   const updateLocalPlayer = useSession((s) => s.updateLocalPlayer)
+  const deactivatePlayer = useSession((s) => s.deactivatePlayer)
   const [open, setOpen] = React.useState(false)
   const isGuest = !player.remote && !player.isHost
 
@@ -779,6 +859,10 @@ function GuestIdentity({
             updateLocalPlayer(player.id, { name, emoji })
             setOpen(false)
           }}
+          onRemove={() => {
+            deactivatePlayer(player.id)
+            setOpen(false)
+          }}
         />
       ) : null}
     </>
@@ -786,10 +870,12 @@ function GuestIdentity({
 }
 
 function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
+  const deactivatePlayer = useSession((s) => s.deactivatePlayer)
+  const leaveSession = useSession((s) => s.leaveSession)
   const game = state.game as PokerBankState
-  const ranked = [...state.players].sort(
-    (a, b) => (game.banks[b.id]?.balance ?? 0) - (game.banks[a.id]?.balance ?? 0),
-  )
+  const ranked = state.players
+    .filter(isPlayerActive)
+    .sort((a, b) => (game.banks[b.id]?.balance ?? 0) - (game.banks[a.id]?.balance ?? 0))
   const [cash, setCash] = React.useState<{ mode: 'deposit' | 'withdraw'; player: SessionPlayer } | null>(
     null,
   )
@@ -801,7 +887,7 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
       <Card className="gap-2 p-4">
         <View className="flex-row items-start justify-between gap-2">
           <View className="min-w-0 flex-1 gap-1">
-            <CardTitle>Bank</CardTitle>
+            <CardTitle>At the table</CardTitle>
             <Muted>
               Start {formatPokerAmount(game.config.startingStack, game.config)}
               {' · '}
@@ -858,27 +944,46 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                   editable={Boolean(isHost && isGuest)}
                 />
               </View>
-              {canAct && (
+              {canAct ? (
                 <View className="flex-row gap-2">
                   <AppButton
                     size="sm"
-                    title="Cash in"
+                    title="Deposit"
                     className="flex-1"
                     onPress={() => setCash({ mode: 'deposit', player })}
                   />
                   <AppButton
                     size="sm"
                     variant="secondary"
-                    title="Cash out"
+                    title="Withdraw"
                     className="flex-1"
                     onPress={() => setCash({ mode: 'withdraw', player })}
                   />
                 </View>
-              )}
+              ) : null}
+              {isHost && !player.isHost && !isGuest ? (
+                <AppButton
+                  size="sm"
+                  variant="secondary"
+                  title="Not present"
+                  onPress={() => deactivatePlayer(player.id)}
+                />
+              ) : null}
             </Card>
           )
         })}
       </View>
+
+      {!isHost && me ? (
+        <AppButton
+          variant="secondary"
+          title="Leave table"
+          onPress={() => {
+            leaveSession()
+            router.replace('/')
+          }}
+        />
+      ) : null}
 
       {isHost && <AddGuestButton />}
       {isHost && <ClaimMergePanel />}

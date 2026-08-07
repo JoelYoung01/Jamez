@@ -186,23 +186,153 @@ export function formatPokerAmount(
   return formatPoints(points)
 }
 
-/** Greedy chip breakdown (highest denomination first). */
+export type CashTransferSummaryTone = 'muted' | 'danger'
+
+/** Copy for the deposit/withdraw amount footer (stable two-line layout). */
+export interface CashTransferSummary {
+  primary: string
+  secondary: string
+  tone: CashTransferSummaryTone
+}
+
+/**
+ * Build the cash-sheet total + account-impact lines.
+ * Always returns both lines so UIs can reserve height and avoid layout jump.
+ */
+export function buildCashTransferSummary(input: {
+  mode: 'deposit' | 'withdraw'
+  /** Transfer size in points (0 when empty / invalid). */
+  points: number
+  balance: number
+  config: Pick<PokerBankConfig, 'currencyMode' | 'pointsPerDollar'>
+  /** Also show dollar form on the primary line (e.g. dollars input mode). */
+  includeDollarEquiv?: boolean
+}): CashTransferSummary {
+  const { mode, points, balance, config, includeDollarEquiv = false } = input
+  const amt = (p: number) => formatPokerAmount(p, config)
+  const pts = (p: number) =>
+    formatPokerAmount(p, { currencyMode: 'points', pointsPerDollar: 1 })
+
+  let primary: string
+  if (points > 0) {
+    primary = `= ${pts(points)}`
+    if (config.currencyMode === 'dollars') {
+      primary += ` · ${amt(points)}`
+    } else if (includeDollarEquiv) {
+      primary += ` · ${formatPokerAmount(points, {
+        currencyMode: 'dollars',
+        pointsPerDollar: config.pointsPerDollar,
+      })}`
+    }
+  } else {
+    primary = mode === 'withdraw' ? 'Nothing to withdraw yet' : 'Nothing to deposit yet'
+  }
+
+  if (mode === 'withdraw') {
+    if (!(points > 0)) {
+      return { primary, secondary: `Holding ${amt(balance)}`, tone: 'muted' }
+    }
+    if (points > balance) {
+      return {
+        primary,
+        secondary: `Not enough — short ${amt(points - balance)} (holding ${amt(balance)})`,
+        tone: 'danger',
+      }
+    }
+    const left = balance - points
+    return {
+      primary,
+      secondary: left === 0 ? 'Clears the bank' : `${amt(left)} left in bank`,
+      tone: 'muted',
+    }
+  }
+
+  if (!(points > 0)) {
+    return { primary, secondary: `Holding ${amt(balance)}`, tone: 'muted' }
+  }
+  return {
+    primary,
+    secondary: `Bank will be ${amt(balance + points)}`,
+    tone: 'muted',
+  }
+}
+
+/** Soft cap so cash-outs don't arrive as a fistful of one color. */
+const CHIP_BREAKDOWN_MAX_PER_DENOM = 10
+/**
+ * Aim for at least this many chips by leading with a denomination at or below
+ * `amount / MIN` (e.g. 500 → five blues, not one black).
+ */
+const CHIP_BREAKDOWN_MIN_STACK = 5
+
+/**
+ * Break an amount into a playable chip stack.
+ *
+ * Unlike pure greedy (which turns 500 into a single black), this:
+ * 1. Leads with a denomination small enough for a ~5+ chip stack
+ * 2. Caps each color at 10
+ * 3. Raises to the next larger color only after that cap (never dumps the
+ *    remainder straight into tiny chips)
+ * 4. Makes change for the leftover with smaller denoms
+ */
 export function chipBreakdown(
   points: number,
   chips: PokerChipDenom[],
 ): { chip: PokerChipDenom; count: number }[] {
   if (!Number.isFinite(points) || points <= 0) return []
   const ordered = [...chips].filter((c) => c.value > 0).sort((a, b) => b.value - a.value)
-  let remaining = Math.floor(points)
-  const out: { chip: PokerChipDenom; count: number }[] = []
-  for (const chip of ordered) {
-    const count = Math.floor(remaining / chip.value)
-    if (count > 0) {
-      out.push({ chip, count })
-      remaining -= count * chip.value
+  if (ordered.length === 0) return []
+
+  const amount = Math.floor(points)
+  const counts = new Map<string, number>()
+  let remaining = amount
+
+  const take = (chip: PokerChipDenom, maxCount: number) => {
+    const have = counts.get(chip.id) ?? 0
+    const room = maxCount - have
+    if (room <= 0) return
+    const n = Math.min(Math.floor(remaining / chip.value), room)
+    if (n > 0) {
+      counts.set(chip.id, have + n)
+      remaining -= n * chip.value
     }
   }
-  return out
+
+  // Preferred lead: largest chip that still yields ~MIN_STACK pieces.
+  let leadIdx = ordered.findIndex((c) => c.value <= amount / CHIP_BREAKDOWN_MIN_STACK)
+  if (leadIdx < 0) leadIdx = ordered.findIndex((c) => c.value <= amount)
+  if (leadIdx < 0) leadIdx = ordered.length - 1
+
+  // Small exact amounts (e.g. 5 → one red) may match a bottom-tier chip.
+  const exactIdx = ordered.findIndex((c) => c.value === amount)
+  if (exactIdx >= 0 && exactIdx >= ordered.length - 3) {
+    leadIdx = Math.min(leadIdx, exactIdx)
+  }
+
+  // Workhorse color first (capped).
+  take(ordered[leadIdx]!, CHIP_BREAKDOWN_MAX_PER_DENOM)
+
+  // If the cap left a large remainder, step up through bigger colors — still capped.
+  for (let i = leadIdx - 1; i >= 0 && remaining > 0; i--) {
+    take(ordered[i]!, CHIP_BREAKDOWN_MAX_PER_DENOM)
+  }
+
+  // Make change for whatever is left with smaller denoms.
+  for (let i = leadIdx + 1; i < ordered.length && remaining > 0; i++) {
+    const isSmallest = i === ordered.length - 1
+    take(ordered[i]!, isSmallest ? Number.MAX_SAFE_INTEGER : CHIP_BREAKDOWN_MAX_PER_DENOM)
+  }
+
+  // Last resort (odd custom chip sets without a 1-unit).
+  if (remaining > 0) {
+    for (let i = 0; i < ordered.length && remaining > 0; i++) {
+      take(ordered[i]!, Number.MAX_SAFE_INTEGER)
+    }
+  }
+
+  return ordered
+    .filter((c) => (counts.get(c.id) ?? 0) > 0)
+    .map((c) => ({ chip: c, count: counts.get(c.id)! }))
 }
 
 /** Sum chip counts × denomination values into a point total. */
@@ -281,7 +411,7 @@ function grantStart(
 export const pokerBankEngine: GameEngine<PokerBankConfig, PokerBankState, PokerBankAction> = {
   id: 'poker-bank',
   name: 'Poker Bank',
-  tagline: 'Long-running chip bank with cash-in / cash-out',
+  tagline: 'Long-running chip bank with deposit / withdraw',
   accentColor: '#e11d48',
   minPlayers: 1,
   maxPlayers: 24,
@@ -318,7 +448,7 @@ export const pokerBankEngine: GameEngine<PokerBankConfig, PokerBankState, PokerB
     const bank = state.banks[action.playerId]
     if (!bank) return 'Unknown player'
     if (action.playerId !== ctx.actorId && !ctx.isHost) {
-      return 'You can only cash in or out for yourself'
+      return 'You can only deposit or withdraw for yourself'
     }
     if (!(action.amount > 0) || !Number.isFinite(action.amount)) {
       return 'Amount must be greater than zero'
@@ -429,8 +559,16 @@ export const pokerBankEngine: GameEngine<PokerBankConfig, PokerBankState, PokerB
     const banks = { ...state.banks }
     banks[claimerId] = { balance: seat.balance }
     delete banks[seatId]
+    // Guest seat history belongs to the claimer (same person taking over).
+    // Drop the claimer's unused pre-claim stack so the chart stays continuous.
+    // Player+player merges intentionally leave separate series — do not remap there.
+    const ledger = state.ledger
+      .filter((entry) => entry.playerId !== claimerId)
+      .map((entry) =>
+        entry.playerId === seatId ? { ...entry, playerId: claimerId } : entry,
+      )
     return appendLedger(
-      { ...state, banks },
+      { ...state, banks, ledger },
       {
         at: Date.now(),
         playerId: claimerId,

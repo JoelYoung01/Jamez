@@ -8,7 +8,8 @@ import type { PokerBankState, PokerLedgerEntry, PokerLedgerKind } from './poker-
  * UIs can chart stacks without inventing their own accounting rules.
  *
  * Claim entries set balance (seat takeover); every other kind applies a signed
- * delta. See `pokerBankEngine.claimSeat` / `mergePlayers`.
+ * delta. `claimSeat` remaps guest ledger rows onto the claimer for continuity;
+ * `mergePlayers` leaves the source series intact (separate history).
  */
 
 export interface PokerBalanceSample {

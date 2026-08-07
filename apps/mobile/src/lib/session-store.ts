@@ -64,6 +64,8 @@ interface SessionStoreState {
   addLocalPlayer: (profile: { name: string; emoji: string }) => void
   updateLocalPlayer: (playerId: string, patch: { name?: string; emoji?: string }) => void
   removePlayer: (playerId: string) => void
+  deactivatePlayer: (playerId: string) => void
+  reactivatePlayer: (playerId: string) => void
   claimSeat: (claimerId: string, seatId: string) => void
   mergePlayers: (fromId: string, toId: string) => void
   sendAction: (
@@ -178,7 +180,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
         guest.onStatus.subscribe((guestStatus) => {
           set({ guestStatus })
           if (guestStatus === 'ended' || guestStatus === 'removed') {
-            void endSessionLiveActivity('default')
+            void endSessionLiveActivity('immediate')
           }
         }),
         guest.onReject.subscribe(({ reason }) => toast.error(reason)),
@@ -250,6 +252,16 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       if (error) toast.error(error)
     },
 
+    deactivatePlayer(playerId) {
+      const error = host?.deactivatePlayer(playerId)
+      if (error) toast.error(error)
+    },
+
+    reactivatePlayer(playerId) {
+      const error = host?.reactivatePlayer(playerId)
+      if (error) toast.error(error)
+    },
+
     claimSeat(claimerId, seatId) {
       const error = host?.claimSeat(claimerId, seatId)
       if (error) toast.error(error)
@@ -275,9 +287,10 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       const state = host?.current
       const passAndPlay = get().passAndPlay
       if (state) persistHostSnapshot(state, passAndPlay)
-      host?.stop()
+      // Drop listeners before stop so a final transport blip can't re-sync the
+      // Live Activity after we've decided the session is no longer active here.
       cleanupRefs()
-      void endSessionLiveActivity('default')
+      void endSessionLiveActivity('immediate')
       set(resetSessionFields())
     },
 
@@ -298,7 +311,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       host?.end()
       if (state) clearHostSnapshot(state)
       cleanupRefs()
-      void endSessionLiveActivity('default')
+      void endSessionLiveActivity('immediate')
       set(resetSessionFields())
     },
 
@@ -307,7 +320,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       host?.end()
       if (state) clearHostSnapshot(state)
       cleanupRefs()
-      void endSessionLiveActivity('default')
+      void endSessionLiveActivity('immediate')
       set(resetSessionFields())
     },
 
