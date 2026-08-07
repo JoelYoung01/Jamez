@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { useKeyboardHeight } from '@/lib/keyboard'
 
 /** Blur the focused field and hide the keyboard. */
 export function dismissKeyboard() {
@@ -63,30 +64,18 @@ export function KeyboardDismissAccessory({ nativeID }: { nativeID: string }) {
 }
 
 /**
- * Android has no InputAccessoryView. When the keyboard is open, pin a dismiss
- * bar just above it so number pads (and every other keyboard) can be closed.
+ * Android has no InputAccessoryView. With `softwareKeyboardLayoutMode: 'resize'`
+ * the window already sits above the keyboard, so pin the dismiss bar to the
+ * bottom of that resized window.
  */
 export function AndroidKeyboardDismissHost() {
-  const [height, setHeight] = React.useState(0)
-
-  React.useEffect(() => {
-    if (Platform.OS === 'ios') return
-    const show = Keyboard.addListener('keyboardDidShow', (e) => {
-      setHeight(e.endCoordinates.height)
-    })
-    const hide = Keyboard.addListener('keyboardDidHide', () => setHeight(0))
-    return () => {
-      show.remove()
-      hide.remove()
-    }
-  }, [])
-
-  if (Platform.OS === 'ios' || height <= 0) return null
+  const keyboardHeight = useKeyboardHeight()
+  if (Platform.OS === 'ios' || keyboardHeight <= 0) return null
 
   return (
     <View
       pointerEvents="box-none"
-      style={{ position: 'absolute', left: 0, right: 0, bottom: height, zIndex: 1000 }}
+      style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 1000 }}
     >
       <KeyboardDismissBar className="border-t border-line" />
     </View>
