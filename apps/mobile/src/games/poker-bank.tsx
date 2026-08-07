@@ -9,7 +9,14 @@ import {
   type PokerCurrencyMode,
   type SessionPlayer,
 } from '@jamez/core'
-import { CoinsIcon, DollarSignIcon, MinusIcon, PlusIcon, Settings2Icon } from 'lucide-react-native'
+import {
+  ChevronDownIcon,
+  CoinsIcon,
+  DollarSignIcon,
+  MinusIcon,
+  PlusIcon,
+  Settings2Icon,
+} from 'lucide-react-native'
 import * as React from 'react'
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
@@ -548,77 +555,94 @@ function ClaimMergePanel() {
   const state = store.state!
   const guests = state.players.filter((p) => !p.remote && !p.isHost)
   const remotes = state.players.filter((p) => p.remote)
+  const [open, setOpen] = React.useState(false)
   const [claimerId, setClaimerId] = React.useState(remotes[0]?.id ?? '')
   const [seatId, setSeatId] = React.useState(guests[0]?.id ?? '')
   const [fromId, setFromId] = React.useState('')
   const [toId, setToId] = React.useState('')
 
   return (
-    <Card className="gap-3 p-4">
-      <CardTitle>Seats & accounts</CardTitle>
-      <Muted>Claim a guest seat when someone joins, or merge accounts later.</Muted>
+    <Card className="overflow-hidden">
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        className="flex-row items-center gap-3 p-4 active:opacity-80"
+      >
+        <View className="min-w-0 flex-1 gap-0.5">
+          <CardTitle>Seats & accounts</CardTitle>
+          <Muted>Claim a guest seat or merge accounts.</Muted>
+        </View>
+        <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
+          <ChevronDownIcon size={18} color="#a1a1ab" />
+        </View>
+      </Pressable>
 
-      <View className="gap-2 rounded-xl border border-line p-3">
-        <Text className="text-xs font-medium text-zinc-100">Claim guest seat</Text>
-        {guests.length === 0 || remotes.length === 0 ? (
-          <Muted>Need a host-created guest and a joined player.</Muted>
-        ) : (
-          <>
+      {open ? (
+        <View className="gap-3 px-4 pb-4">
+          <View className="gap-2 rounded-xl border border-line p-3">
+            <Text className="text-xs font-medium text-zinc-100">Claim guest seat</Text>
+            {guests.length === 0 || remotes.length === 0 ? (
+              <Muted>Need a host-created guest and a joined player.</Muted>
+            ) : (
+              <>
+                <View className="flex-row flex-wrap gap-1.5">
+                  {remotes.map((p) => (
+                    <Pressable key={p.id} onPress={() => setClaimerId(p.id)}>
+                      <Chip tone={claimerId === p.id ? 'default' : 'outline'}>{p.name}</Chip>
+                    </Pressable>
+                  ))}
+                </View>
+                <View className="flex-row flex-wrap gap-1.5">
+                  {guests.map((p) => (
+                    <Pressable key={p.id} onPress={() => setSeatId(p.id)}>
+                      <Chip tone={seatId === p.id ? 'default' : 'outline'}>{p.name} (guest)</Chip>
+                    </Pressable>
+                  ))}
+                </View>
+                <AppButton
+                  size="sm"
+                  title="Claim seat"
+                  disabled={!claimerId || !seatId}
+                  onPress={() => store.claimSeat(claimerId, seatId)}
+                />
+              </>
+            )}
+          </View>
+
+          <View className="gap-2 rounded-xl border border-line p-3">
+            <Text className="text-xs font-medium text-zinc-100">Merge accounts</Text>
+            <Muted>Guest → player keeps the player. Player → player: pick the survivor.</Muted>
             <View className="flex-row flex-wrap gap-1.5">
-              {remotes.map((p) => (
-                <Pressable key={p.id} onPress={() => setClaimerId(p.id)}>
-                  <Chip tone={claimerId === p.id ? 'default' : 'outline'}>{p.name}</Chip>
-                </Pressable>
-              ))}
+              {state.players
+                .filter((p) => !p.isHost)
+                .map((p) => (
+                  <Pressable key={p.id} onPress={() => setFromId(p.id)}>
+                    <Chip tone={fromId === p.id ? 'default' : 'outline'}>
+                      Away: {p.name}
+                    </Chip>
+                  </Pressable>
+                ))}
             </View>
             <View className="flex-row flex-wrap gap-1.5">
-              {guests.map((p) => (
-                <Pressable key={p.id} onPress={() => setSeatId(p.id)}>
-                  <Chip tone={seatId === p.id ? 'default' : 'outline'}>{p.name} (guest)</Chip>
-                </Pressable>
-              ))}
+              {state.players
+                .filter((p) => p.id !== fromId)
+                .map((p) => (
+                  <Pressable key={p.id} onPress={() => setToId(p.id)}>
+                    <Chip tone={toId === p.id ? 'default' : 'outline'}>Into: {p.name}</Chip>
+                  </Pressable>
+                ))}
             </View>
             <AppButton
               size="sm"
-              title="Claim seat"
-              disabled={!claimerId || !seatId}
-              onPress={() => store.claimSeat(claimerId, seatId)}
+              variant="secondary"
+              title="Merge"
+              disabled={!fromId || !toId}
+              onPress={() => store.mergePlayers(fromId, toId)}
             />
-          </>
-        )}
-      </View>
-
-      <View className="gap-2 rounded-xl border border-line p-3">
-        <Text className="text-xs font-medium text-zinc-100">Merge accounts</Text>
-        <Muted>Guest → player keeps the player. Player → player: pick the survivor.</Muted>
-        <View className="flex-row flex-wrap gap-1.5">
-          {state.players
-            .filter((p) => !p.isHost)
-            .map((p) => (
-              <Pressable key={p.id} onPress={() => setFromId(p.id)}>
-                <Chip tone={fromId === p.id ? 'default' : 'outline'}>
-                  Away: {p.name}
-                </Chip>
-              </Pressable>
-            ))}
+          </View>
         </View>
-        <View className="flex-row flex-wrap gap-1.5">
-          {state.players
-            .filter((p) => p.id !== fromId)
-            .map((p) => (
-              <Pressable key={p.id} onPress={() => setToId(p.id)}>
-                <Chip tone={toId === p.id ? 'default' : 'outline'}>Into: {p.name}</Chip>
-              </Pressable>
-            ))}
-        </View>
-        <AppButton
-          size="sm"
-          variant="secondary"
-          title="Merge"
-          disabled={!fromId || !toId}
-          onPress={() => store.mergePlayers(fromId, toId)}
-        />
-      </View>
+      ) : null}
     </Card>
   )
 }
