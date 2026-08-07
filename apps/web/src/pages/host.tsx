@@ -21,7 +21,7 @@ export function HostPage() {
               <ArrowLeftIcon />
             </Link>
           </Button>
-          <h1 className="text-lg font-semibold">Pick a game to host</h1>
+          <h1 className="text-lg font-semibold">Browse the shelf</h1>
         </div>
         {gameEngines.map((game) => {
           const Icon = getGameIcon(game.id)
