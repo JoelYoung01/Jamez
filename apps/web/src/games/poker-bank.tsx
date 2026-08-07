@@ -14,6 +14,7 @@ import {
   ArrowUpRightIcon,
   CoinsIcon,
   GitMergeIcon,
+  Settings2Icon,
   UserPlusIcon,
   UserRoundCheckIcon,
 } from 'lucide-react'
@@ -389,66 +390,151 @@ function CashDialog({
   )
 }
 
-function ChipSettingsDialog({ game, send }: { game: PokerBankState; send: GamePlayProps['send'] }) {
+function BankSettingsDialog({ game, send }: { game: PokerBankState; send: GamePlayProps['send'] }) {
   const [open, setOpen] = React.useState(false)
+  const [currencyMode, setCurrencyMode] = React.useState<PokerCurrencyMode>(game.config.currencyMode)
+  const [pointsPerDollar, setPointsPerDollar] = React.useState(game.config.pointsPerDollar)
+  const [startingStack, setStartingStack] = React.useState(game.config.startingStack)
   const [chips, setChips] = React.useState(game.config.chips)
+
   React.useEffect(() => {
-    if (open) setChips(game.config.chips)
-  }, [open, game.config.chips])
+    if (!open) return
+    setCurrencyMode(game.config.currencyMode)
+    setPointsPerDollar(game.config.pointsPerDollar)
+    setStartingStack(game.config.startingStack)
+    setChips(game.config.chips)
+  }, [open, game.config])
+
+  const updateChip = (index: number, patch: Partial<PokerChipDenom>) => {
+    setChips(chips.map((c, i) => (i === index ? { ...c, ...patch } : c)))
+  }
+
+  const save = () => {
+    send({
+      type: 'updateConfig',
+      config: { currencyMode, pointsPerDollar, startingStack, chips },
+    })
+    setOpen(false)
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          <CoinsIcon /> Chips
+          <Settings2Icon /> Edit
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Chip colors & values</DialogTitle>
+          <DialogTitle>Bank settings</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-2">
-          {chips.map((chip, index) => (
-            <div key={chip.id} className="grid grid-cols-[auto_1fr_5rem_6.5rem] items-center gap-2">
-              <PokerChip color={chip.color} size={28} />
-              <Input
-                value={chip.label}
-                className="h-8"
-                onChange={(e) =>
-                  setChips(chips.map((c, i) => (i === index ? { ...c, label: e.target.value } : c)))
-                }
-              />
-              <Input
-                inputMode="numeric"
-                className="h-8 font-mono"
-                value={String(chip.value)}
-                onChange={(e) => {
-                  const n = Number.parseInt(e.target.value.replace(/\D/g, ''), 10)
-                  setChips(
-                    chips.map((c, i) =>
-                      i === index ? { ...c, value: Number.isNaN(n) ? 1 : Math.max(1, n) } : c,
-                    ),
-                  )
-                }}
-              />
-              <ColorPicker
-                value={chip.color}
-                onChange={(color) =>
-                  setChips(chips.map((c, i) => (i === index ? { ...c, color } : c)))
-                }
+        <div className="grid gap-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground">Display as</Label>
+              <Segmented
+                value={currencyMode}
+                onChange={(v) => setCurrencyMode(v as PokerCurrencyMode)}
+                options={[
+                  { value: 'points', label: 'Points' },
+                  { value: 'dollars', label: 'Dollars' },
+                ]}
               />
             </div>
-          ))}
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground">Points per dollar</Label>
+              <Input
+                inputMode="decimal"
+                className="h-9 font-mono tabular-nums"
+                value={String(pointsPerDollar)}
+                onChange={(e) => {
+                  const n = Number.parseFloat(e.target.value)
+                  setPointsPerDollar(Number.isFinite(n) && n > 0 ? n : 1)
+                }}
+              />
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs text-muted-foreground">Starting stack (points)</Label>
+            <Input
+              inputMode="numeric"
+              className="h-9 font-mono tabular-nums"
+              value={String(startingStack)}
+              onChange={(e) => {
+                const n = Number.parseInt(e.target.value.replace(/\D/g, ''), 10)
+                setStartingStack(Number.isNaN(n) ? 0 : Math.min(1_000_000, n))
+              }}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Applies to players who join after you save. Balances stay in points; dollars is only a
+              display.
+            </p>
+          </div>
+
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">Chip denominations</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setChips([
+                    ...chips,
+                    {
+                      id: `chip-${chips.length + 1}-${Date.now().toString(36)}`,
+                      label: 'New',
+                      value: 1,
+                      color: '#a1a1aa',
+                    },
+                  ])
+                }
+              >
+                Add chip
+              </Button>
+            </div>
+            <div className="grid gap-2">
+              {chips.map((chip, index) => (
+                <div
+                  key={chip.id}
+                  className="grid grid-cols-[auto_1fr_1fr_6.5rem_auto] items-center gap-2 rounded-lg border border-border/60 px-2 py-2"
+                >
+                  <PokerChip color={chip.color} size={28} label={String(chip.value)} />
+                  <Input
+                    value={chip.label}
+                    className="h-8"
+                    placeholder="Label"
+                    onChange={(e) => updateChip(index, { label: e.target.value.slice(0, 16) })}
+                  />
+                  <Input
+                    inputMode="numeric"
+                    className="h-8 font-mono tabular-nums"
+                    value={String(chip.value)}
+                    onChange={(e) => {
+                      const n = Number.parseInt(e.target.value.replace(/\D/g, ''), 10)
+                      updateChip(index, { value: Number.isNaN(n) ? 1 : Math.max(1, n) })
+                    }}
+                  />
+                  <ColorPicker
+                    value={chip.color}
+                    onChange={(color) => updateChip(index, { color })}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={chips.length <= 1}
+                    onClick={() => setChips(chips.filter((_, i) => i !== index))}
+                  >
+                    ×
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
         <DialogFooter>
-          <Button
-            onClick={() => {
-              send({ type: 'updateConfig', config: { chips } })
-              setOpen(false)
-            }}
-          >
-            Save chips
-          </Button>
+          <Button onClick={save}>Save bank</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -600,12 +686,13 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
             <CardTitle className="text-sm">Bank</CardTitle>
             <CardDescription className="text-xs">
               Start {formatPokerAmount(game.config.startingStack, game.config)}
+              {' · '}
               {game.config.currencyMode === 'dollars'
-                ? ` · ${game.config.pointsPerDollar} pts/$`
-                : ''}
+                ? `Dollars · ${game.config.pointsPerDollar} pts/$`
+                : 'Points'}
             </CardDescription>
           </div>
-          {isHost && <ChipSettingsDialog game={game} send={send} />}
+          {isHost && <BankSettingsDialog game={game} send={send} />}
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {game.config.chips.map((chip) => (

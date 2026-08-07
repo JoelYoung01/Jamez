@@ -85,7 +85,8 @@ try {
   await host.goto(`${base}/${relayParam}`)
   await shot(host, '01-home')
 
-  await host.getByText('Host a game', { exact: false }).first().click()
+  // Home is a 2×2 tile grid; Host CTA is "Choose a game".
+  await host.getByRole('link', { name: /Choose a game/ }).click()
   await host.getByText('Wingspan').first().click()
   await host.getByText('Game options').waitFor()
   await host.getByRole('button', { name: 'Open the lobby' }).click()

@@ -106,6 +106,9 @@ describe('poker bank engine', () => {
       {
         type: 'updateConfig',
         config: {
+          currencyMode: 'dollars',
+          pointsPerDollar: 4,
+          startingStack: 200,
           chips: [
             { id: 'gold', label: 'Gold', value: 50, color: '#f59e0b' },
           ],
@@ -113,8 +116,13 @@ describe('poker bank engine', () => {
       },
       hostCtx,
     )
+    expect(next.config.currencyMode).toBe('dollars')
+    expect(next.config.pointsPerDollar).toBe(4)
+    expect(next.config.startingStack).toBe(200)
     expect(next.config.chips).toHaveLength(1)
     expect(next.config.chips[0]?.id).toBe('gold')
+    // Existing balances stay in points; display mode is independent.
+    expect(next.banks.g1?.balance).toBe(state.banks.g1?.balance)
   })
 
   it('claims a seat by replacing the claimer balance', () => {
