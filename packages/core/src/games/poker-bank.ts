@@ -257,23 +257,82 @@ export function buildCashTransferSummary(input: {
   }
 }
 
-/** Greedy chip breakdown (highest denomination first). */
+/** Soft cap so cash-outs don't arrive as a fistful of one color. */
+const CHIP_BREAKDOWN_MAX_PER_DENOM = 10
+/**
+ * Aim for at least this many chips by leading with a denomination at or below
+ * `amount / MIN` (e.g. 500 → five blues, not one black).
+ */
+const CHIP_BREAKDOWN_MIN_STACK = 5
+
+/**
+ * Break an amount into a playable chip stack.
+ *
+ * Unlike pure greedy (which turns 500 into a single black), this:
+ * 1. Leads with a denomination small enough for a ~5+ chip stack
+ * 2. Caps each color at 10
+ * 3. Raises to the next larger color only after that cap (never dumps the
+ *    remainder straight into tiny chips)
+ * 4. Makes change for the leftover with smaller denoms
+ */
 export function chipBreakdown(
   points: number,
   chips: PokerChipDenom[],
 ): { chip: PokerChipDenom; count: number }[] {
   if (!Number.isFinite(points) || points <= 0) return []
   const ordered = [...chips].filter((c) => c.value > 0).sort((a, b) => b.value - a.value)
-  let remaining = Math.floor(points)
-  const out: { chip: PokerChipDenom; count: number }[] = []
-  for (const chip of ordered) {
-    const count = Math.floor(remaining / chip.value)
-    if (count > 0) {
-      out.push({ chip, count })
-      remaining -= count * chip.value
+  if (ordered.length === 0) return []
+
+  const amount = Math.floor(points)
+  const counts = new Map<string, number>()
+  let remaining = amount
+
+  const take = (chip: PokerChipDenom, maxCount: number) => {
+    const have = counts.get(chip.id) ?? 0
+    const room = maxCount - have
+    if (room <= 0) return
+    const n = Math.min(Math.floor(remaining / chip.value), room)
+    if (n > 0) {
+      counts.set(chip.id, have + n)
+      remaining -= n * chip.value
     }
   }
-  return out
+
+  // Preferred lead: largest chip that still yields ~MIN_STACK pieces.
+  let leadIdx = ordered.findIndex((c) => c.value <= amount / CHIP_BREAKDOWN_MIN_STACK)
+  if (leadIdx < 0) leadIdx = ordered.findIndex((c) => c.value <= amount)
+  if (leadIdx < 0) leadIdx = ordered.length - 1
+
+  // Small exact amounts (e.g. 5 → one red) may match a bottom-tier chip.
+  const exactIdx = ordered.findIndex((c) => c.value === amount)
+  if (exactIdx >= 0 && exactIdx >= ordered.length - 3) {
+    leadIdx = Math.min(leadIdx, exactIdx)
+  }
+
+  // Workhorse color first (capped).
+  take(ordered[leadIdx]!, CHIP_BREAKDOWN_MAX_PER_DENOM)
+
+  // If the cap left a large remainder, step up through bigger colors — still capped.
+  for (let i = leadIdx - 1; i >= 0 && remaining > 0; i--) {
+    take(ordered[i]!, CHIP_BREAKDOWN_MAX_PER_DENOM)
+  }
+
+  // Make change for whatever is left with smaller denoms.
+  for (let i = leadIdx + 1; i < ordered.length && remaining > 0; i++) {
+    const isSmallest = i === ordered.length - 1
+    take(ordered[i]!, isSmallest ? Number.MAX_SAFE_INTEGER : CHIP_BREAKDOWN_MAX_PER_DENOM)
+  }
+
+  // Last resort (odd custom chip sets without a 1-unit).
+  if (remaining > 0) {
+    for (let i = 0; i < ordered.length && remaining > 0; i++) {
+      take(ordered[i]!, Number.MAX_SAFE_INTEGER)
+    }
+  }
+
+  return ordered
+    .filter((c) => (counts.get(c.id) ?? 0) > 0)
+    .map((c) => ({ chip: c, count: counts.get(c.id)! }))
 }
 
 /** Sum chip counts × denomination values into a point total. */

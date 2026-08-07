@@ -211,7 +211,7 @@ describe('poker bank engine', () => {
     expect(merged.banks.a).toBeUndefined()
   })
 
-  it('breaks amounts into chips greedily', () => {
+  it('breaks amounts into a playable chip stack', () => {
     const chips = pokerBankEngine.defaultConfig().chips
     expect(chips.map((c) => [c.id, c.value])).toEqual([
       ['white', 1],
@@ -221,12 +221,20 @@ describe('poker bank engine', () => {
       ['black', 500],
       ['purple', 1000],
     ])
-    const parts = chipBreakdown(137, chips)
-    expect(parts.map((p) => [p.chip.id, p.count])).toEqual([
-      ['blue', 1],
-      ['green', 1],
+    // Not a single black — five blues you can actually bet with.
+    expect(chipBreakdown(500, chips).map((p) => [p.chip.id, p.count])).toEqual([['blue', 5]])
+    // Small exact amounts may still use the matching bottom-tier chip.
+    expect(chipBreakdown(5, chips).map((p) => [p.chip.id, p.count])).toEqual([['red', 1]])
+    // Mid amounts prefer a mix under the per-color cap (no lone blue brick).
+    expect(chipBreakdown(137, chips).map((p) => [p.chip.id, p.count])).toEqual([
+      ['green', 5],
       ['red', 2],
       ['white', 2],
+    ])
+    // Larger cash-outs raise the ceiling only after capping lower colors.
+    expect(chipBreakdown(2000, chips).map((p) => [p.chip.id, p.count])).toEqual([
+      ['black', 2],
+      ['blue', 10],
     ])
   })
 
