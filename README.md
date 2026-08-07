@@ -85,9 +85,9 @@ The e2e run drops screenshots of every step in `e2e/artifacts/`. CI runs all of 
 
 Already wired: `.github/workflows/deploy-web.yml` builds and publishes on every push to `main`.
 
-One-time setup: repo **Settings → Pages → Source: GitHub Actions**. Deployed at **https://playjames.com** (custom domain on GitHub Pages). QR codes and join links point there automatically (a `404.html` fallback keeps `/join/CODE` deep links working).
+One-time setup: repo **Settings → Pages → Source: GitHub Actions**. Deployed at **https://playjamez.com** (custom domain on GitHub Pages). QR codes and join links point there automatically (a `404.html` fallback keeps `/join/CODE` deep links working).
 
-`VITE_BASE` is `/` in `.github/workflows/deploy-web.yml` for the custom domain. Mobile QR codes use `extra.webAppUrl` in `apps/mobile/app.config.ts` (`https://playjames.com`).
+`VITE_BASE` is `/` in `.github/workflows/deploy-web.yml` for the custom domain. Mobile QR codes use `extra.webAppUrl` in `apps/mobile/app.config.ts` (`https://playjamez.com`).
 
 ## iOS releases (TestFlight)
 
