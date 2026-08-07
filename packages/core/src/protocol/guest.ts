@@ -149,9 +149,10 @@ export class GuestSession {
         const incoming = msg.state
         if (this._state && incoming.rev < this._state.rev) return // stale
         this._state = incoming
-        const inSession = incoming.players.some((p) => p.id === this.profile.id)
+        const meNow = incoming.players.find((p) => p.id === this.profile.id)
+        const inSession = Boolean(meNow && meNow.active !== false)
         if (!inSession) {
-          // We were in and now we're not -> the host removed us.
+          // Hard-removed or soft-deactivated by the host.
           if (this._status === 'joined') this.setStatus('removed')
           return
         }
@@ -159,7 +160,6 @@ export class GuestSession {
         // A resumed host marks remote players disconnected until they check
         // in again; answer immediately instead of waiting for the next
         // heartbeat interval.
-        const meNow = incoming.players.find((p) => p.id === this.profile.id)
         if (meNow && !meNow.connected) this.sendHello()
         this.onState.emit(incoming)
         break

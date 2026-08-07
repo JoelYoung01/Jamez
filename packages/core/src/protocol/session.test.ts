@@ -152,6 +152,43 @@ describe('host/guest session over memory transport', () => {
     host.end()
   })
 
+  it('soft-deactivates players and reactivates them on rejoin', async () => {
+    const code = generateJoinCode()
+    const host = makeHost(code, pokerBankEngine as never)
+    expect(host.addLocalPlayer({ name: 'Seat', emoji: '🃏' })).toBeNull()
+    const seatId = host.current.players.find((p) => p.name === 'Seat')!.id
+    expect(host.startGame()).toBeNull()
+
+    const g1 = makeGuest(code, 'phone-1', 'Pat')
+    await until(() => (host.current.players.some((p) => p.id === 'phone-1') ? true : null))
+
+    expect(host.deactivatePlayer(seatId)).toBeNull()
+    expect(host.current.players.find((p) => p.id === seatId)?.active).toBe(false)
+    // Bank + ledger survive soft-remove.
+    const bank = host.current.game as PokerBankState
+    expect(bank.banks[seatId]?.balance).toBe(500)
+
+    expect(host.deactivatePlayer('phone-1')).toBeNull()
+    await until(() => (g1.status === 'removed' ? true : null))
+    expect(host.current.players.find((p) => p.id === 'phone-1')?.active).toBe(false)
+
+    // Remote rejoins → reactivated with prior bank.
+    const g1b = makeGuest(code, 'phone-1', 'Pat')
+    await until(() => {
+      const p = host.current.players.find((x) => x.id === 'phone-1')
+      return p?.active !== false && p?.connected ? true : null
+    })
+    expect(host.current.players.find((p) => p.id === 'phone-1')?.active).not.toBe(false)
+    expect((host.current.game as PokerBankState).banks['phone-1']?.balance).toBe(500)
+
+    expect(host.reactivatePlayer(seatId)).toBeNull()
+    expect(host.current.players.find((p) => p.id === seatId)?.active).not.toBe(false)
+
+    host.end()
+    g1.stop()
+    g1b.stop()
+  })
+
   it('finishes gin automatically at the target and supports rematch', async () => {
     const code = generateJoinCode()
     const host = makeHost(code, ginRummyEngine as never)
@@ -249,6 +286,12 @@ describe('host/guest session over memory transport', () => {
     const bank = host.current.game as PokerBankState
     expect(bank.banks['phone-1']?.balance).toBe(700)
     expect(bank.banks[seatId]).toBeUndefined()
+    // Guest seat history is stitched onto the claimer (no orphan seat series).
+    expect(bank.ledger.every((e) => e.playerId !== seatId)).toBe(true)
+    expect(bank.ledger.filter((e) => e.playerId === 'phone-1' && e.kind === 'start')).toHaveLength(1)
+    expect(bank.ledger.find((e) => e.playerId === 'phone-1' && e.kind === 'deposit')?.points).toBe(
+      200,
+    )
 
     // Second remote player joins; host merges them into phone-1 (player+player).
     const g2 = makeGuest(code, 'phone-2', 'Quinn')

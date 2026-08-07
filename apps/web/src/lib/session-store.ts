@@ -63,6 +63,8 @@ interface SessionStoreState {
   addLocalPlayer: (profile: { name: string; emoji: string }) => void
   updateLocalPlayer: (playerId: string, patch: { name?: string; emoji?: string }) => void
   removePlayer: (playerId: string) => void
+  deactivatePlayer: (playerId: string) => void
+  reactivatePlayer: (playerId: string) => void
   claimSeat: (claimerId: string, seatId: string) => void
   mergePlayers: (fromId: string, toId: string) => void
   sendAction: (
@@ -245,6 +247,16 @@ export const useSession = create<SessionStoreState>()((set) => {
 
     removePlayer(playerId) {
       const error = host?.removePlayer(playerId)
+      if (error) toast.error(error)
+    },
+
+    deactivatePlayer(playerId) {
+      const error = host?.deactivatePlayer(playerId)
+      if (error) toast.error(error)
+    },
+
+    reactivatePlayer(playerId) {
+      const error = host?.reactivatePlayer(playerId)
       if (error) toast.error(error)
     },
 

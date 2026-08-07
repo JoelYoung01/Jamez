@@ -36,10 +36,10 @@ describe('poker balance reports', () => {
   })
 
   it('treats claim as a balance replacement, not a delta', () => {
+    // After claimSeat remaps seat → claimer, the ledger is one continuous series.
     const ledger = [
-      entry({ at: 1, playerId: 'phone', kind: 'start', points: 500 }),
-      entry({ at: 2, playerId: 'seat', kind: 'start', points: 500 }),
-      entry({ at: 3, playerId: 'seat', kind: 'deposit', points: 300 }),
+      entry({ at: 2, playerId: 'phone', kind: 'start', points: 500 }),
+      entry({ at: 3, playerId: 'phone', kind: 'deposit', points: 300 }),
       entry({
         at: 4,
         playerId: 'phone',
@@ -51,11 +51,8 @@ describe('poker balance reports', () => {
     const series = pokerBalanceSeriesFromLedger(ledger, [
       { id: 'phone', name: 'Pat', color: '#0f0' },
     ])
-    const phone = series.find((s) => s.playerId === 'phone')
-    expect(phone?.samples.map((s) => s.balance)).toEqual([500, 800])
-    const seat = series.find((s) => s.playerId === 'seat')
-    expect(seat?.name).toBe('Former player')
-    expect(seat?.samples.at(-1)?.balance).toBe(800)
+    expect(series).toHaveLength(1)
+    expect(series[0]?.samples.map((s) => s.balance)).toEqual([500, 800, 800])
   })
 
   it('adds merged stacks onto the survivor', () => {
@@ -96,9 +93,15 @@ describe('poker balance reports', () => {
     const report = buildPokerBalanceReport(
       {
         ledger: [
-          entry({ at: 1, playerId: 'seat', kind: 'start', points: 500 }),
           entry({ at: 1, playerId: 'host', kind: 'start', points: 500 }),
-          entry({ at: 2, playerId: 'host', kind: 'claim', points: 500, meta: { seatId: 'seat' } }),
+          entry({ at: 1, playerId: 'merged', kind: 'start', points: 400 }),
+          entry({
+            at: 2,
+            playerId: 'host',
+            kind: 'merge',
+            points: 400,
+            meta: { fromId: 'merged' },
+          }),
         ],
       },
       [
@@ -106,7 +109,8 @@ describe('poker balance reports', () => {
         { id: 'guest', name: 'Gale', color: '#34d399' },
       ],
     )
-    expect(report.series.map((s) => s.playerId)).toEqual(['host', 'seat'])
+    // Merged-away players stay as a separate historical series.
+    expect(report.series.map((s) => s.playerId)).toEqual(['host', 'merged'])
     expect(report.series[0]?.name).toBe('Host')
     expect(report.series[1]?.name).toBe('Former player')
   })

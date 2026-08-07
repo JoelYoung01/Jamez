@@ -2,6 +2,7 @@ import {
   chipBreakdown,
   formatPokerAmount,
   getGameEngine,
+  isPlayerActive,
   pointsFromChipCounts,
   toPoints,
   type PokerBankConfig,
@@ -75,6 +76,7 @@ function GuestProfileFields({
           placeholder="e.g. Cousin Mike"
           maxLength={24}
           autoFocus
+          enterKeyHint="done"
           onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
         />
       </div>
@@ -107,7 +109,7 @@ function AddGuestButton() {
           <UserPlusIcon /> Add guest
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent keyboardAvoid>
         <DialogHeader>
           <DialogTitle>Add a guest seat</DialogTitle>
         </DialogHeader>
@@ -138,6 +140,7 @@ function EditGuestDialog({
   children: React.ReactNode
 }) {
   const updateLocalPlayer = useSession((s) => s.updateLocalPlayer)
+  const deactivatePlayer = useSession((s) => s.deactivatePlayer)
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState(player.name)
   const [emoji, setEmoji] = React.useState(player.emoji)
@@ -155,10 +158,15 @@ function EditGuestDialog({
     setOpen(false)
   }
 
+  const remove = () => {
+    deactivatePlayer(player.id)
+    setOpen(false)
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent>
+      <DialogContent keyboardAvoid>
         <DialogHeader>
           <DialogTitle>Edit guest</DialogTitle>
         </DialogHeader>
@@ -170,7 +178,10 @@ function EditGuestDialog({
           onEmojiChange={setEmoji}
           onSubmit={save}
         />
-        <DialogFooter>
+        <DialogFooter className="sm:justify-between">
+          <Button type="button" variant="ghost" onClick={remove} className="text-muted-foreground">
+            Remove from table
+          </Button>
           <Button onClick={save} disabled={!name.trim()}>
             Save
           </Button>
@@ -728,9 +739,11 @@ function BankSettingsDialog({ game, send }: { game: PokerBankState; send: GamePl
 function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
   const claimSeat = useSession((s) => s.claimSeat)
   const mergePlayers = useSession((s) => s.mergePlayers)
+  const reactivatePlayer = useSession((s) => s.reactivatePlayer)
   const engine = getGameEngine(state.gameId)
   const guests = state.players.filter((p) => !p.remote && !p.isHost)
-  const remotes = state.players.filter((p) => p.remote)
+  const remotes = state.players.filter((p) => p.remote && isPlayerActive(p))
+  const inactive = state.players.filter((p) => !isPlayerActive(p))
   const [open, setOpen] = React.useState(false)
   const [claimerId, setClaimerId] = React.useState(remotes[0]?.id ?? '')
   const [seatId, setSeatId] = React.useState(guests[0]?.id ?? '')
@@ -797,7 +810,8 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
                     >
                       {guests.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} (guest)
+                          {p.name}
+                          {isPlayerActive(p) ? ' (guest)' : ' (inactive)'}
                         </option>
                       ))}
                     </select>
@@ -831,7 +845,7 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
                 >
                   <option value="">Merge away…</option>
                   {state.players
-                    .filter((p) => !p.isHost)
+                    .filter((p) => !p.isHost && isPlayerActive(p))
                     .map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
@@ -846,7 +860,7 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
                 >
                   <option value="">Into…</option>
                   {state.players
-                    .filter((p) => p.id !== fromId)
+                    .filter((p) => p.id !== fromId && isPlayerActive(p))
                     .map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
@@ -865,6 +879,27 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
               </Button>
             </div>
           )}
+
+          {inactive.length > 0 ? (
+            <div className="grid gap-2 rounded-xl border border-border/50 p-3">
+              <div className="text-xs font-medium">Inactive seats</div>
+              <p className="text-[11px] text-muted-foreground">
+                Hidden from the table — restore or claim later.
+              </p>
+              <div className="grid gap-2">
+                {inactive.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {p.emoji} {p.name}
+                    </span>
+                    <Button size="sm" variant="outline" onClick={() => reactivatePlayer(p.id)}>
+                      Restore
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       ) : null}
     </Card>
@@ -873,9 +908,9 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
 
 function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
   const game = state.game as PokerBankState
-  const ranked = [...state.players].sort(
-    (a, b) => (game.banks[b.id]?.balance ?? 0) - (game.banks[a.id]?.balance ?? 0),
-  )
+  const ranked = state.players
+    .filter(isPlayerActive)
+    .sort((a, b) => (game.banks[b.id]?.balance ?? 0) - (game.banks[a.id]?.balance ?? 0))
   const recent = [...game.ledger].slice(-8).reverse()
 
   return (

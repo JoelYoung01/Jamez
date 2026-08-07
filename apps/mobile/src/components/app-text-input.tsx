@@ -55,6 +55,8 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(
     submitRef.current = onSubmitEditing
     const unregisterRef = React.useRef<(() => void) | null>(null)
 
+    const hasSubmit = Boolean(onSubmitEditing)
+
     const setRefs = React.useCallback(
       (node: TextInput | null) => {
         innerRef.current = node
@@ -66,10 +68,11 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(
           id: autoId,
           input: node,
           group,
-          submit: () => callSubmit(submitRef.current),
+          // null → KeyboardForm onSubmit runs (check-to-save on single-field forms)
+          submit: hasSubmit ? () => callSubmit(submitRef.current) : null,
         })
       },
-      [autoId, group, ref],
+      [autoId, group, hasSubmit, ref],
     )
 
     React.useEffect(() => {
@@ -87,9 +90,9 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(
         id: autoId,
         input: innerRef.current,
         group,
-        submit: () => callSubmit(submitRef.current),
+        submit: hasSubmit ? () => callSubmit(submitRef.current) : null,
       })
-    }, [autoId, group])
+    }, [autoId, group, hasSubmit])
 
     // iOS omits InputAccessoryView when focus races the accessory mount (common
     // with autoFocus inside Modals). Focus after the accessory has registered.

@@ -4,6 +4,7 @@ import type { RoomTransport } from '../transport/types'
 import { Emitter, type Unsubscribe } from '../util/emitter'
 import { randomId } from '../util/ids'
 import {
+  isPlayerActive,
   makeEnvelope,
   normalizeNickname,
   parseEnvelope,
@@ -157,7 +158,9 @@ export class HostSession {
   // -- Lobby management ------------------------------------------------------
 
   addLocalPlayer(profile: { name: string; emoji: string }): string | null {
-    if (this.state.players.length >= this.game.maxPlayers) return 'Session is full'
+    if (this.state.players.filter(isPlayerActive).length >= this.game.maxPlayers) {
+      return 'Session is full'
+    }
     const player: SessionPlayer = {
       id: randomId(8),
       name: profile.name,
@@ -167,6 +170,7 @@ export class HostSession {
       remote: false,
       connected: true,
       joinedAt: this.now(),
+      active: true,
     }
     this.mutate((s) => {
       s.players = [...s.players, player]
@@ -220,9 +224,43 @@ export class HostSession {
     return null
   }
 
+  /**
+   * Soft-remove a non-host player: hide them from the main roster without
+   * deleting their bank / history. They can rejoin later (remotes via hello,
+   * guests via host reactivation or seat claim).
+   */
+  deactivatePlayer(playerId: string): string | null {
+    if (playerId === this.hostId) return 'The host cannot be removed'
+    const player = this.state.players.find((p) => p.id === playerId)
+    if (!player) return 'Player not found'
+    if (!isPlayerActive(player)) return null
+    this.mutate((s) => {
+      s.players = s.players.map((p) =>
+        p.id === playerId ? { ...p, active: false, connected: p.remote ? false : p.connected } : p,
+      )
+    })
+    return null
+  }
+
+  /** Bring an inactive seat back onto the main roster (host-created guests). */
+  reactivatePlayer(playerId: string): string | null {
+    const player = this.state.players.find((p) => p.id === playerId)
+    if (!player) return 'Player not found'
+    if (isPlayerActive(player)) return null
+    const activeCount = this.state.players.filter(isPlayerActive).length
+    if (activeCount >= this.game.maxPlayers) return 'Session is full'
+    this.mutate((s) => {
+      s.players = s.players.map((p) =>
+        p.id === playerId ? { ...p, active: true, connected: p.remote ? p.connected : true } : p,
+      )
+    })
+    return null
+  }
+
   startGame(): string | null {
     if (this.state.phase !== 'lobby') return 'Game already started'
-    const count = this.state.players.length
+    const active = this.state.players.filter(isPlayerActive)
+    const count = active.length
     if (count < this.game.minPlayers) {
       return `${this.game.name} needs at least ${this.game.minPlayers} players`
     }
@@ -230,7 +268,9 @@ export class HostSession {
       return `${this.game.name} supports at most ${this.game.maxPlayers} players`
     }
     this.mutate((s) => {
-      s.game = this.game.init(s.gameConfig, s.players)
+      // Only seat active players when the bank / match opens.
+      s.players = active
+      s.game = this.game.init(s.gameConfig, active)
       s.phase = 'playing'
       s.startedAt = this.now()
     })
@@ -374,7 +414,12 @@ export class HostSession {
       return fail('Game is not in progress')
     }
     const actor = this.state.players.find((p) => p.id === actorId)
-    if (!actor) return fail('You are not in this session')
+    if (!actor || !isPlayerActive(actor)) return fail('You are not in this session')
+    const targetId = typeof action.playerId === 'string' ? action.playerId : undefined
+    if (targetId && targetId !== actorId) {
+      const target = this.state.players.find((p) => p.id === targetId)
+      if (target && !isPlayerActive(target)) return fail('That player is inactive')
+    }
     const ctx = { actorId, isHost: actorId === this.hostId, now: this.now() }
     const error = this.game.validateAction(this.state.game, action, ctx)
     if (error) return fail(error)
@@ -423,18 +468,35 @@ export class HostSession {
     this.lastSeen.set(profile.id, this.now())
     const existing = this.state.players.find((p) => p.id === profile.id)
     if (existing) {
-      // Reconnect (or profile update) for a known player.
+      // Reconnect (or profile update) for a known player — including soft-removed seats.
+      if (!isPlayerActive(existing)) {
+        const activeCount = this.state.players.filter(isPlayerActive).length
+        if (activeCount >= this.game.maxPlayers) {
+          this.sendWire({
+            t: 'reject',
+            to: profile.id,
+            reason: `This ${this.game.name} session is full (${this.game.maxPlayers} players max)`,
+          })
+          return
+        }
+      }
       this.mutate((s) => {
         s.players = s.players.map((p) =>
           p.id === profile.id
-            ? { ...p, name: profile.name, emoji: profile.emoji, connected: true }
+            ? {
+                ...p,
+                name: profile.name,
+                emoji: profile.emoji,
+                connected: true,
+                active: true,
+              }
             : p,
         )
       })
       this.sendState()
       return
     }
-    if (this.state.players.length >= this.game.maxPlayers) {
+    if (this.state.players.filter(isPlayerActive).length >= this.game.maxPlayers) {
       this.sendWire({
         t: 'reject',
         to: profile.id,
@@ -461,6 +523,7 @@ export class HostSession {
       remote: true,
       connected: true,
       joinedAt: this.now(),
+      active: true,
     }
     this.mutate((s) => {
       s.players = [...s.players, player]

@@ -24,6 +24,17 @@ export interface SessionPlayer extends PlayerProfile {
   remote: boolean
   connected: boolean
   joinedAt: number
+  /**
+   * Soft-removed seats stay in the roster for history / reclaim, but are hidden
+   * from the main player list until they rejoin (or the host reactivates them).
+   * Omitted / undefined means active (back-compat with older snapshots).
+   */
+  active?: boolean
+}
+
+/** Active unless explicitly marked inactive. */
+export function isPlayerActive(player: Pick<SessionPlayer, 'active'>): boolean {
+  return player.active !== false
 }
 
 export interface SessionState<GS = unknown> {

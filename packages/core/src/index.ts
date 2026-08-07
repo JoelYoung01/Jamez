@@ -38,6 +38,7 @@ export {
 export {
   PLAYER_COLORS,
   SESSION_NICKNAME_MAX,
+  isPlayerActive,
   makeEnvelope,
   normalizeNickname,
   parseEnvelope,

@@ -171,6 +171,29 @@ describe('poker bank engine', () => {
     expect(claimed.banks.phone?.balance).toBe(800)
     expect(claimed.banks.seat).toBeUndefined()
     expect(claimed.ledger.at(-1)?.kind).toBe('claim')
+    // Seat history is remapped onto the claimer; claimer's pre-claim rows drop.
+    expect(claimed.ledger.every((e) => e.playerId !== 'seat')).toBe(true)
+    expect(claimed.ledger.filter((e) => e.playerId === 'phone' && e.kind === 'start')).toHaveLength(
+      1,
+    )
+    expect(claimed.ledger.find((e) => e.kind === 'start' && e.playerId === 'phone')?.points).toBe(
+      500,
+    )
+  })
+
+  it('keeps merged-away player ledger rows separate', () => {
+    const host = player('host', 'Host')
+    const a = player('a', 'A', true)
+    const b = player('b', 'B', true)
+    let state = started(host, a, b)
+    state = {
+      ...state,
+      banks: { ...state.banks, a: { balance: 100 }, b: { balance: 250 } },
+    }
+    const merged = pokerBankEngine.mergePlayers!(state, 'a', 'b')
+    // Source rows stay under fromId so history does not stitch into the survivor.
+    expect(merged.ledger.some((e) => e.playerId === 'a')).toBe(true)
+    expect(merged.ledger.at(-1)).toMatchObject({ kind: 'merge', playerId: 'b', points: 100 })
   })
 
   it('merges balances into the survivor', () => {

@@ -429,8 +429,16 @@ export const pokerBankEngine: GameEngine<PokerBankConfig, PokerBankState, PokerB
     const banks = { ...state.banks }
     banks[claimerId] = { balance: seat.balance }
     delete banks[seatId]
+    // Guest seat history belongs to the claimer (same person taking over).
+    // Drop the claimer's unused pre-claim stack so the chart stays continuous.
+    // Player+player merges intentionally leave separate series — do not remap there.
+    const ledger = state.ledger
+      .filter((entry) => entry.playerId !== claimerId)
+      .map((entry) =>
+        entry.playerId === seatId ? { ...entry, playerId: claimerId } : entry,
+      )
     return appendLedger(
-      { ...state, banks },
+      { ...state, banks, ledger },
       {
         at: Date.now(),
         playerId: claimerId,
