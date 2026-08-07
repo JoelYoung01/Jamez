@@ -397,7 +397,11 @@ function CashSheet({
             <Text className="mb-1 text-lg font-semibold text-zinc-100">
               {mode === 'deposit' ? 'Cash in' : 'Cash out'} · {player.name}
             </Text>
-            <Muted className="mb-3">Balance {formatPokerAmount(balance, game.config)}</Muted>
+            <Muted className="mb-3">
+              {mode === 'deposit'
+                ? `Put chips into ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}.`
+                : `Take chips out of ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}.`}
+            </Muted>
             <Segmented
               value={unit}
               onChange={setUnit}

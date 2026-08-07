@@ -454,8 +454,10 @@ function CashDialog({
         </DialogHeader>
         <div className="grid gap-3">
           <p className="text-xs text-muted-foreground">
-            Balance {formatPokerAmount(balance, game.config)}
-            {game.config.currencyMode === 'dollars' ? ` (${balance} pts)` : ''}
+            {mode === 'deposit'
+              ? `Put chips into ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`
+              : `Take chips out of ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`}
+            {game.config.currencyMode === 'dollars' ? ` (${balance} pts)` : ''}.
           </p>
           <Segmented
             value={unit}
