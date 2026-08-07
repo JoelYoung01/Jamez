@@ -147,9 +147,6 @@ export function HostConfigPage() {
                 placeholder="e.g. Friday night bank"
                 maxLength={SESSION_NICKNAME_MAX}
               />
-              <p className="text-[11px] text-muted-foreground">
-                Shown in history and on parked sessions. Leave blank to use the game name.
-              </p>
             </div>
             <SetupForm config={config} onChange={setConfig} />
           </CardContent>
