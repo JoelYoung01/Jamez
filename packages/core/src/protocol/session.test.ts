@@ -376,6 +376,48 @@ describe('host/guest session over memory transport', () => {
     host.end()
   })
 
+  it('shares tiny profile photos out-of-band (not in every state)', async () => {
+    const code = generateJoinCode()
+    const photo =
+      'data:image/webp;base64,UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoBAAEAAwA0JaQAA3AA/vuUAAA='
+    const host = createHostSession({
+      code,
+      game: wingspanEngine as never,
+      hostProfile: { id: 'host-1', name: 'Hana', emoji: '🎲', photo },
+      transport: createMemoryTransport(code),
+    })
+    host.start()
+    expect(host.current.players[0]?.photo).toBe(photo)
+    expect(host.current.players[0]?.hasPhoto).toBe(true)
+
+    const guest = createGuestSession({
+      code,
+      profile: { id: 'guest-1', name: 'Gale', emoji: '🦊', photo },
+      transport: createMemoryTransport(code),
+    })
+    guest.start()
+
+    await until(() => (guest.status === 'joined' ? true : null))
+    await until(() => {
+      const hostPhoto = guest.state?.players.find((p) => p.id === 'host-1')?.photo
+      const guestPhoto = guest.state?.players.find((p) => p.id === 'guest-1')?.photo
+      return hostPhoto === photo && guestPhoto === photo ? true : null
+    })
+    expect(host.current.players.find((p) => p.id === 'guest-1')?.photo).toBe(photo)
+
+    // Score updates must not require re-sending avatar bytes; photos stick on the guest.
+    expect(host.startGame()).toBeNull()
+    host.applyAction({ type: 'setCategory', playerId: 'host-1', category: 'birds', value: 3 })
+    await until(() => {
+      const birds = (guest.state?.game as WingspanState | null)?.sheets['host-1']?.birds
+      const still = guest.state?.players.find((p) => p.id === 'host-1')?.photo
+      return birds === 3 && still === photo ? true : null
+    })
+
+    host.end()
+    guest.stop()
+  })
+
   it('persists nickname on start and across setNickname snapshots', () => {
     const code = generateJoinCode()
     let snapshot: SessionState | undefined

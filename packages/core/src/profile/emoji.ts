@@ -1,0 +1,44 @@
+/** Curated emoji palette shared by web and mobile profile pickers. */
+export const PLAYER_EMOJI = [
+  '🦉',
+  '🦜',
+  '🦆',
+  '🐦',
+  '🦅',
+  '🕊️',
+  '🦊',
+  '🐻',
+  '🦝',
+  '🐸',
+  '🐙',
+  '🦕',
+  '🎲',
+  '🃏',
+  '🎯',
+  '🏆',
+  '🌵',
+  '🍉',
+  '🌙',
+  '⚡',
+  '🔥',
+  '❄️',
+  '🌈',
+  '⭐',
+  // Extra rows
+  '🐺',
+  '🦁',
+  '🐯',
+  '🦄',
+  '🐧',
+  '🐝',
+  '🎮',
+  '🎸',
+  '🍀',
+  '🍕',
+  '🚀',
+  '💎',
+] as const
+
+export function randomEmoji(): string {
+  return PLAYER_EMOJI[Math.floor(Math.random() * PLAYER_EMOJI.length)]!
+}

@@ -2,7 +2,8 @@ import type { SessionPlayer } from '@jamez/core'
 import { cn } from '@/lib/utils'
 
 interface PlayerAvatarProps {
-  player: Pick<SessionPlayer, 'name' | 'emoji' | 'color'> & Partial<Pick<SessionPlayer, 'connected' | 'remote'>>
+  player: Pick<SessionPlayer, 'name' | 'emoji' | 'color'> &
+    Partial<Pick<SessionPlayer, 'connected' | 'remote' | 'photo'>>
   size?: 'sm' | 'md' | 'lg'
   showPresence?: boolean
   className?: string
@@ -18,10 +19,17 @@ export function PlayerAvatar({ player, size = 'md', showPresence = false, classN
   return (
     <div className={cn('relative inline-flex shrink-0', className)}>
       <div
-        className={cn('flex items-center justify-center rounded-full bg-secondary ring-2', sizes[size])}
+        className={cn(
+          'flex items-center justify-center overflow-hidden rounded-full bg-secondary ring-2',
+          sizes[size],
+        )}
         style={{ boxShadow: `0 0 0 2px ${player.color}55`, backgroundColor: `${player.color}1f` }}
       >
-        <span aria-hidden>{player.emoji}</span>
+        {player.photo ? (
+          <img src={player.photo} alt="" className="size-full object-cover" draggable={false} />
+        ) : (
+          <span aria-hidden>{player.emoji}</span>
+        )}
       </div>
       {showPresence && player.remote !== false && (
         <span

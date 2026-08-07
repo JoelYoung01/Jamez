@@ -1,5 +1,6 @@
 import type { GameEngine } from '../games/types'
 import { getGameEngine } from '../games/registry'
+import { normalizeAvatarPhoto, stripPlayerPhotos } from '../profile/avatar'
 import type { RoomTransport } from '../transport/types'
 import { Emitter, type Unsubscribe } from '../util/emitter'
 import { randomId } from '../util/ids'
@@ -67,17 +68,35 @@ export class HostSession {
       const engine = getGameEngine(options.resumeFrom.gameId)
       if (!engine) throw new Error(`Unknown game: ${options.resumeFrom.gameId}`)
       this.game = engine
+      const hostPhoto = normalizeAvatarPhoto(options.hostProfile.photo)
       this.state = {
         ...options.resumeFrom,
-        players: options.resumeFrom.players.map((p) => ({
-          ...p,
-          connected: !p.remote, // remote guests must re-hello
-        })),
+        players: options.resumeFrom.players.map((p) => {
+          if (p.id === options.hostProfile.id) {
+            return {
+              ...p,
+              name: options.hostProfile.name,
+              emoji: options.hostProfile.emoji,
+              photo: hostPhoto,
+              hasPhoto: Boolean(hostPhoto),
+              connected: true,
+            }
+          }
+          return {
+            ...p,
+            connected: !p.remote, // remote guests must re-hello
+            hasPhoto: Boolean(p.photo) || p.hasPhoto === true,
+          }
+        }),
       }
     } else {
       this.game = options.game
+      const hostPhoto = normalizeAvatarPhoto(options.hostProfile.photo)
       const hostPlayer: SessionPlayer = {
-        ...options.hostProfile,
+        id: options.hostProfile.id,
+        name: options.hostProfile.name,
+        emoji: options.hostProfile.emoji,
+        ...(hostPhoto ? { photo: hostPhoto, hasPhoto: true } : { hasPhoto: false }),
         color: pickPlayerColor([]),
         isHost: true,
         remote: false,
@@ -476,6 +495,9 @@ export class HostSession {
       case 'sync':
         this.sendState()
         break
+      case 'avatar-req':
+        this.handleAvatarReq(msg.playerIds)
+        break
       default:
         break // host ignores host-originated message types
     }
@@ -483,6 +505,7 @@ export class HostSession {
 
   private handleHello(profile: PlayerProfile): void {
     this.lastSeen.set(profile.id, this.now())
+    const photo = normalizeAvatarPhoto(profile.photo)
     const existing = this.state.players.find((p) => p.id === profile.id)
     if (existing) {
       // Reconnect (or profile update) for a known player — including soft-removed seats.
@@ -497,6 +520,7 @@ export class HostSession {
           return
         }
       }
+      const prevPhoto = existing.photo
       this.mutate((s) => {
         s.players = s.players.map((p) =>
           p.id === profile.id
@@ -504,6 +528,8 @@ export class HostSession {
                 ...p,
                 name: profile.name,
                 emoji: profile.emoji,
+                photo,
+                hasPhoto: Boolean(photo),
                 connected: true,
                 // Explicit join / rejoin checks them in at the table.
                 active: true,
@@ -516,6 +542,7 @@ export class HostSession {
         }
       })
       this.sendState()
+      if (photo && photo !== prevPhoto) this.broadcastAvatar(profile.id, photo)
       return
     }
     if (this.state.players.filter(isPlayerActive).length >= this.game.maxPlayers) {
@@ -539,7 +566,10 @@ export class HostSession {
       return
     }
     const player: SessionPlayer = {
-      ...profile,
+      id: profile.id,
+      name: profile.name,
+      emoji: profile.emoji,
+      ...(photo ? { photo, hasPhoto: true } : { hasPhoto: false }),
       color: pickPlayerColor(this.state.players.map((p) => p.color)),
       isHost: false,
       remote: true,
@@ -553,6 +583,20 @@ export class HostSession {
         s.game = this.game.addPlayer(s.game, player)
       }
     })
+    if (photo) this.broadcastAvatar(profile.id, photo)
+  }
+
+  private handleAvatarReq(playerIds?: string[]): void {
+    const filter = playerIds && playerIds.length > 0 ? new Set(playerIds) : null
+    for (const player of this.state.players) {
+      if (!player.photo) continue
+      if (filter && !filter.has(player.id)) continue
+      this.broadcastAvatar(player.id, player.photo)
+    }
+  }
+
+  private broadcastAvatar(playerId: string, photo: string): void {
+    this.sendWire({ t: 'avatar', playerId, photo })
   }
 
   private markConnected(playerId: string, connected: boolean): void {
@@ -605,7 +649,8 @@ export class HostSession {
   }
 
   private sendState(): void {
-    this.sendWire({ t: 'state', state: this.state })
+    // Keep photo bytes in local/host-vault state; peers fetch via avatar messages.
+    this.sendWire({ t: 'state', state: stripPlayerPhotos(this.state) })
   }
 
   private sendWire(msg: WireMessage): void {

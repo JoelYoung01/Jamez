@@ -19,7 +19,7 @@ export function RequireProfile({ children }: { children: React.ReactNode }) {
     <Card className="p-5">
       <Text className="text-lg font-semibold text-zinc-100">Who's playing?</Text>
       <Text className="mb-4 mt-1 text-sm text-muted-foreground">
-        Pick a name and emoji before you sit down at the table.
+        Pick a name and an emoji or photo before you sit down at the table.
       </Text>
       <ProfileForm submitLabel="Continue" />
     </Card>

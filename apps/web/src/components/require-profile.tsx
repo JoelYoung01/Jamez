@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { EmojiPicker } from '@/components/emoji-picker'
+import { ProfilePhotoPicker } from '@/components/profile-photo-picker'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -11,18 +12,25 @@ import { useProfile } from '@/lib/profile'
  * show a friendly inline form instead of the wrapped content.
  */
 export function RequireProfile({ children }: { children: React.ReactNode }) {
-  const { name, emoji, setName, setEmoji } = useProfile()
+  const { name, emoji, photo, setName, setEmoji, setPhoto } = useProfile()
   const [draftName, setDraftName] = React.useState('')
   const [draftEmoji, setDraftEmoji] = React.useState(emoji)
+  const [draftPhoto, setDraftPhoto] = React.useState<string | undefined>(photo)
 
   if (name.trim().length > 0) return <>{children}</>
+
+  const commit = () => {
+    setEmoji(draftEmoji)
+    setPhoto(draftPhoto)
+    setName(draftName)
+  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Who's playing?</CardTitle>
         <CardDescription>
-          Pick a name and emoji. They live only on this device and show up at the table.
+          Pick a name and an emoji or photo. They live only on this device and show up at the table.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -36,25 +44,19 @@ export function RequireProfile({ children }: { children: React.ReactNode }) {
             maxLength={24}
             autoFocus
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && draftName.trim()) {
-                setEmoji(draftEmoji)
-                setName(draftName)
-              }
+              if (e.key === 'Enter' && draftName.trim()) commit()
             }}
           />
         </div>
         <div className="grid gap-2">
-          <Label>Emoji</Label>
+          <Label>Photo</Label>
+          <ProfilePhotoPicker emoji={draftEmoji} photo={draftPhoto} onChange={setDraftPhoto} />
+        </div>
+        <div className="grid gap-2">
+          <Label>Emoji{draftPhoto ? ' (fallback)' : ''}</Label>
           <EmojiPicker value={draftEmoji} onChange={setDraftEmoji} />
         </div>
-        <Button
-          size="lg"
-          disabled={draftName.trim().length === 0}
-          onClick={() => {
-            setEmoji(draftEmoji)
-            setName(draftName)
-          }}
-        >
+        <Button size="lg" disabled={draftName.trim().length === 0} onClick={commit}>
           Continue
         </Button>
       </CardContent>

@@ -30,6 +30,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     infoPlist: {
       NSCameraUsageDescription:
         "Jamez uses the camera to scan a host's QR code so you can join their game session.",
+      NSPhotoLibraryUsageDescription:
+        'Jamez uses your photo library so you can set a profile photo friends see at the table.',
       ITSAppUsesNonExemptEncryption: false,
     },
   },
@@ -64,6 +66,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         cameraPermission:
           "Jamez uses the camera to scan a host's QR code so you can join their game session.",
+      },
+    ],
+    [
+      'expo-image-picker',
+      {
+        photosPermission:
+          'Jamez uses your photo library so you can set a profile photo friends see at the table.',
       },
     ],
     [
