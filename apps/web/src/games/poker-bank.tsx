@@ -40,6 +40,43 @@ import { useSession } from '@/lib/session-store'
 import { cn } from '@/lib/utils'
 import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
+function GuestProfileFields({
+  nameId,
+  name,
+  emoji,
+  onNameChange,
+  onEmojiChange,
+  onSubmit,
+}: {
+  nameId: string
+  name: string
+  emoji: string
+  onNameChange: (name: string) => void
+  onEmojiChange: (emoji: string) => void
+  onSubmit: () => void
+}) {
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-2">
+        <Label htmlFor={nameId}>Name</Label>
+        <Input
+          id={nameId}
+          value={name}
+          onChange={(e) => onNameChange(e.target.value)}
+          placeholder="e.g. Cousin Mike"
+          maxLength={24}
+          autoFocus
+          onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label>Emoji</Label>
+        <EmojiPicker value={emoji} onChange={onEmojiChange} />
+      </div>
+    </div>
+  )
+}
+
 function AddGuestButton() {
   const addLocalPlayer = useSession((s) => s.addLocalPlayer)
   const [open, setOpen] = React.useState(false)
@@ -65,27 +102,68 @@ function AddGuestButton() {
         <DialogHeader>
           <DialogTitle>Add a guest seat</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="guest-name">Name</Label>
-            <Input
-              id="guest-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Cousin Mike"
-              maxLength={24}
-              autoFocus
-              onKeyDown={(e) => e.key === 'Enter' && add()}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Emoji</Label>
-            <EmojiPicker value={emoji} onChange={setEmoji} />
-          </div>
-        </div>
+        <GuestProfileFields
+          nameId="guest-name"
+          name={name}
+          emoji={emoji}
+          onNameChange={setName}
+          onEmojiChange={setEmoji}
+          onSubmit={add}
+        />
         <DialogFooter>
           <Button onClick={add} disabled={!name.trim()}>
             Add guest
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Host taps a guest card to rename / re-emoji the seat. */
+function EditGuestDialog({
+  player,
+  children,
+}: {
+  player: SessionPlayer
+  children: React.ReactNode
+}) {
+  const updateLocalPlayer = useSession((s) => s.updateLocalPlayer)
+  const [open, setOpen] = React.useState(false)
+  const [name, setName] = React.useState(player.name)
+  const [emoji, setEmoji] = React.useState(player.emoji)
+
+  React.useEffect(() => {
+    if (open) {
+      setName(player.name)
+      setEmoji(player.emoji)
+    }
+  }, [open, player.name, player.emoji])
+
+  const save = () => {
+    if (!name.trim()) return
+    updateLocalPlayer(player.id, { name: name.trim(), emoji })
+    setOpen(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit guest</DialogTitle>
+        </DialogHeader>
+        <GuestProfileFields
+          nameId={`edit-guest-${player.id}`}
+          name={name}
+          emoji={emoji}
+          onNameChange={setName}
+          onEmojiChange={setEmoji}
+          onSubmit={save}
+        />
+        <DialogFooter>
+          <Button onClick={save} disabled={!name.trim()}>
+            Save
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -552,22 +630,38 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
           const balance = game.banks[player.id]?.balance ?? 0
           const mine = me?.id === player.id
           const canAct = isHost || mine
+          const isGuest = !player.remote && !player.isHost
+          const identity = (
+            <>
+              <PlayerAvatar player={player} size="sm" showPresence />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-semibold">{player.name}</span>
+                  {player.isHost && <Badge variant="secondary">host</Badge>}
+                  {isGuest && <Badge variant="outline">guest</Badge>}
+                </div>
+                <div className="font-mono text-sm font-bold tabular-nums text-primary">
+                  {formatPokerAmount(balance, game.config)}
+                </div>
+              </div>
+            </>
+          )
           return (
             <Card key={player.id} className={cn(mine && 'border-primary/40')}>
               <CardContent className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center">
-                <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <PlayerAvatar player={player} size="sm" showPresence />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-semibold">{player.name}</span>
-                      {player.isHost && <Badge variant="secondary">host</Badge>}
-                      {!player.remote && !player.isHost && <Badge variant="outline">guest</Badge>}
-                    </div>
-                    <div className="font-mono text-sm font-bold tabular-nums text-primary">
-                      {formatPokerAmount(balance, game.config)}
-                    </div>
-                  </div>
-                </div>
+                {isHost && isGuest ? (
+                  <EditGuestDialog player={player}>
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                      aria-label={`Edit ${player.name}`}
+                    >
+                      {identity}
+                    </button>
+                  </EditGuestDialog>
+                ) : (
+                  <div className="flex min-w-0 flex-1 items-center gap-3">{identity}</div>
+                )}
                 {canAct && (
                   <div className="flex flex-wrap gap-2">
                     <CashDialog mode="deposit" player={player} game={game} send={send} />
