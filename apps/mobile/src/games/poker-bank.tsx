@@ -8,7 +8,7 @@ import {
   type PokerCurrencyMode,
   type SessionPlayer,
 } from '@jamez/core'
-import { CoinsIcon } from 'lucide-react-native'
+import { CoinsIcon, Settings2Icon } from 'lucide-react-native'
 import * as React from 'react'
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
@@ -106,6 +106,156 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
         />
       </View>
     </View>
+  )
+}
+
+function BankSettingsSheet({
+  game,
+  send,
+  onClose,
+}: {
+  game: PokerBankState
+  send: GamePlayProps['send']
+  onClose: () => void
+}) {
+  const keyboardHeight = useKeyboardHeight()
+  const [currencyMode, setCurrencyMode] = React.useState<PokerCurrencyMode>(game.config.currencyMode)
+  const [pointsPerDollar, setPointsPerDollar] = React.useState(game.config.pointsPerDollar)
+  const [startingStack, setStartingStack] = React.useState(game.config.startingStack)
+  const [chips, setChips] = React.useState(game.config.chips)
+
+  const updateChip = (index: number, patch: Partial<PokerChipDenom>) => {
+    setChips(chips.map((c, i) => (i === index ? { ...c, ...patch } : c)))
+  }
+
+  return (
+    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
+      <View className="flex-1 justify-end bg-black/60">
+        <Pressable className="absolute inset-0" onPress={onClose} accessibilityLabel="Dismiss" />
+        <View
+          className="rounded-t-3xl border border-line bg-card"
+          style={{ marginBottom: keyboardHeight, maxHeight: '90%' }}
+        >
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ padding: 16, gap: 16 }}
+          >
+            <Text className="text-lg font-semibold text-zinc-100">Bank settings</Text>
+
+            <View className="gap-1.5">
+              <Muted>Display as</Muted>
+              <Segmented
+                value={currencyMode}
+                onChange={setCurrencyMode}
+                options={[
+                  { value: 'points', label: 'Points' },
+                  { value: 'dollars', label: 'Dollars' },
+                ]}
+              />
+            </View>
+
+            <View className="gap-1.5">
+              <Muted>Points per dollar</Muted>
+              <AppTextInput
+                keyboardType="decimal-pad"
+                value={String(pointsPerDollar)}
+                onChangeText={(t) => {
+                  const n = Number.parseFloat(t)
+                  setPointsPerDollar(Number.isFinite(n) && n > 0 ? n : 1)
+                }}
+                className="h-11 rounded-xl border border-line bg-background px-3 font-mono text-zinc-100"
+              />
+            </View>
+
+            <View className="gap-1.5">
+              <Muted>Starting stack (points)</Muted>
+              <AppTextInput
+                keyboardType="number-pad"
+                value={String(startingStack)}
+                onChangeText={(t) => {
+                  const n = Number.parseInt(t.replace(/\D/g, ''), 10)
+                  setStartingStack(Number.isNaN(n) ? 0 : Math.min(1_000_000, n))
+                }}
+                className="h-11 rounded-xl border border-line bg-background px-3 font-mono text-zinc-100"
+              />
+              <Muted>Applies to players who join after you save. Balances stay in points.</Muted>
+            </View>
+
+            <View className="gap-2">
+              <Muted>Chip denominations</Muted>
+              {chips.map((chip, index) => (
+                <View
+                  key={chip.id}
+                  className="flex-row items-center gap-2 rounded-xl border border-line p-2"
+                >
+                  <PokerChip color={chip.color} size={28} label={String(chip.value)} />
+                  <AppTextInput
+                    value={chip.label}
+                    onChangeText={(label) => updateChip(index, { label: label.slice(0, 16) })}
+                    className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-background px-2 text-sm text-zinc-100"
+                  />
+                  <AppTextInput
+                    keyboardType="number-pad"
+                    value={String(chip.value)}
+                    onChangeText={(t) => {
+                      const n = Number.parseInt(t.replace(/\D/g, ''), 10)
+                      updateChip(index, { value: Number.isNaN(n) ? 1 : Math.max(1, n) })
+                    }}
+                    className="h-9 w-16 rounded-lg border border-line bg-background px-2 font-mono text-sm text-zinc-100"
+                  />
+                  <ColorPicker
+                    value={chip.color}
+                    onChange={(color) => updateChip(index, { color })}
+                  />
+                  {chips.length > 1 ? (
+                    <Pressable
+                      accessibilityLabel={`Remove ${chip.label}`}
+                      onPress={() => setChips(chips.filter((_, i) => i !== index))}
+                      className="h-9 w-9 items-center justify-center rounded-lg"
+                    >
+                      <Text className="text-lg text-zinc-400">×</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+              <AppButton
+                size="sm"
+                variant="outline"
+                title="Add chip"
+                onPress={() =>
+                  setChips([
+                    ...chips,
+                    {
+                      id: `chip-${chips.length + 1}-${Date.now().toString(36)}`,
+                      label: 'New',
+                      value: 1,
+                      color: '#a1a1aa',
+                    },
+                  ])
+                }
+              />
+            </View>
+
+            <View className="flex-row gap-2">
+              <AppButton title="Cancel" variant="secondary" className="flex-1" onPress={onClose} />
+              <AppButton
+                title="Save bank"
+                className="flex-1"
+                onPress={() => {
+                  send({
+                    type: 'updateConfig',
+                    config: { currencyMode, pointsPerDollar, startingStack, chips },
+                  })
+                  onClose()
+                }}
+              />
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   )
 }
 
@@ -426,16 +576,34 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
   const [cash, setCash] = React.useState<{ mode: 'deposit' | 'withdraw'; player: SessionPlayer } | null>(
     null,
   )
+  const [editingBank, setEditingBank] = React.useState(false)
   const recent = [...game.ledger].slice(-8).reverse()
 
   return (
     <View className="gap-4">
       <Card className="gap-2 p-4">
-        <CardTitle>Bank</CardTitle>
-        <Muted>
-          Start {formatPokerAmount(game.config.startingStack, game.config)}
-          {game.config.currencyMode === 'dollars' ? ` · ${game.config.pointsPerDollar} pts/$` : ''}
-        </Muted>
+        <View className="flex-row items-start justify-between gap-2">
+          <View className="min-w-0 flex-1 gap-1">
+            <CardTitle>Bank</CardTitle>
+            <Muted>
+              Start {formatPokerAmount(game.config.startingStack, game.config)}
+              {' · '}
+              {game.config.currencyMode === 'dollars'
+                ? `Dollars · ${game.config.pointsPerDollar} pts/$`
+                : 'Points'}
+            </Muted>
+          </View>
+          {isHost ? (
+            <Pressable
+              accessibilityLabel="Edit bank settings"
+              onPress={() => setEditingBank(true)}
+              className="flex-row items-center gap-1.5 rounded-full border border-line px-3 py-1.5 active:opacity-80"
+            >
+              <Settings2Icon size={14} color="#f4f4f5" />
+              <Text className="text-xs font-medium text-zinc-100">Edit</Text>
+            </Pressable>
+          ) : null}
+        </View>
         <View className="mt-1 flex-row flex-wrap gap-2">
           {game.config.chips.map((chip) => (
             <View key={chip.id} className="flex-row items-center gap-1.5 rounded-full border border-line px-2 py-1">
@@ -518,6 +686,9 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
           onClose={() => setCash(null)}
         />
       )}
+      {editingBank ? (
+        <BankSettingsSheet game={game} send={send} onClose={() => setEditingBank(false)} />
+      ) : null}
     </View>
   )
 }
