@@ -35,6 +35,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: 'com.joelyoung.jamez',
+    // Shrink the window above the keyboard so ScrollViews can reach covered fields.
+    softwareKeyboardLayoutMode: 'resize',
     adaptiveIcon: {
       backgroundColor: '#0e0e12',
       foregroundImage: './assets/images/android-icon-foreground.png',

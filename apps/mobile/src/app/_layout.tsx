@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar'
 import * as React from 'react'
 import { View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { AndroidKeyboardDismissHost } from '@/components/keyboard-dismiss'
 import { useProfileHydrated } from '@/lib/profile'
 import { ToastHost } from '@/lib/toast'
 
@@ -34,6 +35,7 @@ export default function RootLayout() {
           <Stack.Screen name="scan" options={{ presentation: 'modal' }} />
         </Stack>
         <ToastHost />
+        <AndroidKeyboardDismissHost />
       </View>
     </SafeAreaProvider>
   )

@@ -19,6 +19,7 @@ import { create } from 'zustand'
 import { historyStore } from './history'
 import {
   clearHostSnapshot,
+  listHostSnapshots,
   listResumableHostSnapshots,
   persistHostSnapshot,
   readHostSnapshot,
@@ -28,7 +29,7 @@ import { currentProfile } from './profile'
 import { activeRelays } from './settings'
 
 export type { HostSnapshot }
-export { listResumableHostSnapshots, readHostSnapshot }
+export { listHostSnapshots, listResumableHostSnapshots, readHostSnapshot }
 
 export type SessionRole = 'host' | 'guest'
 
@@ -40,13 +41,20 @@ interface SessionStoreState {
   transportStatus: TransportStatus
   passAndPlay: boolean
 
-  hostGame: (opts: { gameId: string; config: unknown; passAndPlay: boolean }) => string | null
+  hostGame: (opts: {
+    gameId: string
+    config: unknown
+    passAndPlay: boolean
+    nickname?: string
+  }) => string | null
   joinGame: (code: string) => void
   resumeHost: (code?: string) => boolean
   startGame: () => void
   finishGame: () => void
   rematch: () => void
+  setNickname: (nickname: string) => void
   addLocalPlayer: (profile: { name: string; emoji: string }) => void
+  updateLocalPlayer: (playerId: string, patch: { name?: string; emoji?: string }) => void
   removePlayer: (playerId: string) => void
   claimSeat: (claimerId: string, seatId: string) => void
   mergePlayers: (fromId: string, toId: string) => void
@@ -118,7 +126,7 @@ export const useSession = create<SessionStoreState>()((set) => {
   return {
     ...resetSessionFields(),
 
-    hostGame({ gameId, config, passAndPlay }) {
+    hostGame({ gameId, config, passAndPlay, nickname }) {
       const game = getGameEngine(gameId)
       if (!game) {
         toast.error(`Unknown game: ${gameId}`)
@@ -134,6 +142,7 @@ export const useSession = create<SessionStoreState>()((set) => {
         hostProfile: profile,
         transport: makeTransport(code, passAndPlay),
         onSnapshot: (state) => persistHostSnapshot(state, passAndPlay),
+        nickname,
       })
       wireHost(host, passAndPlay)
       host.start()
@@ -205,8 +214,17 @@ export const useSession = create<SessionStoreState>()((set) => {
       if (error) toast.error(error)
     },
 
+    setNickname(nickname) {
+      host?.setNickname(nickname)
+    },
+
     addLocalPlayer(profile) {
       const error = host?.addLocalPlayer(profile)
+      if (error) toast.error(error)
+    },
+
+    updateLocalPlayer(playerId, patch) {
+      const error = host?.updateLocalPlayer(playerId, patch)
       if (error) toast.error(error)
     },
 

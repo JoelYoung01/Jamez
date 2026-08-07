@@ -5,6 +5,7 @@ import { Emitter, type Unsubscribe } from '../util/emitter'
 import { randomId } from '../util/ids'
 import {
   makeEnvelope,
+  normalizeNickname,
   parseEnvelope,
   pickPlayerColor,
   type PlayerProfile,
@@ -28,6 +29,8 @@ export interface HostSessionOptions {
   onSnapshot?: (state: SessionState) => void
   /** Resume a previous session (e.g. after the host app reloads). */
   resumeFrom?: SessionState
+  /** Optional display nickname for a brand-new session. */
+  nickname?: string
   now?: () => number
 }
 
@@ -80,6 +83,7 @@ export class HostSession {
         connected: true,
         joinedAt: this.now(),
       }
+      const nickname = normalizeNickname(options.nickname)
       this.state = {
         v: 1,
         sessionId: randomId(8),
@@ -91,6 +95,7 @@ export class HostSession {
         players: [hostPlayer],
         game: null,
         createdAt: this.now(),
+        ...(nickname ? { nickname } : {}),
       }
     }
 
@@ -137,6 +142,17 @@ export class HostSession {
     this.transport.stop()
   }
 
+  /** Set or clear the optional session nickname (host-only). */
+  setNickname(nickname: string | undefined | null): void {
+    const next = normalizeNickname(nickname)
+    const prev = normalizeNickname(this.state.nickname)
+    if (next === prev) return
+    this.mutate((s) => {
+      if (next) s.nickname = next
+      else delete s.nickname
+    })
+  }
+
   // -- Lobby management ------------------------------------------------------
 
   addLocalPlayer(profile: { name: string; emoji: string }): string | null {
@@ -156,6 +172,31 @@ export class HostSession {
       if (s.phase === 'playing' && this.game.addPlayer && s.game) {
         s.game = this.game.addPlayer(s.game, player)
       }
+    })
+    return null
+  }
+
+  /**
+   * Update the name/emoji of a host-created guest seat (`remote: false`).
+   * Remote joiners and the host edit their own profile on-device instead.
+   */
+  updateLocalPlayer(
+    playerId: string,
+    patch: { name?: string; emoji?: string },
+  ): string | null {
+    const player = this.state.players.find((p) => p.id === playerId)
+    if (!player) return 'Player not found'
+    if (player.isHost) return 'The host profile is edited in Settings'
+    if (player.remote) return 'Only host-created guest seats can be edited'
+    const name =
+      patch.name !== undefined ? patch.name.trim().slice(0, 24) : player.name
+    const emoji = patch.emoji !== undefined ? patch.emoji : player.emoji
+    if (!name) return 'Name is required'
+    if (name === player.name && emoji === player.emoji) return null
+    this.mutate((s) => {
+      s.players = s.players.map((p) =>
+        p.id === playerId ? { ...p, name, emoji } : p,
+      )
     })
     return null
   }

@@ -17,6 +17,8 @@ export interface HistoryRecord {
   summary: GameSummary
   /** Which player this device was, so stats know whose wins to count. */
   myPlayerId: string
+  /** Optional host-set nickname, copied from the session when it finished. */
+  nickname?: string
 }
 
 export interface HistoryStore {
@@ -40,6 +42,7 @@ export function historyRecordFromState(
     players: state.players.map((p) => ({ id: p.id, name: p.name, emoji: p.emoji })),
     summary: state.summary,
     myPlayerId,
+    ...(state.nickname ? { nickname: state.nickname } : {}),
   }
 }
 
