@@ -188,7 +188,7 @@ export function formatPokerAmount(
 
 export type CashTransferSummaryTone = 'muted' | 'danger'
 
-/** Copy for the cash in/out amount footer (stable two-line layout). */
+/** Copy for the deposit/withdraw amount footer (stable two-line layout). */
 export interface CashTransferSummary {
   primary: string
   secondary: string
