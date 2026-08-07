@@ -7,7 +7,7 @@ import {
 } from '@jamez/core'
 import {
   ArrowRightIcon,
-  LayoutGridIcon,
+  ChartColumnIcon,
   MoonIcon,
   RadioTowerIcon,
   TicketIcon,
@@ -70,11 +70,11 @@ export function HomePage() {
           badge={longTermCount > 0 ? String(longTermCount) : undefined}
         />
         <HomeTile
-          to="/host"
-          icon={<LayoutGridIcon className="size-5" />}
-          title="Browse shelf"
-          description="See every game on the shelf."
-          cta="Browse games"
+          to="/stats"
+          icon={<ChartColumnIcon className="size-5" />}
+          title="Stats"
+          description="Reports and deeper game breakdowns."
+          cta="View reports"
         />
       </div>
 

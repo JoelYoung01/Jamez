@@ -6,6 +6,7 @@ import { HomePage } from '@/pages/home'
 import { HostConfigPage, HostPage } from '@/pages/host'
 import { JoinPage } from '@/pages/join'
 import { SessionPage } from '@/pages/session'
+import { StatsPage } from '@/pages/stats'
 
 export function App() {
   return (
@@ -20,6 +21,7 @@ export function App() {
         <Route path="/session/:code" element={<SessionPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/history/:id" element={<HistoryDetailPage />} />
+        <Route path="/stats" element={<StatsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

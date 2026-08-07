@@ -8,8 +8,8 @@ import {
 import { Link, router, useFocusEffect } from 'expo-router'
 import {
   ArrowRightIcon,
+  ChartColumnIcon,
   DicesIcon,
-  LayoutGridIcon,
   MoonIcon,
   RadioTowerIcon,
   SettingsIcon,
@@ -123,11 +123,11 @@ export default function HomeScreen() {
               onPress={() => router.push('/continue')}
             />
             <HomeTile
-              icon={<LayoutGridIcon size={20} color="#fbbf24" />}
-              title="Browse shelf"
-              description="See every game on the shelf."
-              cta="Browse games"
-              onPress={() => router.push('/host')}
+              icon={<ChartColumnIcon size={20} color="#fbbf24" />}
+              title="Stats"
+              description="Reports and deeper game breakdowns."
+              cta="View reports"
+              onPress={() => router.push('/stats')}
             />
           </View>
         </View>
