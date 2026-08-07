@@ -6,13 +6,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useHistory } from '@/lib/history'
-import { useSession, resumableHostSnapshot } from '@/lib/session-store'
+import { listResumableHostSnapshots, useSession } from '@/lib/session-store'
 import { formatDate } from '@/lib/utils'
 
 export function HomePage() {
   const history = useHistory()
   const activeCode = useSession((s) => s.code)
-  const snapshot = !activeCode ? resumableHostSnapshot() : null
+  const snapshots = !activeCode ? listResumableHostSnapshots() : []
   const recent = history.slice(0, 3)
 
   return (
@@ -37,22 +37,26 @@ export function HomePage() {
         </Card>
       )}
 
-      {snapshot && snapshot.state.phase !== 'finished' && (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardContent className="flex items-center justify-between gap-3 p-4">
-            <div>
-              <div className="text-sm font-semibold">
-                Resume hosting {getGameEngine(snapshot.state.gameId)?.name ?? snapshot.state.gameId}
-              </div>
-              <div className="font-mono text-xs text-muted-foreground">{snapshot.state.code}</div>
-            </div>
-            <Button asChild size="sm">
-              <Link to={`/session/${snapshot.state.code}`}>
-                Resume <ArrowRightIcon />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+      {snapshots.length > 0 && (
+        <div className="grid gap-2">
+          {snapshots.map((snapshot) => (
+            <Card key={`${snapshot.state.gameId}:${snapshot.state.code}`} className="border-primary/40 bg-primary/5">
+              <CardContent className="flex items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">
+                    Resume {getGameEngine(snapshot.state.gameId)?.name ?? snapshot.state.gameId}
+                  </div>
+                  <div className="font-mono text-xs text-muted-foreground">{snapshot.state.code}</div>
+                </div>
+                <Button asChild size="sm">
+                  <Link to={`/session/${snapshot.state.code}`}>
+                    Resume <ArrowRightIcon />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

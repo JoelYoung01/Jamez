@@ -41,7 +41,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getGameIcon, getGameUI } from '@/games/registry'
 import { randomEmoji, useProfile } from '@/lib/profile'
-import { useSession } from '@/lib/session-store'
+import { sessionIsOngoing, useSession } from '@/lib/session-store'
 import { cn } from '@/lib/utils'
 
 export function SessionPage() {
@@ -330,7 +330,9 @@ function LobbyView() {
         <Button size="lg" onClick={() => store.startGame()} disabled={!canStart}>
           <PlayIcon />
           {canStart
-            ? 'Start the game'
+            ? sessionIsOngoing(state)
+              ? 'Open the bank'
+              : 'Start the game'
             : `Need ${game?.minPlayers ?? 1}+ players to start`}
         </Button>
       ) : (
@@ -338,7 +340,7 @@ function LobbyView() {
           <Loader2Icon className="size-4 animate-spin" /> Waiting for the host to start…
         </p>
       )}
-      {isHost && <EndSessionButton subtle />}
+      {isHost && <HostSessionControls subtle />}
     </div>
   )
 }
@@ -354,15 +356,24 @@ function PlayingView() {
   if (!ui) return <StatusCard icon={CircleHelpIcon} title="Unsupported game" body="This app version doesn't know this game yet. Update and rejoin." />
   const PlayView = ui.PlayView
 
+  const ongoing = sessionIsOngoing(state)
+
   return (
     <div className="grid gap-4">
       <PlayView state={state} me={me} isHost={isHost} send={(action, actorId) => store.sendAction(action, actorId)} />
       {isHost && (
         <div className="grid gap-2">
-          <Button variant="secondary" onClick={() => store.finishGame()}>
-            <FlagIcon /> Finish & reveal results
-          </Button>
-          <EndSessionButton subtle />
+          {!ongoing && (
+            <Button variant="secondary" onClick={() => store.finishGame()}>
+              <FlagIcon /> Finish & reveal results
+            </Button>
+          )}
+          {ongoing && (
+            <Button variant="secondary" onClick={() => store.finishGame()}>
+              <FlagIcon /> Record standings
+            </Button>
+          )}
+          <HostSessionControls subtle />
         </div>
       )}
     </div>
@@ -429,13 +440,18 @@ function FinishedView() {
       {ui?.ResultsDetail && <ui.ResultsDetail state={state} />}
 
       <div className="grid gap-2">
-        {isHost && (
+        {isHost && sessionIsOngoing(state) && (
+          <Button size="lg" onClick={() => store.reopenGame()}>
+            <PlayIcon /> Back to bank
+          </Button>
+        )}
+        {isHost && !sessionIsOngoing(state) && (
           <Button size="lg" onClick={() => store.rematch()}>
             <RotateCcwIcon /> Rematch
           </Button>
         )}
         {isHost ? (
-          <EndSessionButton />
+          <HostSessionControls />
         ) : (
           <Button
             variant="secondary"
@@ -452,28 +468,66 @@ function FinishedView() {
   )
 }
 
-function EndSessionButton({ subtle }: { subtle?: boolean }) {
+function HostSessionControls({ subtle }: { subtle?: boolean }) {
   const store = useSession()
   const navigate = useNavigate()
-  const [confirming, setConfirming] = React.useState(false)
+  const ongoing = sessionIsOngoing(store.state)
+  const [mode, setMode] = React.useState<'idle' | 'park' | 'end'>('idle')
 
-  if (!confirming) {
+  if (mode === 'idle') {
     return (
-      <Button
-        variant={subtle ? 'ghost' : 'secondary'}
-        className={subtle ? 'text-muted-foreground' : undefined}
-        onClick={() => setConfirming(true)}
-      >
-        <LogOutIcon /> End session for everyone
-      </Button>
+      <div className="grid gap-2">
+        {ongoing && (
+          <Button
+            variant={subtle ? 'ghost' : 'secondary'}
+            className={subtle ? 'text-muted-foreground' : undefined}
+            onClick={() => setMode('park')}
+          >
+            <MoonIcon /> Close for now
+          </Button>
+        )}
+        <Button
+          variant={subtle ? 'ghost' : 'secondary'}
+          className={subtle ? 'text-muted-foreground' : undefined}
+          onClick={() => setMode('end')}
+        >
+          <LogOutIcon /> {ongoing ? 'Dissolve bank' : 'End session for everyone'}
+        </Button>
+      </div>
     )
   }
+
+  if (mode === 'park') {
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          variant="secondary"
+          onClick={() => {
+            store.parkSession()
+            navigate('/')
+          }}
+        >
+          Yes, park it
+        </Button>
+        <Button variant="outline" onClick={() => setMode('idle')}>
+          Keep open
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="grid grid-cols-2 gap-2">
-      <Button variant="destructive" onClick={() => { store.endSession(); navigate('/') }}>
-        Yes, end it
+      <Button
+        variant="destructive"
+        onClick={() => {
+          store.endSession()
+          navigate('/')
+        }}
+      >
+        {ongoing ? 'Yes, dissolve' : 'Yes, end it'}
       </Button>
-      <Button variant="secondary" onClick={() => setConfirming(false)}>
+      <Button variant="secondary" onClick={() => setMode('idle')}>
         Keep playing
       </Button>
     </div>

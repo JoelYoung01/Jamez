@@ -6,6 +6,7 @@ import {
   generateJoinCode,
   getGameEngine,
   historyRecordFromState,
+  isOngoingGame,
   type GuestSession,
   type GuestStatus,
   type HostSession,
@@ -16,16 +17,18 @@ import {
 import { toast } from 'sonner'
 import { create } from 'zustand'
 import { historyStore } from './history'
+import {
+  clearHostSnapshot,
+  listResumableHostSnapshots,
+  persistHostSnapshot,
+  readHostSnapshot,
+  type HostSnapshot,
+} from './host-sessions'
 import { currentProfile } from './profile'
 import { activeRelays } from './settings'
 
-const HOST_SNAPSHOT_KEY = 'jamez.host-session.v1'
-
-interface HostSnapshot {
-  state: SessionState
-  passAndPlay: boolean
-  savedAt: number
-}
+export type { HostSnapshot }
+export { listResumableHostSnapshots, readHostSnapshot }
 
 export type SessionRole = 'host' | 'guest'
 
@@ -43,9 +46,15 @@ interface SessionStoreState {
   startGame: () => void
   finishGame: () => void
   rematch: () => void
+  reopenGame: () => void
   addLocalPlayer: (profile: { name: string; emoji: string }) => void
   removePlayer: (playerId: string) => void
+  claimSeat: (claimerId: string, seatId: string) => void
+  mergePlayers: (fromId: string, toId: string) => void
   sendAction: (action: { type: string } & Record<string, unknown>, actorId?: string) => void
+  /** Stop broadcasting but keep the snapshot (ongoing banks / resume later). */
+  parkSession: () => void
+  /** End for everyone and delete the host snapshot (dissolve). */
   endSession: () => void
   leaveSession: () => void
 }
@@ -65,35 +74,6 @@ function cleanupRefs(): void {
   guest = null
 }
 
-function persistHostSnapshot(state: SessionState, passAndPlay: boolean): void {
-  try {
-    const snapshot: HostSnapshot = { state, passAndPlay, savedAt: Date.now() }
-    localStorage.setItem(HOST_SNAPSHOT_KEY, JSON.stringify(snapshot))
-  } catch {
-    // non-fatal
-  }
-}
-
-export function readHostSnapshot(): HostSnapshot | null {
-  try {
-    const raw = localStorage.getItem(HOST_SNAPSHOT_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as HostSnapshot
-    if (!parsed?.state?.code) return null
-    return parsed
-  } catch {
-    return null
-  }
-}
-
-function clearHostSnapshot(): void {
-  try {
-    localStorage.removeItem(HOST_SNAPSHOT_KEY)
-  } catch {
-    // non-fatal
-  }
-}
-
 function saveHistoryIfFinished(state: SessionState, myPlayerId: string): void {
   const record = historyRecordFromState(state, myPlayerId)
   if (record) void historyStore.save(record)
@@ -105,7 +85,18 @@ function makeTransport(code: string, passAndPlay: boolean) {
     : createNostrTransport({ code, relays: activeRelays() })
 }
 
-export const useSession = create<SessionStoreState>()((set, get) => {
+function resetSessionFields() {
+  return {
+    role: null as SessionRole | null,
+    code: null as string | null,
+    state: null as SessionState | null,
+    guestStatus: null as GuestStatus | null,
+    passAndPlay: false,
+    transportStatus: 'connecting' as TransportStatus,
+  }
+}
+
+export const useSession = create<SessionStoreState>()((set) => {
   function wireHost(h: HostSession, passAndPlay: boolean): void {
     const profile = currentProfile()
     unsubs.push(
@@ -126,12 +117,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
   }
 
   return {
-    role: null,
-    code: null,
-    state: null,
-    guestStatus: null,
-    transportStatus: 'connecting',
-    passAndPlay: false,
+    ...resetSessionFields(),
 
     hostGame({ gameId, config, passAndPlay }) {
       const game = getGameEngine(gameId)
@@ -185,7 +171,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
     },
 
     resumeHost(code) {
-      const snapshot = readHostSnapshot()
+      const snapshot = readHostSnapshot(code)
       if (!snapshot) return false
       if (code && snapshot.state.code !== code.toUpperCase()) return false
       const game = getGameEngine(snapshot.state.gameId)
@@ -220,6 +206,11 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       if (error) toast.error(error)
     },
 
+    reopenGame() {
+      const error = host?.reopen()
+      if (error) toast.error(error)
+    },
+
     addLocalPlayer(profile) {
       const error = host?.addLocalPlayer(profile)
       if (error) toast.error(error)
@@ -227,6 +218,16 @@ export const useSession = create<SessionStoreState>()((set, get) => {
 
     removePlayer(playerId) {
       const error = host?.removePlayer(playerId)
+      if (error) toast.error(error)
+    },
+
+    claimSeat(claimerId, seatId) {
+      const error = host?.claimSeat(claimerId, seatId)
+      if (error) toast.error(error)
+    },
+
+    mergePlayers(fromId, toId) {
+      const error = host?.mergePlayers(fromId, toId)
       if (error) toast.error(error)
     },
 
@@ -239,38 +240,39 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       guest?.sendAction(action)
     },
 
-    endSession() {
-      host?.end()
-      clearHostSnapshot()
+    parkSession() {
+      const state = host?.current
+      const passAndPlay = useSession.getState().passAndPlay
+      if (state) persistHostSnapshot(state, passAndPlay)
+      // Quiet stop — don't tell guests the bank is dissolved.
+      host?.stop()
       cleanupRefs()
-      set({
-        role: null,
-        code: null,
-        state: null,
-        guestStatus: null,
-        passAndPlay: false,
-        transportStatus: 'connecting',
-      })
+      set(resetSessionFields())
+    },
+
+    endSession() {
+      const state = host?.current
+      host?.end()
+      if (state) clearHostSnapshot(state)
+      cleanupRefs()
+      set(resetSessionFields())
     },
 
     leaveSession() {
       guest?.leave()
       cleanupRefs()
-      set({
-        role: null,
-        code: null,
-        state: null,
-        guestStatus: null,
-        passAndPlay: false,
-        transportStatus: 'connecting',
-      })
+      set(resetSessionFields())
     },
   }
 })
 
-/** True when a host snapshot exists that is not yet finished (resumable). */
+/** Most recent resumable host snapshot (for the home resume card). */
 export function resumableHostSnapshot(): HostSnapshot | null {
-  const snapshot = readHostSnapshot()
-  if (!snapshot) return null
-  return snapshot
+  return listResumableHostSnapshots()[0] ?? null
+}
+
+export function sessionIsOngoing(state: SessionState | null | undefined): boolean {
+  if (!state) return false
+  const engine = getGameEngine(state.gameId)
+  return engine ? isOngoingGame(engine) : false
 }

@@ -58,9 +58,11 @@ export {
 // games
 export {
   formatPoints,
+  isOngoingGame,
   namesList,
   type ActionContext,
   type GameEngine,
+  type GameSessionMode,
   type GameSummary,
   type SummaryEntry,
 } from './games/types'
@@ -91,6 +93,31 @@ export {
   type GinOutcome,
   type GinState,
 } from './games/gin-rummy'
+export {
+  DEFAULT_POKER_CHIPS,
+  chipBreakdown,
+  defaultPokerBankConfig,
+  formatPokerAmount,
+  fromPoints,
+  pokerBankEngine,
+  toPoints,
+  type PokerBankAction,
+  type PokerBankConfig,
+  type PokerBankState,
+  type PokerChipDenom,
+  type PokerCurrencyMode,
+  type PokerLedgerEntry,
+  type PokerLedgerKind,
+  type PokerPlayerBank,
+} from './games/poker-bank'
+
+// persistence helpers (host vault keying)
+export {
+  HOST_SESSION_LEGACY_KEY,
+  HOST_SESSIONS_VAULT_KEY,
+  hostSessionEntryKey,
+  parseHostSessionEntryKey,
+} from './persistence/host-sessions'
 
 // history
 export {

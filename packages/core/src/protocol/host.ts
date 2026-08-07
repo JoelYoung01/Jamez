@@ -208,6 +208,9 @@ export class HostSession {
   /** Start a fresh match with the same players, config, and join code. */
   rematch(): string | null {
     if (this.state.phase !== 'finished') return 'Finish the current game first'
+    if (this.game.sessionMode === 'ongoing') {
+      return 'Ongoing games keep their state — use reopen() instead of rematch'
+    }
     this.mutate((s) => {
       s.sessionId = randomId(8)
       s.game = this.game.init(s.gameConfig, s.players)
@@ -215,6 +218,107 @@ export class HostSession {
       s.startedAt = this.now()
       s.finishedAt = undefined
       s.summary = undefined
+    })
+    return null
+  }
+
+  /**
+   * Return an ongoing room to `playing` after a standings snapshot, without
+   * wiping game state. Match games should use rematch() instead.
+   */
+  reopen(): string | null {
+    if (this.state.phase !== 'finished') return 'Nothing to reopen'
+    if (this.game.sessionMode !== 'ongoing') {
+      return 'Only ongoing games can reopen; start a rematch instead'
+    }
+    this.mutate((s) => {
+      s.phase = 'playing'
+      s.finishedAt = undefined
+      s.summary = undefined
+    })
+    return null
+  }
+
+  /**
+   * Let a joined player take over a host-created guest seat. The claimer keeps
+   * their device identity and receives the seat's game resources (replacing
+   * whatever they had); the guest seat is removed from the session.
+   */
+  claimSeat(claimerId: string, seatId: string): string | null {
+    if (claimerId === seatId) return 'Pick two different players'
+    if (!this.game.claimSeat) {
+      return `${this.game.name} does not support claiming seats`
+    }
+    const claimer = this.state.players.find((p) => p.id === claimerId)
+    const seat = this.state.players.find((p) => p.id === seatId)
+    if (!claimer) return 'Claiming player not found'
+    if (!seat) return 'Seat not found'
+    if (seat.isHost) return 'The host seat cannot be claimed'
+    if (seat.remote) return 'Only host-created guest seats can be claimed'
+    if (claimer.isHost) return 'The host cannot claim a guest seat'
+    if (this.state.phase === 'lobby') {
+      // Lobby: drop the guest seat; claimer is already seated with their device id.
+      this.mutate((s) => {
+        s.players = s.players.filter((p) => p.id !== seatId)
+      })
+      return null
+    }
+    if (this.state.phase !== 'playing' || !this.state.game) {
+      return 'Seats can only be claimed during an open session'
+    }
+    this.mutate((s) => {
+      s.game = this.game.claimSeat!(s.game, seatId, claimerId)
+      s.players = s.players.filter((p) => p.id !== seatId)
+    })
+    return null
+  }
+
+  /**
+   * Merge one player's game resources into another, then remove the source.
+   *
+   * Rules:
+   * - The host seat can never be removed (`fromId` cannot be the host).
+   * - Guest seat (`remote: false`) + real player (`remote: true`): the player
+   *   always survives (`toId` must be the remote player).
+   * - Player + player (or guest + guest): the host chooses `toId`.
+   */
+  mergePlayers(fromId: string, toId: string): string | null {
+    if (fromId === toId) return 'Pick two different players'
+    if (!this.game.mergePlayers) {
+      return `${this.game.name} does not support merging players`
+    }
+    if (fromId === this.hostId) return 'The host cannot be merged away'
+    const from = this.state.players.find((p) => p.id === fromId)
+    const to = this.state.players.find((p) => p.id === toId)
+    if (!from || !to) return 'Player not found'
+
+    const fromIsGuest = !from.remote && !from.isHost
+    const toIsGuest = !to.remote && !to.isHost
+    const fromIsPlayer = from.remote || from.isHost
+    const toIsPlayer = to.remote || to.isHost
+
+    if (fromIsGuest && toIsPlayer) {
+      // ok — guest folds into player
+    } else if (fromIsPlayer && toIsGuest) {
+      return 'When merging a guest with a player, the player must receive the balance'
+    } else if (fromIsGuest && toIsGuest) {
+      // ok — host picks survivor
+    } else if (fromIsPlayer && toIsPlayer) {
+      // ok — host picks survivor
+    }
+
+    if (this.state.phase === 'lobby') {
+      this.mutate((s) => {
+        s.players = s.players.filter((p) => p.id !== fromId)
+      })
+      return null
+    }
+    if (this.state.phase !== 'playing' || !this.state.game) {
+      return 'Players can only be merged during an open session'
+    }
+    this.mutate((s) => {
+      s.game = this.game.mergePlayers!(s.game, fromId, toId)
+      s.players = s.players.filter((p) => p.id !== fromId)
     })
     return null
   }

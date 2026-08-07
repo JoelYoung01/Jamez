@@ -16,7 +16,7 @@ import { getGameIcon } from '@/games/registry'
 import { formatDate } from '@/lib/format'
 import { useHistory } from '@/lib/history'
 import { useProfile } from '@/lib/profile'
-import { readHostSnapshot, useSession, type HostSnapshot } from '@/lib/session-store'
+import { listResumableHostSnapshots, useSession, type HostSnapshot } from '@/lib/session-store'
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets()
@@ -25,15 +25,15 @@ export default function HomeScreen() {
   const { name, emoji } = useProfile()
   const recent = history.slice(0, 3)
 
-  const [snapshot, setSnapshot] = React.useState<HostSnapshot | null>(null)
+  const [snapshots, setSnapshots] = React.useState<HostSnapshot[]>([])
   useFocusEffect(
     React.useCallback(() => {
       let alive = true
       if (activeCode) {
-        setSnapshot(null)
+        setSnapshots([])
       } else {
-        void readHostSnapshot().then((snap) => {
-          if (alive) setSnapshot(snap)
+        void listResumableHostSnapshots().then((snaps) => {
+          if (alive) setSnapshots(snaps)
         })
       }
       return () => {
@@ -99,26 +99,30 @@ export default function HomeScreen() {
           </Card>
         )}
 
-        {!activeCode && snapshot && snapshot.state.phase !== 'finished' && (
-          <Card className="mb-3 border-primary/40 bg-primary/10 p-4">
-            <View className="flex-row items-center justify-between gap-3">
-              <View className="min-w-0 flex-1">
-                <Text className="text-sm font-semibold text-zinc-100" numberOfLines={1}>
-                  Resume hosting {getGameEngine(snapshot.state.gameId)?.name ?? snapshot.state.gameId}
-                </Text>
-                <Text className="font-mono text-xs tracking-widest text-muted-foreground">
-                  {snapshot.state.code}
-                </Text>
+        {!activeCode &&
+          snapshots.map((snapshot) => (
+            <Card
+              key={`${snapshot.state.gameId}:${snapshot.state.code}`}
+              className="mb-3 border-primary/40 bg-primary/10 p-4"
+            >
+              <View className="flex-row items-center justify-between gap-3">
+                <View className="min-w-0 flex-1">
+                  <Text className="text-sm font-semibold text-zinc-100" numberOfLines={1}>
+                    Resume {getGameEngine(snapshot.state.gameId)?.name ?? snapshot.state.gameId}
+                  </Text>
+                  <Text className="font-mono text-xs tracking-widest text-muted-foreground">
+                    {snapshot.state.code}
+                  </Text>
+                </View>
+                <AppButton
+                  size="sm"
+                  title="Resume"
+                  iconRight={<ArrowRightIcon size={14} color="#251a02" />}
+                  onPress={() => router.push(`/session/${snapshot.state.code}`)}
+                />
               </View>
-              <AppButton
-                size="sm"
-                title="Resume"
-                iconRight={<ArrowRightIcon size={14} color="#251a02" />}
-                onPress={() => router.push(`/session/${snapshot.state.code}`)}
-              />
-            </View>
-          </Card>
-        )}
+            </Card>
+          ))}
 
         <View className="gap-3">
           <Pressable onPress={() => router.push('/host')} className="active:opacity-80">

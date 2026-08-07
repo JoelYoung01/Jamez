@@ -30,7 +30,7 @@ import { StatusPill } from '@/components/status-pill'
 import { AppButton, Card, CardTitle, Chip, Muted, Screen, SectionLabel } from '@/components/ui'
 import { getGameIcon, getGameUI } from '@/games/registry'
 import { randomEmoji, useProfile } from '@/lib/profile'
-import { useSession } from '@/lib/session-store'
+import { sessionIsOngoing, useSession } from '@/lib/session-store'
 
 export default function SessionScreen() {
   const insets = useSafeAreaInsets()
@@ -347,7 +347,13 @@ function LobbyView() {
       {isHost ? (
         <AppButton
           size="lg"
-          title={canStart ? 'Start the game' : `Need ${game?.minPlayers ?? 1}+ players to start`}
+          title={
+            canStart
+              ? sessionIsOngoing(state)
+                ? 'Open the bank'
+                : 'Start the game'
+              : `Need ${game?.minPlayers ?? 1}+ players to start`
+          }
           disabled={!canStart}
           onPress={() => store.startGame()}
         />
@@ -357,7 +363,7 @@ function LobbyView() {
           <Text className="text-sm text-muted-foreground">Waiting for the host to start…</Text>
         </View>
       )}
-      {isHost && <EndSessionButton subtle />}
+      {isHost && <HostSessionControls subtle />}
     </View>
   )
 }
@@ -380,6 +386,7 @@ function PlayingView() {
     )
   }
   const PlayView = ui.PlayView
+  const ongoing = sessionIsOngoing(state)
 
   return (
     <View className="gap-4">
@@ -393,11 +400,11 @@ function PlayingView() {
         <View className="gap-2">
           <AppButton
             variant="secondary"
-            title="Finish & reveal results"
+            title={ongoing ? 'Record standings' : 'Finish & reveal results'}
             icon={<FlagIcon size={16} color="#f4f4f5" />}
             onPress={() => store.finishGame()}
           />
-          <EndSessionButton subtle />
+          <HostSessionControls subtle />
         </View>
       )}
     </View>
@@ -457,7 +464,10 @@ function FinishedView() {
       {ui?.ResultsDetail && <ui.ResultsDetail state={state} />}
 
       <View className="gap-2">
-        {isHost && (
+        {isHost && sessionIsOngoing(state) && (
+          <AppButton size="lg" title="Back to bank" onPress={() => store.reopenGame()} />
+        )}
+        {isHost && !sessionIsOngoing(state) && (
           <AppButton
             size="lg"
             title="Rematch"
@@ -466,7 +476,7 @@ function FinishedView() {
           />
         )}
         {isHost ? (
-          <EndSessionButton />
+          <HostSessionControls />
         ) : (
           <AppButton
             variant="secondary"
@@ -482,24 +492,53 @@ function FinishedView() {
   )
 }
 
-function EndSessionButton({ subtle }: { subtle?: boolean }) {
+function HostSessionControls({ subtle }: { subtle?: boolean }) {
   const store = useSession()
-  const [confirming, setConfirming] = React.useState(false)
+  const ongoing = sessionIsOngoing(store.state)
+  const [mode, setMode] = React.useState<'idle' | 'park' | 'end'>('idle')
 
-  if (!confirming) {
+  if (mode === 'idle') {
     return (
-      <AppButton
-        variant={subtle ? 'ghost' : 'secondary'}
-        title="End session for everyone"
-        onPress={() => setConfirming(true)}
-      />
+      <View className="gap-2">
+        {ongoing && (
+          <AppButton
+            variant={subtle ? 'ghost' : 'secondary'}
+            title="Close for now"
+            icon={<MoonIcon size={16} color="#a1a1ab" />}
+            onPress={() => setMode('park')}
+          />
+        )}
+        <AppButton
+          variant={subtle ? 'ghost' : 'secondary'}
+          title={ongoing ? 'Dissolve bank' : 'End session for everyone'}
+          onPress={() => setMode('end')}
+        />
+      </View>
     )
   }
+
+  if (mode === 'park') {
+    return (
+      <View className="flex-row gap-2">
+        <AppButton
+          variant="secondary"
+          title="Yes, park it"
+          className="flex-1"
+          onPress={() => {
+            store.parkSession()
+            router.replace('/')
+          }}
+        />
+        <AppButton variant="outline" title="Keep open" className="flex-1" onPress={() => setMode('idle')} />
+      </View>
+    )
+  }
+
   return (
     <View className="flex-row gap-2">
       <AppButton
         variant="destructive"
-        title="Yes, end it"
+        title={ongoing ? 'Yes, dissolve' : 'Yes, end it'}
         className="flex-1"
         onPress={() => {
           store.endSession()
@@ -510,7 +549,7 @@ function EndSessionButton({ subtle }: { subtle?: boolean }) {
         variant="secondary"
         title="Keep playing"
         className="flex-1"
-        onPress={() => setConfirming(false)}
+        onPress={() => setMode('idle')}
       />
     </View>
   )
