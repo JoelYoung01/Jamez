@@ -139,6 +139,19 @@ describe('host/guest session over memory transport', () => {
     g1.stop()
   })
 
+  it('lets the host edit a guest seat name and emoji', () => {
+    const code = generateJoinCode()
+    const host = makeHost(code)
+    expect(host.addLocalPlayer({ name: 'Cousin', emoji: '🃏' })).toBeNull()
+    const seat = host.current.players.find((p) => !p.remote && !p.isHost)!
+    expect(host.updateLocalPlayer(seat.id, { name: 'Mike', emoji: '😎' })).toBeNull()
+    const updated = host.current.players.find((p) => p.id === seat.id)!
+    expect(updated.name).toBe('Mike')
+    expect(updated.emoji).toBe('😎')
+    expect(host.updateLocalPlayer(host.hostPlayerId, { name: 'Nope' })).toMatch(/host profile/i)
+    host.end()
+  })
+
   it('finishes gin automatically at the target and supports rematch', async () => {
     const code = generateJoinCode()
     const host = makeHost(code, ginRummyEngine as never)

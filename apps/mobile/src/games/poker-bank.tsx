@@ -13,10 +13,11 @@ import * as React from 'react'
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
 import { ColorPicker } from '@/components/color-picker'
+import { EmojiGrid } from '@/components/emoji-grid'
 import { PokerChip } from '@/components/poker-chip'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
-import { AppButton, Card, CardTitle, Chip, Muted } from '@/components/ui'
+import { AppButton, Card, CardTitle, Chip, Muted, SectionLabel } from '@/components/ui'
 import { useKeyboardHeight } from '@/lib/keyboard'
 import { randomEmoji } from '@/lib/profile'
 import { useSession } from '@/lib/session-store'
@@ -84,11 +85,7 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
               }}
               className="h-9 w-16 rounded-lg border border-line bg-background px-2 font-mono text-sm text-zinc-100"
             />
-<<<<<<< HEAD
             <ColorPicker
-=======
-            <AppTextInput
->>>>>>> origin/cursor/keyboard-dismiss-accessory-fde1
               value={chip.color}
               onChange={(color) => updateChip(index, { color })}
             />
@@ -285,19 +282,29 @@ function ClaimMergePanel() {
   )
 }
 
-function AddGuestButton() {
-  const addLocalPlayer = useSession((s) => s.addLocalPlayer)
-  const [open, setOpen] = React.useState(false)
-  const [name, setName] = React.useState('')
-
-  if (!open) {
-    return <AppButton size="sm" variant="outline" title="Add guest" onPress={() => setOpen(true)} />
-  }
+function GuestProfileModal({
+  title,
+  confirmLabel,
+  initialName,
+  initialEmoji,
+  onClose,
+  onConfirm,
+}: {
+  title: string
+  confirmLabel: string
+  initialName: string
+  initialEmoji: string
+  onClose: () => void
+  onConfirm: (profile: { name: string; emoji: string }) => void
+}) {
+  const [name, setName] = React.useState(initialName)
+  const [emoji, setEmoji] = React.useState(initialEmoji)
 
   return (
-    <Modal transparent animationType="fade" visible onRequestClose={() => setOpen(false)}>
-      <Pressable className="flex-1 items-center justify-center bg-black/60 px-6" onPress={() => setOpen(false)}>
+    <Modal transparent animationType="fade" visible onRequestClose={onClose}>
+      <Pressable className="flex-1 items-center justify-center bg-black/60 px-6" onPress={onClose}>
         <Pressable className="w-full gap-3 rounded-2xl border border-line bg-card p-4" onPress={() => {}}>
+<<<<<<< HEAD
           <Text className="text-lg font-semibold text-zinc-100">Add a guest seat</Text>
           <AppTextInput
             autoFocus
@@ -308,22 +315,119 @@ function AddGuestButton() {
             maxLength={24}
             className="h-11 rounded-xl border border-line bg-background px-3 text-zinc-100"
           />
+=======
+          <Text className="text-lg font-semibold text-zinc-100">{title}</Text>
+          <View>
+            <SectionLabel>Name</SectionLabel>
+            <TextInput
+              autoFocus
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g. Cousin Mike"
+              placeholderTextColor="#71717a"
+              maxLength={24}
+              className="h-11 rounded-xl border border-line bg-background px-3 text-zinc-100"
+            />
+          </View>
+          <View>
+            <SectionLabel>Emoji</SectionLabel>
+            <EmojiGrid value={emoji} onChange={setEmoji} />
+          </View>
+>>>>>>> origin/cursor/edit-guest-player-fde1
           <View className="flex-row gap-2">
-            <AppButton title="Cancel" variant="secondary" className="flex-1" onPress={() => setOpen(false)} />
+            <AppButton title="Cancel" variant="secondary" className="flex-1" onPress={onClose} />
             <AppButton
-              title="Add"
+              title={confirmLabel}
               className="flex-1"
               disabled={!name.trim()}
-              onPress={() => {
-                addLocalPlayer({ name: name.trim(), emoji: randomEmoji() })
-                setName('')
-                setOpen(false)
-              }}
+              onPress={() => onConfirm({ name: name.trim(), emoji })}
             />
           </View>
         </Pressable>
       </Pressable>
     </Modal>
+  )
+}
+
+function AddGuestButton() {
+  const addLocalPlayer = useSession((s) => s.addLocalPlayer)
+  const [open, setOpen] = React.useState(false)
+
+  return (
+    <>
+      <AppButton size="sm" variant="outline" title="Add guest" onPress={() => setOpen(true)} />
+      {open ? (
+        <GuestProfileModal
+          title="Add a guest seat"
+          confirmLabel="Add"
+          initialName=""
+          initialEmoji={randomEmoji()}
+          onClose={() => setOpen(false)}
+          onConfirm={({ name, emoji }) => {
+            addLocalPlayer({ name, emoji })
+            setOpen(false)
+          }}
+        />
+      ) : null}
+    </>
+  )
+}
+
+function GuestIdentity({
+  player,
+  balanceLabel,
+  editable,
+}: {
+  player: SessionPlayer
+  balanceLabel: string
+  editable: boolean
+}) {
+  const updateLocalPlayer = useSession((s) => s.updateLocalPlayer)
+  const [open, setOpen] = React.useState(false)
+  const isGuest = !player.remote && !player.isHost
+
+  const body = (
+    <>
+      <PlayerAvatar player={player} size="sm" showPresence />
+      <View className="min-w-0 flex-1">
+        <View className="flex-row items-center gap-1.5">
+          <Text className="text-sm font-semibold text-zinc-100" numberOfLines={1}>
+            {player.name}
+          </Text>
+          {isGuest ? <Chip tone="outline">guest</Chip> : null}
+        </View>
+        <Text className="font-mono text-sm font-bold text-primary">{balanceLabel}</Text>
+      </View>
+    </>
+  )
+
+  if (!editable) {
+    return <View className="min-w-0 flex-1 flex-row items-center gap-3">{body}</View>
+  }
+
+  return (
+    <>
+      <Pressable
+        accessibilityLabel={`Edit ${player.name}`}
+        onPress={() => setOpen(true)}
+        className="min-w-0 flex-1 flex-row items-center gap-3 active:opacity-80"
+      >
+        {body}
+      </Pressable>
+      {open ? (
+        <GuestProfileModal
+          title="Edit guest"
+          confirmLabel="Save"
+          initialName={player.name}
+          initialEmoji={player.emoji}
+          onClose={() => setOpen(false)}
+          onConfirm={({ name, emoji }) => {
+            updateLocalPlayer(player.id, { name, emoji })
+            setOpen(false)
+          }}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -362,21 +466,15 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
           const balance = game.banks[player.id]?.balance ?? 0
           const mine = me?.id === player.id
           const canAct = isHost || mine
+          const isGuest = !player.remote && !player.isHost
           return (
             <Card key={player.id} className={`gap-3 p-3.5 ${mine ? 'border-primary/40' : ''}`}>
               <View className="flex-row items-center gap-3">
-                <PlayerAvatar player={player} size="sm" showPresence />
-                <View className="min-w-0 flex-1">
-                  <View className="flex-row items-center gap-1.5">
-                    <Text className="text-sm font-semibold text-zinc-100" numberOfLines={1}>
-                      {player.name}
-                    </Text>
-                    {!player.remote && !player.isHost ? <Chip tone="outline">guest</Chip> : null}
-                  </View>
-                  <Text className="font-mono text-sm font-bold text-primary">
-                    {formatPokerAmount(balance, game.config)}
-                  </Text>
-                </View>
+                <GuestIdentity
+                  player={player}
+                  balanceLabel={formatPokerAmount(balance, game.config)}
+                  editable={Boolean(isHost && isGuest)}
+                />
               </View>
               {canAct && (
                 <View className="flex-row gap-2">

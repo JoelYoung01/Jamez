@@ -2,7 +2,8 @@ import { CHIP_COLOR_PRESETS } from '@jamez/core'
 import { clsx } from 'clsx'
 import { CheckIcon } from 'lucide-react-native'
 import * as React from 'react'
-import { Modal, Pressable, Text, TextInput, View } from 'react-native'
+import { Modal, Pressable, Text, View } from 'react-native'
+import { AppTextInput } from '@/components/app-text-input'
 
 function normalizeHex(raw: string): string | null {
   const t = raw.trim()
@@ -91,7 +92,7 @@ export function ColorPicker({
             </View>
             <View className="gap-1.5">
               <Text className="text-xs text-muted-foreground">Custom hex</Text>
-              <TextInput
+              <AppTextInput
                 value={draft}
                 onChangeText={setDraft}
                 onEndEditing={commitDraft}

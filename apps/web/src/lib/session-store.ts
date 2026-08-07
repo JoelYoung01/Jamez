@@ -47,6 +47,7 @@ interface SessionStoreState {
   finishGame: () => void
   rematch: () => void
   addLocalPlayer: (profile: { name: string; emoji: string }) => void
+  updateLocalPlayer: (playerId: string, patch: { name?: string; emoji?: string }) => void
   removePlayer: (playerId: string) => void
   claimSeat: (claimerId: string, seatId: string) => void
   mergePlayers: (fromId: string, toId: string) => void
@@ -207,6 +208,11 @@ export const useSession = create<SessionStoreState>()((set) => {
 
     addLocalPlayer(profile) {
       const error = host?.addLocalPlayer(profile)
+      if (error) toast.error(error)
+    },
+
+    updateLocalPlayer(playerId, patch) {
+      const error = host?.updateLocalPlayer(playerId, patch)
       if (error) toast.error(error)
     },
 

@@ -160,6 +160,31 @@ export class HostSession {
     return null
   }
 
+  /**
+   * Update the name/emoji of a host-created guest seat (`remote: false`).
+   * Remote joiners and the host edit their own profile on-device instead.
+   */
+  updateLocalPlayer(
+    playerId: string,
+    patch: { name?: string; emoji?: string },
+  ): string | null {
+    const player = this.state.players.find((p) => p.id === playerId)
+    if (!player) return 'Player not found'
+    if (player.isHost) return 'The host profile is edited in Settings'
+    if (player.remote) return 'Only host-created guest seats can be edited'
+    const name =
+      patch.name !== undefined ? patch.name.trim().slice(0, 24) : player.name
+    const emoji = patch.emoji !== undefined ? patch.emoji : player.emoji
+    if (!name) return 'Name is required'
+    if (name === player.name && emoji === player.emoji) return null
+    this.mutate((s) => {
+      s.players = s.players.map((p) =>
+        p.id === playerId ? { ...p, name, emoji } : p,
+      )
+    })
+    return null
+  }
+
   removePlayer(playerId: string): string | null {
     if (playerId === this.hostId) return 'The host cannot be removed'
     const player = this.state.players.find((p) => p.id === playerId)
