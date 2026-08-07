@@ -94,6 +94,7 @@ export {
   type GinState,
 } from './games/gin-rummy'
 export {
+  CHIP_COLOR_PRESETS,
   DEFAULT_POKER_CHIPS,
   chipBreakdown,
   defaultPokerBankConfig,

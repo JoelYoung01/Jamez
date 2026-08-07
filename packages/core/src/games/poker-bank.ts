@@ -88,6 +88,26 @@ export const DEFAULT_POKER_CHIPS: PokerChipDenom[] = [
   { id: 'black', label: 'Black', value: 100, color: '#18181b' },
 ]
 
+/** Common chip colors offered by the config color picker (hex, 6-digit). */
+export const CHIP_COLOR_PRESETS: readonly string[] = [
+  '#f4f4f5',
+  '#a1a1aa',
+  '#18181b',
+  '#ef4444',
+  '#f97316',
+  '#eab308',
+  '#22c55e',
+  '#14b8a6',
+  '#3b82f6',
+  '#6366f1',
+  '#a855f7',
+  '#ec4899',
+  '#f59e0b',
+  '#84cc16',
+  '#0ea5e9',
+  '#78716c',
+]
+
 export function defaultPokerBankConfig(): PokerBankConfig {
   return {
     startingStack: 500,
