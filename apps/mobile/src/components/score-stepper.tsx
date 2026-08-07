@@ -1,7 +1,8 @@
 import { clsx } from 'clsx'
 import { MinusIcon, PlusIcon } from 'lucide-react-native'
 import * as React from 'react'
-import { Pressable, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
+import { AppTextInput } from '@/components/app-text-input'
 
 interface ScoreStepperProps {
   label: string
@@ -65,7 +66,7 @@ export function ScoreStepper({
         >
           <MinusIcon size={16} color="#e4e4e7" />
         </Pressable>
-        <TextInput
+        <AppTextInput
           value={text}
           editable={!disabled}
           onChangeText={(t) => setText(t.replace(/[^0-9]/g, ''))}

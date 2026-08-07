@@ -10,12 +10,14 @@ import {
 } from '@jamez/core'
 import { CoinsIcon } from 'lucide-react-native'
 import * as React from 'react'
-import { Modal, Pressable, Text, TextInput, View } from 'react-native'
+import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
+import { AppTextInput } from '@/components/app-text-input'
 import { ColorPicker } from '@/components/color-picker'
 import { PokerChip } from '@/components/poker-chip'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
 import { AppButton, Card, CardTitle, Chip, Muted } from '@/components/ui'
+import { useKeyboardHeight } from '@/lib/keyboard'
 import { randomEmoji } from '@/lib/profile'
 import { useSession } from '@/lib/session-store'
 import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
@@ -30,7 +32,7 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
     <View className="gap-4">
       <View className="gap-1.5">
         <Muted>Starting stack (points)</Muted>
-        <TextInput
+        <AppTextInput
           keyboardType="number-pad"
           value={String(config.startingStack)}
           onChangeText={(t) => {
@@ -53,7 +55,7 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
       </View>
       <View className="gap-1.5">
         <Muted>Points per dollar</Muted>
-        <TextInput
+        <AppTextInput
           keyboardType="decimal-pad"
           value={String(config.pointsPerDollar)}
           onChangeText={(t) => {
@@ -68,12 +70,12 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
         {config.chips.map((chip, index) => (
           <View key={chip.id} className="flex-row items-center gap-2 rounded-xl border border-line p-2">
             <PokerChip color={chip.color} size={28} label={String(chip.value)} />
-            <TextInput
+            <AppTextInput
               value={chip.label}
               onChangeText={(label) => updateChip(index, { label: label.slice(0, 16) })}
               className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-background px-2 text-sm text-zinc-100"
             />
-            <TextInput
+            <AppTextInput
               keyboardType="number-pad"
               value={String(chip.value)}
               onChangeText={(t) => {
@@ -82,7 +84,11 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
               }}
               className="h-9 w-16 rounded-lg border border-line bg-background px-2 font-mono text-sm text-zinc-100"
             />
+<<<<<<< HEAD
             <ColorPicker
+=======
+            <AppTextInput
+>>>>>>> origin/cursor/keyboard-dismiss-accessory-fde1
               value={chip.color}
               onChange={(color) => updateChip(index, { color })}
             />
@@ -119,6 +125,7 @@ function CashSheet({
   send: GamePlayProps['send']
   onClose: () => void
 }) {
+  const keyboardHeight = useKeyboardHeight()
   const [amount, setAmount] = React.useState('')
   const [unit, setUnit] = React.useState<PokerCurrencyMode>(game.config.currencyMode)
   const numeric = Number.parseFloat(amount)
@@ -129,58 +136,71 @@ function CashSheet({
   const breakdown = mode === 'withdraw' ? chipBreakdown(points, game.config.chips) : []
   const balance = game.banks[player.id]?.balance ?? 0
 
+  // Bottom sheet sits under the keyboard unless we lift it by the keyboard frame.
+  // (RN Modals don't inherit the activity's adjustResize on Android.)
   return (
     <Modal transparent animationType="slide" visible onRequestClose={onClose}>
-      <Pressable className="flex-1 justify-end bg-black/60" onPress={onClose}>
-        <Pressable className="rounded-t-3xl border border-line bg-card p-4" onPress={() => {}}>
-          <Text className="mb-1 text-lg font-semibold text-zinc-100">
-            {mode === 'deposit' ? 'Cash in' : 'Cash out'} · {player.name}
-          </Text>
-          <Muted className="mb-3">Balance {formatPokerAmount(balance, game.config)}</Muted>
-          <Segmented
-            value={unit}
-            onChange={setUnit}
-            options={[
-              { value: 'points', label: 'Points' },
-              { value: 'dollars', label: 'Dollars' },
-            ]}
-          />
-          <TextInput
-            autoFocus
-            keyboardType="decimal-pad"
-            value={amount}
-            onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ''))}
-            placeholder={unit === 'dollars' ? '0.00' : '0'}
-            placeholderTextColor="#71717a"
-            className="mt-3 h-12 rounded-xl border border-line bg-background px-3 font-mono text-lg text-zinc-100"
-          />
-          {mode === 'withdraw' && breakdown.length > 0 && (
-            <View className="mt-3 flex-row flex-wrap gap-3 rounded-xl border border-line p-3">
-              {breakdown.map(({ chip, count }) => (
-                <View key={chip.id} className="flex-row items-center gap-2">
-                  <PokerChip color={chip.color} size={32} label={String(chip.value)} />
-                  <View>
-                    <Text className="font-semibold text-zinc-100">×{count}</Text>
-                    <Muted>{chip.label}</Muted>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-          <View className="mt-4 flex-row gap-2">
-            <AppButton title="Cancel" variant="secondary" className="flex-1" onPress={onClose} />
-            <AppButton
-              title="Confirm"
-              className="flex-1"
-              disabled={!(numeric > 0) || (mode === 'withdraw' && points > balance)}
-              onPress={() => {
-                send({ type: mode, playerId: player.id, amount: numeric, unit })
-                onClose()
-              }}
+      <View className="flex-1 justify-end bg-black/60">
+        <Pressable className="absolute inset-0" onPress={onClose} accessibilityLabel="Dismiss" />
+        <View
+          className="rounded-t-3xl border border-line bg-card"
+          style={{ marginBottom: keyboardHeight, maxHeight: '85%' }}
+        >
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ padding: 16 }}
+          >
+            <Text className="mb-1 text-lg font-semibold text-zinc-100">
+              {mode === 'deposit' ? 'Cash in' : 'Cash out'} · {player.name}
+            </Text>
+            <Muted className="mb-3">Balance {formatPokerAmount(balance, game.config)}</Muted>
+            <Segmented
+              value={unit}
+              onChange={setUnit}
+              options={[
+                { value: 'points', label: 'Points' },
+                { value: 'dollars', label: 'Dollars' },
+              ]}
             />
-          </View>
-        </Pressable>
-      </Pressable>
+            <AppTextInput
+              autoFocus
+              keyboardType="decimal-pad"
+              value={amount}
+              onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ''))}
+              placeholder={unit === 'dollars' ? '0.00' : '0'}
+              placeholderTextColor="#71717a"
+              className="mt-3 h-12 rounded-xl border border-line bg-background px-3 font-mono text-lg text-zinc-100"
+            />
+            {mode === 'withdraw' && breakdown.length > 0 && (
+              <View className="mt-3 flex-row flex-wrap gap-3 rounded-xl border border-line p-3">
+                {breakdown.map(({ chip, count }) => (
+                  <View key={chip.id} className="flex-row items-center gap-2">
+                    <PokerChip color={chip.color} size={32} label={String(chip.value)} />
+                    <View>
+                      <Text className="font-semibold text-zinc-100">×{count}</Text>
+                      <Muted>{chip.label}</Muted>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+            <View className="mt-4 flex-row gap-2">
+              <AppButton title="Cancel" variant="secondary" className="flex-1" onPress={onClose} />
+              <AppButton
+                title="Confirm"
+                className="flex-1"
+                disabled={!(numeric > 0) || (mode === 'withdraw' && points > balance)}
+                onPress={() => {
+                  send({ type: mode, playerId: player.id, amount: numeric, unit })
+                  onClose()
+                }}
+              />
+            </View>
+          </ScrollView>
+        </View>
+      </View>
     </Modal>
   )
 }
@@ -279,7 +299,7 @@ function AddGuestButton() {
       <Pressable className="flex-1 items-center justify-center bg-black/60 px-6" onPress={() => setOpen(false)}>
         <Pressable className="w-full gap-3 rounded-2xl border border-line bg-card p-4" onPress={() => {}}>
           <Text className="text-lg font-semibold text-zinc-100">Add a guest seat</Text>
-          <TextInput
+          <AppTextInput
             autoFocus
             value={name}
             onChangeText={setName}

@@ -20,8 +20,9 @@ import {
   type LucideIcon,
 } from 'lucide-react-native'
 import * as React from 'react'
-import { ActivityIndicator, Modal, Pressable, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Modal, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { AppTextInput } from '@/components/app-text-input'
 import { EmojiGrid } from '@/components/emoji-grid'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { QrCard } from '@/components/qr-card'
@@ -266,7 +267,7 @@ function AddLocalPlayerButton() {
             <View className="gap-4">
               <View>
                 <SectionLabel>Name</SectionLabel>
-                <TextInput
+                <AppTextInput
                   value={name}
                   onChangeText={setName}
                   placeholder="e.g. Grandma"
