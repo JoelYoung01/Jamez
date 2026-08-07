@@ -197,6 +197,9 @@ export class HostSession {
 
   finish(): string | null {
     if (this.state.phase !== 'playing') return 'Game is not in progress'
+    if (this.game.sessionMode === 'ongoing') {
+      return 'Ongoing games do not finish — park or dissolve the session instead'
+    }
     this.mutate((s) => {
       s.summary = this.game.summary(s.game, s.players)
       s.phase = 'finished'
@@ -209,30 +212,13 @@ export class HostSession {
   rematch(): string | null {
     if (this.state.phase !== 'finished') return 'Finish the current game first'
     if (this.game.sessionMode === 'ongoing') {
-      return 'Ongoing games keep their state — use reopen() instead of rematch'
+      return 'Ongoing games keep their state — park or dissolve instead of rematch'
     }
     this.mutate((s) => {
       s.sessionId = randomId(8)
       s.game = this.game.init(s.gameConfig, s.players)
       s.phase = 'playing'
       s.startedAt = this.now()
-      s.finishedAt = undefined
-      s.summary = undefined
-    })
-    return null
-  }
-
-  /**
-   * Return an ongoing room to `playing` after a standings snapshot, without
-   * wiping game state. Match games should use rematch() instead.
-   */
-  reopen(): string | null {
-    if (this.state.phase !== 'finished') return 'Nothing to reopen'
-    if (this.game.sessionMode !== 'ongoing') {
-      return 'Only ongoing games can reopen; start a rematch instead'
-    }
-    this.mutate((s) => {
-      s.phase = 'playing'
       s.finishedAt = undefined
       s.summary = undefined
     })

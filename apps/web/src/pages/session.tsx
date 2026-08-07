@@ -340,7 +340,7 @@ function LobbyView() {
           <Loader2Icon className="size-4 animate-spin" /> Waiting for the host to start…
         </p>
       )}
-      {isHost && <HostSessionControls subtle />}
+      {isHost && <HostSessionControls />}
     </div>
   )
 }
@@ -368,12 +368,7 @@ function PlayingView() {
               <FlagIcon /> Finish & reveal results
             </Button>
           )}
-          {ongoing && (
-            <Button variant="secondary" onClick={() => store.finishGame()}>
-              <FlagIcon /> Record standings
-            </Button>
-          )}
-          <HostSessionControls subtle />
+          <HostSessionControls />
         </div>
       )}
     </div>
@@ -440,12 +435,7 @@ function FinishedView() {
       {ui?.ResultsDetail && <ui.ResultsDetail state={state} />}
 
       <div className="grid gap-2">
-        {isHost && sessionIsOngoing(state) && (
-          <Button size="lg" onClick={() => store.reopenGame()}>
-            <PlayIcon /> Back to bank
-          </Button>
-        )}
-        {isHost && !sessionIsOngoing(state) && (
+        {isHost && (
           <Button size="lg" onClick={() => store.rematch()}>
             <RotateCcwIcon /> Rematch
           </Button>
@@ -468,7 +458,7 @@ function FinishedView() {
   )
 }
 
-function HostSessionControls({ subtle }: { subtle?: boolean }) {
+function HostSessionControls() {
   const store = useSession()
   const navigate = useNavigate()
   const ongoing = sessionIsOngoing(store.state)
@@ -478,19 +468,11 @@ function HostSessionControls({ subtle }: { subtle?: boolean }) {
     return (
       <div className="grid gap-2">
         {ongoing && (
-          <Button
-            variant={subtle ? 'ghost' : 'secondary'}
-            className={subtle ? 'text-muted-foreground' : undefined}
-            onClick={() => setMode('park')}
-          >
+          <Button onClick={() => setMode('park')}>
             <MoonIcon /> Close for now
           </Button>
         )}
-        <Button
-          variant={subtle ? 'ghost' : 'secondary'}
-          className={subtle ? 'text-muted-foreground' : undefined}
-          onClick={() => setMode('end')}
-        >
+        <Button variant="destructive" onClick={() => setMode('end')}>
           <LogOutIcon /> {ongoing ? 'Dissolve bank' : 'End session for everyone'}
         </Button>
       </div>
@@ -501,7 +483,6 @@ function HostSessionControls({ subtle }: { subtle?: boolean }) {
     return (
       <div className="grid grid-cols-2 gap-2">
         <Button
-          variant="secondary"
           onClick={() => {
             store.parkSession()
             navigate('/')

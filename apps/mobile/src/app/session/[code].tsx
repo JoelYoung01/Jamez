@@ -363,7 +363,7 @@ function LobbyView() {
           <Text className="text-sm text-muted-foreground">Waiting for the host to start…</Text>
         </View>
       )}
-      {isHost && <HostSessionControls subtle />}
+      {isHost && <HostSessionControls />}
     </View>
   )
 }
@@ -398,13 +398,15 @@ function PlayingView() {
       />
       {isHost && (
         <View className="gap-2">
-          <AppButton
-            variant="secondary"
-            title={ongoing ? 'Record standings' : 'Finish & reveal results'}
-            icon={<FlagIcon size={16} color="#f4f4f5" />}
-            onPress={() => store.finishGame()}
-          />
-          <HostSessionControls subtle />
+          {!ongoing && (
+            <AppButton
+              variant="secondary"
+              title="Finish & reveal results"
+              icon={<FlagIcon size={16} color="#f4f4f5" />}
+              onPress={() => store.finishGame()}
+            />
+          )}
+          <HostSessionControls />
         </View>
       )}
     </View>
@@ -464,10 +466,7 @@ function FinishedView() {
       {ui?.ResultsDetail && <ui.ResultsDetail state={state} />}
 
       <View className="gap-2">
-        {isHost && sessionIsOngoing(state) && (
-          <AppButton size="lg" title="Back to bank" onPress={() => store.reopenGame()} />
-        )}
-        {isHost && !sessionIsOngoing(state) && (
+        {isHost && (
           <AppButton
             size="lg"
             title="Rematch"
@@ -492,7 +491,7 @@ function FinishedView() {
   )
 }
 
-function HostSessionControls({ subtle }: { subtle?: boolean }) {
+function HostSessionControls() {
   const store = useSession()
   const ongoing = sessionIsOngoing(store.state)
   const [mode, setMode] = React.useState<'idle' | 'park' | 'end'>('idle')
@@ -502,14 +501,13 @@ function HostSessionControls({ subtle }: { subtle?: boolean }) {
       <View className="gap-2">
         {ongoing && (
           <AppButton
-            variant={subtle ? 'ghost' : 'secondary'}
             title="Close for now"
-            icon={<MoonIcon size={16} color="#a1a1ab" />}
+            icon={<MoonIcon size={16} color="#251a02" />}
             onPress={() => setMode('park')}
           />
         )}
         <AppButton
-          variant={subtle ? 'ghost' : 'secondary'}
+          variant="destructive"
           title={ongoing ? 'Dissolve bank' : 'End session for everyone'}
           onPress={() => setMode('end')}
         />
@@ -521,7 +519,6 @@ function HostSessionControls({ subtle }: { subtle?: boolean }) {
     return (
       <View className="flex-row gap-2">
         <AppButton
-          variant="secondary"
           title="Yes, park it"
           className="flex-1"
           onPress={() => {

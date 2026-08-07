@@ -47,7 +47,6 @@ interface SessionStoreState {
   startGame: () => void
   finishGame: () => void
   rematch: () => void
-  reopenGame: () => void
   addLocalPlayer: (profile: { name: string; emoji: string }) => void
   removePlayer: (playerId: string) => void
   claimSeat: (claimerId: string, seatId: string) => void
@@ -208,11 +207,6 @@ export const useSession = create<SessionStoreState>()((set, get) => {
 
     rematch() {
       const error = host?.rematch()
-      if (error) toast.error(error)
-    },
-
-    reopenGame() {
-      const error = host?.reopen()
       if (error) toast.error(error)
     },
 
