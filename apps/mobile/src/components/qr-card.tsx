@@ -12,18 +12,19 @@ export function webJoinUrl(code: string): string {
 }
 
 export function QrCard({ code }: { code: string }) {
-  const [copiedCode, setCopiedCode] = React.useState(false)
+  const [copied, setCopied] = React.useState(false)
   const scale = React.useRef(new Animated.Value(1)).current
   const url = webJoinUrl(code)
 
-  const copyCode = async () => {
-    await Clipboard.setStringAsync(code)
-    setCopiedCode(true)
+  const copyJoinLink = async () => {
+    await Clipboard.setStringAsync(url)
+    setCopied(true)
+    toast('Join link copied')
     Animated.sequence([
       Animated.spring(scale, { toValue: 1.2, useNativeDriver: true, speed: 40, bounciness: 8 }),
       Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 6 }),
     ]).start()
-    setTimeout(() => setCopiedCode(false), 1500)
+    setTimeout(() => setCopied(false), 1500)
   }
 
   return (
@@ -38,15 +39,15 @@ export function QrCard({ code }: { code: string }) {
           </Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={copiedCode ? 'Code copied' : 'Copy game code'}
+            accessibilityLabel={copied ? 'Join link copied' : 'Copy join link'}
             hitSlop={8}
             className="h-9 w-9 items-center justify-center rounded-lg bg-muted active:opacity-70"
             onPress={() => {
-              void copyCode()
+              void copyJoinLink()
             }}
           >
             <Animated.View style={{ transform: [{ scale }] }}>
-              {copiedCode ? (
+              {copied ? (
                 <CheckIcon size={18} color="#6ee7b7" />
               ) : (
                 <CopyIcon size={18} color="#a1a1ab" />
@@ -58,15 +59,6 @@ export function QrCard({ code }: { code: string }) {
           Scan to join from any phone. No app required.
         </Text>
       </View>
-      <Pressable
-        className="rounded-lg bg-muted px-3 py-2 active:opacity-70"
-        onPress={async () => {
-          await Clipboard.setStringAsync(url)
-          toast('Join link copied')
-        }}
-      >
-        <Text className="text-sm font-medium text-zinc-100">Copy join link</Text>
-      </Pressable>
     </View>
   )
 }
