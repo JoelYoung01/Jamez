@@ -239,7 +239,6 @@ export default function ContinueScreen() {
             </Card>
           ) : (
             <View className="gap-2">
-              <Muted>Tap to open · long-press for End or Delete</Muted>
               {filteredRooms.length === 0 ? (
                 <Card className="items-center px-6 py-8">
                   <Muted className="text-center">
