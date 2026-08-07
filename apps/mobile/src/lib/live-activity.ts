@@ -157,25 +157,22 @@ export function syncSessionLiveActivity(opts: {
 }
 
 export async function endSessionLiveActivity(
-  policy: 'immediate' | 'default' = 'default',
+  policy: 'immediate' | 'default' = 'immediate',
 ): Promise<void> {
   if (Platform.OS !== 'ios') return
   const current = activity
   activity = null
   activeCode = null
   lastKey = ''
-  if (!current) {
-    try {
-      const existing = SessionLiveActivity.getInstances()
-      await Promise.all(existing.map((instance) => instance.end(policy)))
-    } catch {
-      // ignore
-    }
-    return
-  }
+  // Always sweep ActivityKit instances: the module ref can be stale after reload,
+  // and `default` dismissal leaves the Lock Screen card up for hours — callers
+  // that mean "session is gone" should pass `immediate` (the new default).
   try {
-    await current.end(policy)
+    const existing = SessionLiveActivity.getInstances()
+    const targets = new Set(existing)
+    if (current) targets.add(current)
+    await Promise.all([...targets].map((instance) => instance.end(policy)))
   } catch {
-    // ignore
+    // Live Activities unavailable / already dismissed.
   }
 }
