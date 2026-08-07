@@ -27,8 +27,8 @@ export default function JoinScreen() {
         <RequireProfile>
           <View className="gap-4">
             <AppButton size="lg" title="Scan the host's QR code" icon={null} onPress={() => router.push('/scan')} />
-            <Card className="p-4">
-              <CardTitle className="mb-4">…or enter the join code</CardTitle>
+            <Card className="gap-4 p-4">
+              <CardTitle>…or enter the join code</CardTitle>
               <View className="gap-4">
                 <CodeInput value={code} onChange={setCode} onSubmit={join} />
                 <AppButton title="Join session" disabled={!isValidJoinCode(code)} onPress={join} />
