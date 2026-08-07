@@ -99,6 +99,7 @@ export {
 export {
   CHIP_COLOR_PRESETS,
   DEFAULT_POKER_CHIPS,
+  buildCashTransferSummary,
   chipBreakdown,
   clonePokerBankConfig,
   defaultPokerBankConfig,
@@ -108,6 +109,8 @@ export {
   pokerBankConfigFromSession,
   pokerBankEngine,
   toPoints,
+  type CashTransferSummary,
+  type CashTransferSummaryTone,
   type PokerBankAction,
   type PokerBankConfig,
   type PokerBankState,

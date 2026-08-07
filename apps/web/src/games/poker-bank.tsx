@@ -1,4 +1,5 @@
 import {
+  buildCashTransferSummary,
   chipBreakdown,
   formatPokerAmount,
   getGameEngine,
@@ -431,6 +432,13 @@ function CashDialog({
   const breakdown =
     mode === 'withdraw' && unit !== 'chips' ? chipBreakdown(points, game.config.chips) : []
   const balance = game.banks[player.id]?.balance ?? 0
+  const summary = buildCashTransferSummary({
+    mode,
+    points,
+    balance,
+    config: game.config,
+    includeDollarEquiv: unit === 'dollars',
+  })
 
   React.useEffect(() => {
     if (!open) return
@@ -563,17 +571,12 @@ function CashDialog({
               />
             </div>
           )}
-          <p className="text-xs text-muted-foreground">
-            {points > 0
-              ? `= ${formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}${
-                  game.config.currencyMode === 'dollars' || unit === 'dollars'
-                    ? ` · ${formatPokerAmount(points, game.config)}`
-                    : ''
-                }`
-              : mode === 'withdraw'
-                ? 'Nothing to cash out yet'
-                : 'Nothing to cash in yet'}
-          </p>
+          <div className="grid gap-0.5 text-xs">
+            <p className="text-muted-foreground">{summary.primary}</p>
+            <p className={summary.tone === 'danger' ? 'text-destructive' : 'text-muted-foreground'}>
+              {summary.secondary}
+            </p>
+          </div>
           {mode === 'withdraw' && breakdown.length > 0 && (
             <div className="rounded-xl border border-border/60 bg-background/40 p-3">
               <div className="mb-2 text-xs font-medium text-muted-foreground">Take these chips</div>

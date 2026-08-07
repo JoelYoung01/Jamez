@@ -186,6 +186,77 @@ export function formatPokerAmount(
   return formatPoints(points)
 }
 
+export type CashTransferSummaryTone = 'muted' | 'danger'
+
+/** Copy for the cash in/out amount footer (stable two-line layout). */
+export interface CashTransferSummary {
+  primary: string
+  secondary: string
+  tone: CashTransferSummaryTone
+}
+
+/**
+ * Build the cash-sheet total + account-impact lines.
+ * Always returns both lines so UIs can reserve height and avoid layout jump.
+ */
+export function buildCashTransferSummary(input: {
+  mode: 'deposit' | 'withdraw'
+  /** Transfer size in points (0 when empty / invalid). */
+  points: number
+  balance: number
+  config: Pick<PokerBankConfig, 'currencyMode' | 'pointsPerDollar'>
+  /** Also show dollar form on the primary line (e.g. dollars input mode). */
+  includeDollarEquiv?: boolean
+}): CashTransferSummary {
+  const { mode, points, balance, config, includeDollarEquiv = false } = input
+  const amt = (p: number) => formatPokerAmount(p, config)
+  const pts = (p: number) =>
+    formatPokerAmount(p, { currencyMode: 'points', pointsPerDollar: 1 })
+
+  let primary: string
+  if (points > 0) {
+    primary = `= ${pts(points)}`
+    if (config.currencyMode === 'dollars') {
+      primary += ` · ${amt(points)}`
+    } else if (includeDollarEquiv) {
+      primary += ` · ${formatPokerAmount(points, {
+        currencyMode: 'dollars',
+        pointsPerDollar: config.pointsPerDollar,
+      })}`
+    }
+  } else {
+    primary = mode === 'withdraw' ? 'Nothing to cash out yet' : 'Nothing to cash in yet'
+  }
+
+  if (mode === 'withdraw') {
+    if (!(points > 0)) {
+      return { primary, secondary: `Holding ${amt(balance)}`, tone: 'muted' }
+    }
+    if (points > balance) {
+      return {
+        primary,
+        secondary: `Not enough — short ${amt(points - balance)} (holding ${amt(balance)})`,
+        tone: 'danger',
+      }
+    }
+    const left = balance - points
+    return {
+      primary,
+      secondary: left === 0 ? 'Clears the bank' : `${amt(left)} left in bank`,
+      tone: 'muted',
+    }
+  }
+
+  if (!(points > 0)) {
+    return { primary, secondary: `Holding ${amt(balance)}`, tone: 'muted' }
+  }
+  return {
+    primary,
+    secondary: `Bank will be ${amt(balance + points)}`,
+    tone: 'muted',
+  }
+}
+
 /** Greedy chip breakdown (highest denomination first). */
 export function chipBreakdown(
   points: number,

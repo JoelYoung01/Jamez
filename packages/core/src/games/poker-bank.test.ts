@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionPlayer } from '../protocol/session-state'
 import {
+  buildCashTransferSummary,
   chipBreakdown,
   clonePokerBankConfig,
   formatPokerAmount,
@@ -271,5 +272,40 @@ describe('poker bank engine', () => {
       })?.startingStack,
     ).toBe(500)
     expect(pokerBankConfigFromSession({ gameId: 'wingspan', gameConfig: lobby })).toBeNull()
+  })
+
+  it('summarizes cash transfers with leftover and overdraw copy', () => {
+    const config = { currencyMode: 'points' as const, pointsPerDollar: 1 }
+    expect(
+      buildCashTransferSummary({ mode: 'withdraw', points: 0, balance: 500, config }),
+    ).toEqual({
+      primary: 'Nothing to cash out yet',
+      secondary: 'Holding 500 pts',
+      tone: 'muted',
+    })
+    expect(
+      buildCashTransferSummary({ mode: 'withdraw', points: 200, balance: 500, config }),
+    ).toEqual({
+      primary: '= 200 pts',
+      secondary: '300 pts left in bank',
+      tone: 'muted',
+    })
+    expect(
+      buildCashTransferSummary({ mode: 'withdraw', points: 500, balance: 500, config }),
+    ).toMatchObject({ secondary: 'Clears the bank', tone: 'muted' })
+    expect(
+      buildCashTransferSummary({ mode: 'withdraw', points: 600, balance: 500, config }),
+    ).toEqual({
+      primary: '= 600 pts',
+      secondary: 'Not enough — short 100 pts (holding 500 pts)',
+      tone: 'danger',
+    })
+    expect(
+      buildCashTransferSummary({ mode: 'deposit', points: 50, balance: 500, config }),
+    ).toEqual({
+      primary: '= 50 pts',
+      secondary: 'Bank will be 550 pts',
+      tone: 'muted',
+    })
   })
 })

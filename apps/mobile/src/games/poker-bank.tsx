@@ -1,4 +1,5 @@
 import {
+  buildCashTransferSummary,
   chipBreakdown,
   formatPokerAmount,
   isPlayerActive,
@@ -386,6 +387,13 @@ function CashSheet({
   const breakdown =
     mode === 'withdraw' && unit !== 'chips' ? chipBreakdown(points, game.config.chips) : []
   const balance = game.banks[player.id]?.balance ?? 0
+  const summary = buildCashTransferSummary({
+    mode,
+    points,
+    balance,
+    config: game.config,
+    includeDollarEquiv: unit === 'dollars',
+  })
   useSuppressAndroidKeyboardHost()
 
   const confirm = React.useCallback(() => {
@@ -510,17 +518,18 @@ function CashSheet({
                 />
               </View>
             )}
-            <Muted className="mt-2">
-              {points > 0
-                ? `= ${formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}${
-                    game.config.currencyMode === 'dollars' || unit === 'dollars'
-                      ? ` · ${formatPokerAmount(points, game.config)}`
-                      : ''
-                  }`
-                : mode === 'withdraw'
-                  ? 'Nothing to cash out yet'
-                  : 'Nothing to cash in yet'}
-            </Muted>
+            <View className="mt-2 gap-0.5">
+              <Muted>{summary.primary}</Muted>
+              <Text
+                className={
+                  summary.tone === 'danger'
+                    ? 'text-xs text-destructive'
+                    : 'text-xs text-muted-foreground'
+                }
+              >
+                {summary.secondary}
+              </Text>
+            </View>
             {mode === 'withdraw' && breakdown.length > 0 && (
               <View className="mt-3 flex-row flex-wrap gap-3 rounded-xl border border-line p-3">
                 {breakdown.map(({ chip, count }) => (
