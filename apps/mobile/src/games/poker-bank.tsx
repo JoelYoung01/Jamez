@@ -9,7 +9,9 @@ import {
   type PokerCurrencyMode,
   type SessionPlayer,
 } from '@jamez/core'
+import { router } from 'expo-router'
 import {
+  ChartLineIcon,
   ChevronDownIcon,
   CoinsIcon,
   DollarSignIcon,
@@ -808,16 +810,26 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                 : 'Points'}
             </Muted>
           </View>
-          {isHost ? (
+          <View className="flex-row flex-wrap items-center justify-end gap-1.5">
             <Pressable
-              accessibilityLabel="Edit bank settings"
-              onPress={() => setEditingBank(true)}
+              accessibilityLabel="Open reports"
+              onPress={() => router.push(`/session/${state.code}/reports`)}
               className="flex-row items-center gap-1.5 rounded-full border border-line px-3 py-1.5 active:opacity-80"
             >
-              <Settings2Icon size={14} color="#f4f4f5" />
-              <Text className="text-xs font-medium text-zinc-100">Edit</Text>
+              <ChartLineIcon size={14} color="#f4f4f5" />
+              <Text className="text-xs font-medium text-zinc-100">Reports</Text>
             </Pressable>
-          ) : null}
+            {isHost ? (
+              <Pressable
+                accessibilityLabel="Edit bank settings"
+                onPress={() => setEditingBank(true)}
+                className="flex-row items-center gap-1.5 rounded-full border border-line px-3 py-1.5 active:opacity-80"
+              >
+                <Settings2Icon size={14} color="#f4f4f5" />
+                <Text className="text-xs font-medium text-zinc-100">Edit</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
         <View className="mt-1 flex-row flex-wrap gap-2">
           {game.config.chips.map((chip) => (

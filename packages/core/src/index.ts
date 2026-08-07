@@ -116,6 +116,16 @@ export {
   type PokerLedgerKind,
   type PokerPlayerBank,
 } from './games/poker-bank'
+export {
+  buildPokerBalanceReport,
+  pokerBalanceChartRows,
+  pokerBalanceSeriesFromLedger,
+  type PokerBalanceChartRow,
+  type PokerBalancePlayerMeta,
+  type PokerBalanceReport,
+  type PokerBalanceSample,
+  type PokerBalanceSeries,
+} from './games/poker-reports'
 
 // persistence helpers (host vault keying)
 export {

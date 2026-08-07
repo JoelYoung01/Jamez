@@ -13,6 +13,7 @@ import {
 import {
   ArrowDownLeftIcon,
   ArrowUpRightIcon,
+  ChartLineIcon,
   ChevronDownIcon,
   CoinsIcon,
   DollarSignIcon,
@@ -24,6 +25,7 @@ import {
   UserRoundCheckIcon,
 } from 'lucide-react'
 import * as React from 'react'
+import { Link } from 'react-router-dom'
 import { ColorPicker } from '@/components/color-picker'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { PokerChip } from '@/components/poker-chip'
@@ -890,7 +892,15 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                 : 'Points'}
             </CardDescription>
           </div>
-          {isHost && <BankSettingsDialog game={game} send={send} />}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/session/${state.code}/reports`}>
+                <ChartLineIcon />
+                Reports
+              </Link>
+            </Button>
+            {isHost && <BankSettingsDialog game={game} send={send} />}
+          </div>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           {game.config.chips.map((chip) => (
