@@ -37,6 +37,10 @@ export const PLAYER_EMOJI = [
   '🍕',
   '🚀',
   '💎',
+  '🎧',
+  '🍩',
+  '🌊',
+  '🧿',
 ] as const
 
 export function randomEmoji(): string {
