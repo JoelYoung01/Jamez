@@ -18,6 +18,7 @@ import {
   UserRoundCheckIcon,
 } from 'lucide-react'
 import * as React from 'react'
+import { ColorPicker } from '@/components/color-picker'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { PokerChip } from '@/components/poker-chip'
 import { PlayerAvatar } from '@/components/player-avatar'
@@ -172,7 +173,7 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
           {config.chips.map((chip, index) => (
             <div
               key={chip.id}
-              className="grid grid-cols-[auto_1fr_1fr_5rem_auto] items-center gap-2 rounded-lg border border-border/60 px-2 py-2"
+              className="grid grid-cols-[auto_1fr_1fr_6.5rem_auto] items-center gap-2 rounded-lg border border-border/60 px-2 py-2"
             >
               <PokerChip color={chip.color} size={32} label={String(chip.value)} />
               <Input
@@ -190,11 +191,9 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
                   updateChip(index, { value: Number.isNaN(n) ? 1 : Math.max(1, n) })
                 }}
               />
-              <Input
-                type="color"
-                className="h-8 cursor-pointer px-1"
+              <ColorPicker
                 value={chip.color}
-                onChange={(e) => updateChip(index, { color: e.target.value })}
+                onChange={(color) => updateChip(index, { color })}
               />
               <Button
                 type="button"
@@ -332,7 +331,7 @@ function ChipSettingsDialog({ game, send }: { game: PokerBankState; send: GamePl
         </DialogHeader>
         <div className="grid gap-2">
           {chips.map((chip, index) => (
-            <div key={chip.id} className="grid grid-cols-[auto_1fr_5rem_4.5rem] items-center gap-2">
+            <div key={chip.id} className="grid grid-cols-[auto_1fr_5rem_6.5rem] items-center gap-2">
               <PokerChip color={chip.color} size={28} />
               <Input
                 value={chip.label}
@@ -354,12 +353,10 @@ function ChipSettingsDialog({ game, send }: { game: PokerBankState; send: GamePl
                   )
                 }}
               />
-              <Input
-                type="color"
-                className="h-8 px-1"
+              <ColorPicker
                 value={chip.color}
-                onChange={(e) =>
-                  setChips(chips.map((c, i) => (i === index ? { ...c, color: e.target.value } : c)))
+                onChange={(color) =>
+                  setChips(chips.map((c, i) => (i === index ? { ...c, color } : c)))
                 }
               />
             </div>

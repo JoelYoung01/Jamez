@@ -11,6 +11,7 @@ import {
 import { CoinsIcon } from 'lucide-react-native'
 import * as React from 'react'
 import { Modal, Pressable, Text, TextInput, View } from 'react-native'
+import { ColorPicker } from '@/components/color-picker'
 import { PokerChip } from '@/components/poker-chip'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
@@ -81,13 +82,9 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
               }}
               className="h-9 w-16 rounded-lg border border-line bg-background px-2 font-mono text-sm text-zinc-100"
             />
-            <TextInput
+            <ColorPicker
               value={chip.color}
-              onChangeText={(color) => {
-                if (/^#[0-9a-fA-F]{0,6}$/.test(color)) updateChip(index, { color })
-              }}
-              autoCapitalize="none"
-              className="h-9 w-20 rounded-lg border border-line bg-background px-1 font-mono text-xs text-zinc-100"
+              onChange={(color) => updateChip(index, { color })}
             />
           </View>
         ))}
