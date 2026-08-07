@@ -15,6 +15,11 @@ export interface PlayerProfile {
   id: string
   name: string
   emoji: string
+  /**
+   * Optional tiny data-URL avatar (`image/webp` or `image/jpeg`). Carried on
+   * hello / dedicated avatar messages — not every state broadcast.
+   */
+  photo?: string
 }
 
 export interface SessionPlayer extends PlayerProfile {
@@ -32,6 +37,11 @@ export interface SessionPlayer extends PlayerProfile {
    * (back-compat with older snapshots).
    */
   active?: boolean
+  /**
+   * True when this player has a profile photo. Photo bytes are stripped from
+   * state broadcasts; peers use this flag to request or clear cached avatars.
+   */
+  hasPhoto?: boolean
 }
 
 /** At the table unless explicitly marked not present (`active: false`). */
@@ -92,6 +102,10 @@ export type WireMessage =
   | { t: 'ping'; rev: number }
   | { t: 'reject'; to: string; reqId?: string; reason: string }
   | { t: 'ended' }
+  /** Fan-out a player's tiny avatar once (or on change). */
+  | { t: 'avatar'; playerId: string; photo: string }
+  /** Ask the host to (re)send avatar bytes for the given players (or all). */
+  | { t: 'avatar-req'; playerIds?: string[] }
 
 export interface Envelope {
   jamez: 1

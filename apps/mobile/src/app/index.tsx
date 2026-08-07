@@ -19,6 +19,7 @@ import {
 import * as React from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { PlayerAvatar } from '@/components/player-avatar'
 import { Card, Chip, Muted, Screen } from '@/components/ui'
 import { getGameIcon } from '@/games/registry'
 import { formatDate } from '@/lib/format'
@@ -32,7 +33,7 @@ export default function HomeScreen() {
   const history = useHistory()
   const activeCode = useSession((s) => s.code)
   const state = useSession((s) => s.state)
-  const { name, emoji } = useProfile()
+  const { name, emoji, photo } = useProfile()
 
   const [vault, setVault] = React.useState<HostSnapshot[]>([])
   useFocusEffect(
@@ -75,7 +76,7 @@ export default function HomeScreen() {
                 hitSlop={6}
                 className="h-9 flex-row items-center gap-1.5 rounded-lg bg-muted px-2.5 active:opacity-70"
               >
-                <Text className="text-base">{emoji}</Text>
+                <PlayerAvatar player={{ name, emoji, photo, color: '#fbbf24' }} size="sm" />
                 {name ? (
                   <Text className="max-w-24 text-sm font-medium text-zinc-100" numberOfLines={1}>
                     {name}

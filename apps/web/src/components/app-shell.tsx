@@ -10,7 +10,7 @@ import { useSession } from '@/lib/session-store'
 import { Badge } from '@/components/ui/badge'
 
 export function AppShell() {
-  const { name, emoji } = useProfile()
+  const { name, emoji, photo } = useProfile()
   const activeCode = useSession((s) => s.code)
   const location = useLocation()
   const inSession = activeCode && location.pathname.startsWith('/session/')
@@ -47,7 +47,7 @@ export function AppShell() {
               className="ml-1 flex items-center gap-2 rounded-full border border-border/70 bg-card py-1 pl-1 pr-3 text-sm transition-colors hover:bg-accent"
               aria-label="Edit profile"
             >
-              <PlayerAvatar player={{ name, emoji, color: '#fbbf24' }} size="sm" />
+              <PlayerAvatar player={{ name, emoji, photo, color: '#fbbf24' }} size="sm" />
               <span className="max-w-24 truncate font-medium">{name || 'Set name'}</span>
             </button>
           </ProfileDialog>

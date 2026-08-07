@@ -217,7 +217,16 @@ function HistoryDetail({
                 <span className="w-6 text-center text-xs font-bold text-muted-foreground">
                   #{entry.rank}
                 </span>
-                <span className="text-lg">{player?.emoji}</span>
+                {player?.photo ? (
+                  <img
+                    src={player.photo}
+                    alt=""
+                    className="size-7 rounded-full object-cover"
+                    draggable={false}
+                  />
+                ) : (
+                  <span className="text-lg">{player?.emoji}</span>
+                )}
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">
                   {player?.name ?? 'Player'}
                 </span>

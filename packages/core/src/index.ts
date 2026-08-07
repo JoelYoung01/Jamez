@@ -34,6 +34,15 @@ export {
   type WebSocketLike,
 } from './transport/nostr'
 
+// profile (emoji palette + tiny avatar helpers)
+export { PLAYER_EMOJI, randomEmoji } from './profile/emoji'
+export {
+  AVATAR_MAX_CHARS,
+  AVATAR_SIZE_PX,
+  normalizeAvatarPhoto,
+  stripPlayerPhotos,
+} from './profile/avatar'
+
 // session protocol
 export {
   PLAYER_COLORS,

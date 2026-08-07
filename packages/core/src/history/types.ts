@@ -13,7 +13,7 @@ export interface HistoryRecord {
   code: string
   createdAt: number
   finishedAt: number
-  players: { id: string; name: string; emoji: string }[]
+  players: { id: string; name: string; emoji: string; photo?: string }[]
   summary: GameSummary
   /** Which player this device was, so stats know whose wins to count. */
   myPlayerId: string
@@ -39,7 +39,12 @@ export function historyRecordFromState(
     code: state.code,
     createdAt: state.createdAt,
     finishedAt: state.finishedAt,
-    players: state.players.map((p) => ({ id: p.id, name: p.name, emoji: p.emoji })),
+    players: state.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      emoji: p.emoji,
+      ...(p.photo ? { photo: p.photo } : {}),
+    })),
     summary: state.summary,
     myPlayerId,
     ...(state.nickname ? { nickname: state.nickname } : {}),

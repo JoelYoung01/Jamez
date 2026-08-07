@@ -1,7 +1,7 @@
 import { getGameEngine, sessionDisplayName } from '@jamez/core'
 import { router, useLocalSearchParams } from 'expo-router'
 import * as React from 'react'
-import { Text, View } from 'react-native'
+import { Image, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PageHeader } from '@/components/page-header'
 import { AppButton, Card, Muted, Screen } from '@/components/ui'
@@ -80,7 +80,11 @@ export default function HistoryDetailScreen() {
                 <Text className="w-6 text-center text-xs font-bold text-muted-foreground">
                   #{entry.rank}
                 </Text>
-                <Text className="text-lg">{player?.emoji}</Text>
+                {player?.photo ? (
+                  <Image source={{ uri: player.photo }} className="h-7 w-7 rounded-full" />
+                ) : (
+                  <Text className="text-lg">{player?.emoji}</Text>
+                )}
                 <Text className="min-w-0 flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
                   {player?.name ?? 'Player'}
                 </Text>

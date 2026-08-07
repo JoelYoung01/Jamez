@@ -1,3 +1,4 @@
+import { normalizeAvatarPhoto } from '../profile/avatar'
 import type { RoomTransport } from '../transport/types'
 import { Emitter, type Unsubscribe } from '../util/emitter'
 import { randomId } from '../util/ids'
@@ -5,6 +6,7 @@ import {
   makeEnvelope,
   parseEnvelope,
   type PlayerProfile,
+  type SessionPlayer,
   type SessionState,
   type WireMessage,
 } from './session-state'
@@ -51,10 +53,18 @@ export class GuestSession {
   private timers: ReturnType<typeof setInterval>[] = []
   private unsubscribes: Unsubscribe[] = []
   private stopped = false
+  /** Avatars that arrived before the first state snapshot. */
+  private pendingPhotos = new Map<string, string>()
+  /** Avoid spamming avatar-req for the same missing set. */
+  private lastAvatarReqKey = ''
+  private lastAvatarReqAt = 0
 
   constructor(options: GuestSessionOptions) {
     this.code = options.code.toUpperCase()
-    this.profile = options.profile
+    this.profile = {
+      ...options.profile,
+      photo: normalizeAvatarPhoto(options.profile.photo),
+    }
     this.transport = options.transport
     this.now = options.now ?? (() => Date.now())
 
@@ -148,8 +158,8 @@ export class GuestSession {
         this.lastHostSeen = this.now()
         const incoming = msg.state
         if (this._state && incoming.rev < this._state.rev) return // stale
-        this._state = incoming
-        const meNow = incoming.players.find((p) => p.id === this.profile.id)
+        this.applyState(incoming)
+        const meNow = this._state?.players.find((p) => p.id === this.profile.id)
         const inSession = Boolean(meNow && meNow.active !== false)
         if (!inSession) {
           // Hard-removed or soft-deactivated by the host.
@@ -161,7 +171,12 @@ export class GuestSession {
         // in again; answer immediately instead of waiting for the next
         // heartbeat interval.
         if (meNow && !meNow.connected) this.sendHello()
-        this.onState.emit(incoming)
+        if (this._state) this.onState.emit(this._state)
+        this.requestMissingAvatars()
+        break
+      }
+      case 'avatar': {
+        this.applyAvatar(msg.playerId, msg.photo)
         break
       }
       case 'ping':
@@ -183,8 +198,83 @@ export class GuestSession {
     }
   }
 
+  private applyState(incoming: SessionState): void {
+    const prevPhotos = new Map<string, string>()
+    if (this._state) {
+      for (const p of this._state.players) {
+        if (p.photo) prevPhotos.set(p.id, p.photo)
+      }
+    }
+    for (const [id, photo] of this.pendingPhotos) prevPhotos.set(id, photo)
+    if (this.profile.photo) prevPhotos.set(this.profile.id, this.profile.photo)
+
+    this._state = {
+      ...incoming,
+      players: incoming.players.map((p) => this.mergePlayerPhoto(p, prevPhotos.get(p.id))),
+    }
+    this.pendingPhotos.clear()
+  }
+
+  private mergePlayerPhoto(player: SessionPlayer, cached?: string): SessionPlayer {
+    if (!player.hasPhoto) {
+      if (!player.photo) return player
+      const { photo: _photo, ...rest } = player
+      return rest
+    }
+    if (player.photo) return player
+    if (cached) return { ...player, photo: cached }
+    return player
+  }
+
+  private applyAvatar(playerId: string, rawPhoto: string): void {
+    const photo = normalizeAvatarPhoto(rawPhoto)
+    if (!photo) return
+    if (!this._state) {
+      this.pendingPhotos.set(playerId, photo)
+      return
+    }
+    const existing = this._state.players.find((p) => p.id === playerId)
+    if (!existing) {
+      this.pendingPhotos.set(playerId, photo)
+      return
+    }
+    if (existing.photo === photo && existing.hasPhoto) return
+    this._state = {
+      ...this._state,
+      players: this._state.players.map((p) =>
+        p.id === playerId ? { ...p, photo, hasPhoto: true } : p,
+      ),
+    }
+    this.onState.emit(this._state)
+  }
+
+  private requestMissingAvatars(): void {
+    if (!this._state || this._status === 'removed' || this._status === 'ended') return
+    const missing = this._state.players
+      .filter((p) => p.hasPhoto && !p.photo)
+      .map((p) => p.id)
+      .sort()
+    if (missing.length === 0) {
+      this.lastAvatarReqKey = ''
+      return
+    }
+    const key = missing.join(',')
+    const now = this.now()
+    // Debounce identical requests (state bursts) but retry after a few seconds.
+    if (key === this.lastAvatarReqKey && now - this.lastAvatarReqAt < 4_000) return
+    this.lastAvatarReqKey = key
+    this.lastAvatarReqAt = now
+    this.sendWire({ t: 'avatar-req', playerIds: missing })
+  }
+
   private sendHello(): void {
-    this.sendWire({ t: 'hello', player: this.profile })
+    const player: PlayerProfile = {
+      id: this.profile.id,
+      name: this.profile.name,
+      emoji: this.profile.emoji,
+      ...(this.profile.photo ? { photo: this.profile.photo } : {}),
+    }
+    this.sendWire({ t: 'hello', player })
   }
 
   private sendWire(msg: WireMessage): void {
