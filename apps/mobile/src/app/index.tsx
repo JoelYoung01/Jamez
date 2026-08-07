@@ -97,7 +97,7 @@ export default function HomeScreen() {
         </View>
 
         <View className="gap-3">
-          <View className="flex-row items-stretch gap-3">
+          <View className="flex-row gap-3">
             <HomeTile
               icon={<RadioTowerIcon size={20} color="#fbbf24" />}
               title="Host"
@@ -113,7 +113,7 @@ export default function HomeScreen() {
               onPress={() => router.push('/join')}
             />
           </View>
-          <View className="flex-row items-stretch gap-3">
+          <View className="flex-row gap-3">
             <HomeTile
               icon={<MoonIcon size={20} color="#fbbf24" />}
               title="Return to game"
@@ -179,19 +179,24 @@ function HomeTile({
   badge?: string
   onPress: () => void
 }) {
+  // Avoid h-full / percentage height: inside Screen's flexGrow ScrollView it
+  // collapses on first paint (tiles look squashed) until a later re-layout.
+  // A content-sized card with a shared min height keeps the 2x2 grid even.
   return (
     <Pressable onPress={onPress} className="min-w-0 flex-1 active:opacity-80">
-      <Card className="relative h-full flex-1 p-4">
+      <Card className="relative min-h-[148px] justify-between p-4">
         {badge ? (
           <View className="absolute right-2.5 top-2.5 rounded-full bg-primary px-2 py-0.5">
             <Text className="text-[10px] font-bold text-primary-foreground">{badge}</Text>
           </View>
         ) : null}
-        <View className="mb-2 h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
-          {icon}
+        <View>
+          <View className="mb-2 h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
+            {icon}
+          </View>
+          <Text className="text-base font-semibold leading-tight text-zinc-100">{title}</Text>
+          <Muted className="mt-0.5 text-xs leading-snug">{description}</Muted>
         </View>
-        <Text className="text-base font-semibold leading-tight text-zinc-100">{title}</Text>
-        <Muted className="mt-0.5 flex-1 text-xs leading-snug">{description}</Muted>
         <View className="mt-2 flex-row items-center gap-0.5">
           <Text className="text-xs font-medium text-primary">{cta}</Text>
           <ArrowRightIcon size={12} color="#fbbf24" />
