@@ -15,7 +15,11 @@ import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
 import { ColorPicker } from '@/components/color-picker'
 import { EmojiGrid } from '@/components/emoji-grid'
-import { KeyboardDismissButton } from '@/components/keyboard-dismiss'
+import {
+  KeyboardActionButtons,
+  KeyboardForm,
+  useSuppressAndroidKeyboardHost,
+} from '@/components/keyboard-dismiss'
 import { PokerChip } from '@/components/poker-chip'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
@@ -372,10 +376,22 @@ function CashSheet({
   const breakdown =
     mode === 'withdraw' && unit !== 'chips' ? chipBreakdown(points, game.config.chips) : []
   const balance = game.banks[player.id]?.balance ?? 0
+  useSuppressAndroidKeyboardHost()
+
+  const confirm = React.useCallback(() => {
+    if (!(points > 0) || (mode === 'withdraw' && points > balance)) return
+    const error = send({
+      type: mode,
+      playerId: player.id,
+      amount: unit === 'chips' ? points : numeric,
+      unit: unit === 'chips' ? 'points' : unit,
+    })
+    if (!error) onClose()
+  }, [balance, mode, numeric, onClose, player.id, points, send, unit])
 
   // Bottom sheet sits under the keyboard unless we lift it by the keyboard frame.
   // (RN Modals don't inherit the activity's adjustResize on Android.)
-  // Keep dismiss inside this sheet so we don't stack a second accessory bar.
+  // Local keyboard chrome — suppress the app-wide Android host while open.
   return (
     <Modal transparent animationType="slide" visible onRequestClose={onClose}>
       <View className="flex-1 justify-end bg-black/60">
@@ -384,16 +400,17 @@ function CashSheet({
           className="rounded-t-3xl border border-line bg-card"
           style={{ marginBottom: keyboardHeight, maxHeight: '85%' }}
         >
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            bounces={false}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{
-              padding: 16,
-              // Room for the floating dismiss over the bottom-right edge.
-              paddingBottom: keyboardHeight > 0 ? 56 : 16,
-            }}
-          >
+          <KeyboardForm onSubmit={confirm}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                padding: 16,
+                // Room for the floating check/dismiss cluster over the bottom-right edge.
+                paddingBottom: keyboardHeight > 0 ? 56 : 16,
+              }}
+            >
             <Text className="mb-1 text-lg font-semibold text-zinc-100">
               {mode === 'deposit' ? 'Cash in' : 'Cash out'} · {player.name}
             </Text>
@@ -485,23 +502,16 @@ function CashSheet({
                 title="Confirm"
                 className="flex-1"
                 disabled={!(points > 0) || (mode === 'withdraw' && points > balance)}
-                onPress={() => {
-                  const error = send({
-                    type: mode,
-                    playerId: player.id,
-                    amount: unit === 'chips' ? points : numeric,
-                    unit: unit === 'chips' ? 'points' : unit,
-                  })
-                  if (!error) onClose()
-                }}
+                onPress={confirm}
               />
             </View>
           </ScrollView>
           {keyboardHeight > 0 ? (
             <View pointerEvents="box-none" className="absolute bottom-1.5 right-2">
-              <KeyboardDismissButton floating />
+              <KeyboardActionButtons floating />
             </View>
           ) : null}
+          </KeyboardForm>
         </View>
       </View>
     </Modal>

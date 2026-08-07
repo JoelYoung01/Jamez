@@ -1,6 +1,11 @@
 import * as React from 'react'
 import { Platform, TextInput, type TextInputProps } from 'react-native'
-import { KeyboardDismissAccessory } from '@/components/keyboard-dismiss'
+import {
+  KeyboardDismissAccessory,
+  registerKeyboardField,
+  setFocusedKeyboardField,
+  useKeyboardFormGroup,
+} from '@/components/keyboard-dismiss'
 
 let accessorySeq = 0
 
@@ -12,30 +17,79 @@ export type AppTextInputProps = TextInputProps & {
   keyboardAccessory?: boolean
 }
 
+function callSubmit(handler: TextInputProps['onSubmitEditing']) {
+  if (!handler) return
+  // Callers almost always ignore the event; synthesize a minimal stand-in.
+  handler({ nativeEvent: { text: '' } } as unknown as Parameters<NonNullable<typeof handler>>[0])
+}
+
 /**
- * Drop-in TextInput that attaches a keyboard dismiss accessory on iOS.
+ * Drop-in TextInput that attaches a keyboard accessory on iOS (check = next /
+ * submit, chevron = dismiss) and registers with the field roster so Android's
+ * floating host can do the same.
+ *
  * Pass `inputAccessoryViewID` yourself to opt into a custom accessory (and
- * skip the default dismiss bar). Pass `keyboardAccessory={false}` to attach none.
+ * skip the default bar). Pass `keyboardAccessory={false}` to attach none.
  */
 export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(
   function AppTextInput(
-    { inputAccessoryViewID, keyboardAccessory = true, autoFocus, ...props },
+    {
+      inputAccessoryViewID,
+      keyboardAccessory = true,
+      autoFocus,
+      onSubmitEditing,
+      onFocus,
+      onBlur,
+      ...props
+    },
     ref,
   ) {
     const autoId = React.useRef(`jamez-kbd-${++accessorySeq}`).current
+    const group = useKeyboardFormGroup()
     const useDefault =
       Platform.OS === 'ios' && keyboardAccessory && inputAccessoryViewID == null
     const accessoryId = inputAccessoryViewID ?? (useDefault ? autoId : undefined)
 
     const innerRef = React.useRef<TextInput>(null)
+    const submitRef = React.useRef(onSubmitEditing)
+    submitRef.current = onSubmitEditing
+    const unregisterRef = React.useRef<(() => void) | null>(null)
+
     const setRefs = React.useCallback(
       (node: TextInput | null) => {
         innerRef.current = node
         if (typeof ref === 'function') ref(node)
         else if (ref) ref.current = node
+
+        unregisterRef.current?.()
+        unregisterRef.current = registerKeyboardField({
+          id: autoId,
+          input: node,
+          group,
+          submit: () => callSubmit(submitRef.current),
+        })
       },
-      [ref],
+      [autoId, group, ref],
     )
+
+    React.useEffect(() => {
+      return () => {
+        unregisterRef.current?.()
+        unregisterRef.current = null
+      }
+    }, [])
+
+    // Keep group/submit mapping fresh if the form group identity changes.
+    React.useEffect(() => {
+      if (!innerRef.current) return
+      unregisterRef.current?.()
+      unregisterRef.current = registerKeyboardField({
+        id: autoId,
+        input: innerRef.current,
+        group,
+        submit: () => callSubmit(submitRef.current),
+      })
+    }, [autoId, group])
 
     // iOS omits InputAccessoryView when focus races the accessory mount (common
     // with autoFocus inside Modals). Focus after the accessory has registered.
@@ -57,6 +111,15 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(
         <TextInput
           ref={setRefs}
           {...props}
+          onSubmitEditing={onSubmitEditing}
+          onFocus={(e) => {
+            setFocusedKeyboardField(autoId)
+            onFocus?.(e)
+          }}
+          onBlur={(e) => {
+            setFocusedKeyboardField(null)
+            onBlur?.(e)
+          }}
           autoFocus={false}
           inputAccessoryViewID={accessoryId}
         />
