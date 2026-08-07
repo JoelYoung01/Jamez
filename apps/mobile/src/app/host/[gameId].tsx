@@ -85,9 +85,6 @@ export default function HostConfigScreen() {
                   maxLength={SESSION_NICKNAME_MAX}
                   className="h-11 rounded-xl border border-line bg-field px-3 text-base text-zinc-100"
                 />
-                <Muted className="mt-1">
-                  Shown in history and on parked sessions. Leave blank for the game name.
-                </Muted>
               </View>
               <SetupForm config={config} onChange={setConfig} />
             </Card>
