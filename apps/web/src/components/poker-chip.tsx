@@ -15,6 +15,8 @@ export function PokerChip({
 }) {
   const rim = shade(color, -0.35)
   const highlight = shade(color, 0.25)
+  const faceLabel = label?.trim() ?? ''
+  const fontSize = faceFontSize(faceLabel)
   return (
     <svg
       viewBox="0 0 64 64"
@@ -48,23 +50,31 @@ export function PokerChip({
           />
         )
       })}
-      <circle cx="32" cy="32" r="14" fill="none" stroke={highlight} strokeWidth="2.5" opacity="0.85" />
-      <circle cx="32" cy="32" r="10" fill={shade(color, 0.12)} stroke={rim} strokeWidth="1" />
-      {label ? (
+      <circle cx="32" cy="32" r="15" fill="none" stroke={highlight} strokeWidth="2.5" opacity="0.85" />
+      <circle cx="32" cy="32" r="12.5" fill={shade(color, 0.12)} stroke={rim} strokeWidth="1" />
+      {faceLabel ? (
         <text
           x="32"
-          y="36"
+          y={32 + fontSize * 0.36}
           textAnchor="middle"
-          fontSize="9"
-          fontWeight="700"
+          fontSize={fontSize}
+          fontWeight="800"
           fill={contrastInk(color)}
           fontFamily="ui-sans-serif, system-ui, sans-serif"
         >
-          {label}
+          {faceLabel}
         </text>
       ) : null}
     </svg>
   )
+}
+
+/** Bigger, bolder face type — scales down slightly for 3–4 digit values. */
+function faceFontSize(label: string): number {
+  const len = label.length
+  if (len <= 2) return 16
+  if (len === 3) return 13
+  return 11
 }
 
 function shade(hex: string, amount: number): string {

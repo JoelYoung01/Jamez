@@ -700,8 +700,8 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
               key={chip.id}
               className="flex items-center gap-1.5 rounded-full border border-border/50 bg-background/40 px-2 py-1"
             >
-              <PokerChip color={chip.color} size={22} />
-              <span className="text-xs font-medium">
+              <PokerChip color={chip.color} size={28} label={String(chip.value)} />
+              <span className="text-sm font-semibold">
                 {chip.label} · {chip.value}
               </span>
             </div>

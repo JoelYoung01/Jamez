@@ -619,8 +619,8 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
         <View className="mt-1 flex-row flex-wrap gap-2">
           {game.config.chips.map((chip) => (
             <View key={chip.id} className="flex-row items-center gap-1.5 rounded-full border border-line px-2 py-1">
-              <PokerChip color={chip.color} size={18} />
-              <Text className="text-xs text-zinc-100">
+              <PokerChip color={chip.color} size={28} label={String(chip.value)} />
+              <Text className="text-sm font-semibold text-zinc-100">
                 {chip.label} · {chip.value}
               </Text>
             </View>
