@@ -83,10 +83,38 @@ export type PokerBankAction =
 export const DEFAULT_POKER_CHIPS: PokerChipDenom[] = [
   { id: 'white', label: 'White', value: 1, color: '#f4f4f5' },
   { id: 'red', label: 'Red', value: 5, color: '#ef4444' },
-  { id: 'blue', label: 'Blue', value: 10, color: '#3b82f6' },
   { id: 'green', label: 'Green', value: 25, color: '#22c55e' },
-  { id: 'black', label: 'Black', value: 100, color: '#18181b' },
+  { id: 'blue', label: 'Blue', value: 100, color: '#3b82f6' },
+  { id: 'black', label: 'Black', value: 500, color: '#18181b' },
+  { id: 'purple', label: 'Purple', value: 1000, color: '#a855f7' },
 ]
+
+/** Deep-clone a poker bank config (chips included). */
+export function clonePokerBankConfig(config: PokerBankConfig): PokerBankConfig {
+  return {
+    startingStack: config.startingStack,
+    currencyMode: config.currencyMode,
+    pointsPerDollar: config.pointsPerDollar,
+    chips: config.chips.map((c) => ({ ...c })),
+  }
+}
+
+/**
+ * Prefer the live bank settings (`game.config`) when present; otherwise the
+ * lobby-time `gameConfig`. Returns null when the session is not a poker bank.
+ */
+export function pokerBankConfigFromSession(state: {
+  gameId: string
+  gameConfig?: unknown
+  game?: unknown
+}): PokerBankConfig | null {
+  if (state.gameId !== 'poker-bank') return null
+  const live = state.game as PokerBankState | null | undefined
+  if (live?.config?.chips?.length) return clonePokerBankConfig(live.config)
+  const lobby = state.gameConfig as PokerBankConfig | undefined
+  if (lobby?.chips?.length) return clonePokerBankConfig(lobby)
+  return null
+}
 
 /** Common chip colors offered by the config color picker (hex, 6-digit). */
 export const CHIP_COLOR_PRESETS: readonly string[] = [

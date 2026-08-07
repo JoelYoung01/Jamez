@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { SessionPlayer } from '../protocol/session-state'
 import {
   chipBreakdown,
+  clonePokerBankConfig,
   formatPokerAmount,
+  pokerBankConfigFromSession,
   pokerBankEngine,
   toPoints,
   type PokerBankState,
@@ -160,11 +162,19 @@ describe('poker bank engine', () => {
 
   it('breaks amounts into chips greedily', () => {
     const chips = pokerBankEngine.defaultConfig().chips
+    expect(chips.map((c) => [c.id, c.value])).toEqual([
+      ['white', 1],
+      ['red', 5],
+      ['green', 25],
+      ['blue', 100],
+      ['black', 500],
+      ['purple', 1000],
+    ])
     const parts = chipBreakdown(137, chips)
     expect(parts.map((p) => [p.chip.id, p.count])).toEqual([
-      ['black', 1],
-      ['green', 1],
       ['blue', 1],
+      ['green', 1],
+      ['red', 2],
       ['white', 2],
     ])
   })
@@ -177,5 +187,27 @@ describe('poker bank engine', () => {
 
   it('never auto-finishes', () => {
     expect(pokerBankEngine.isFinished(started(player('host', 'Host')))).toBe(false)
+  })
+
+  it('reads config from live game state ahead of lobby gameConfig', () => {
+    const lobby = pokerBankEngine.defaultConfig()
+    const live = clonePokerBankConfig(lobby)
+    live.startingStack = 999
+    live.currencyMode = 'dollars'
+    expect(
+      pokerBankConfigFromSession({
+        gameId: 'poker-bank',
+        gameConfig: lobby,
+        game: { config: live, banks: {}, ledger: [] },
+      })?.startingStack,
+    ).toBe(999)
+    expect(
+      pokerBankConfigFromSession({
+        gameId: 'poker-bank',
+        gameConfig: lobby,
+        game: null,
+      })?.startingStack,
+    ).toBe(500)
+    expect(pokerBankConfigFromSession({ gameId: 'wingspan', gameConfig: lobby })).toBeNull()
   })
 })

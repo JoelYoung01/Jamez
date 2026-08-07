@@ -120,8 +120,9 @@ export class HostSession {
       setInterval(() => this.sendWire({ t: 'ping', rev: this.state.rev }), PING_INTERVAL_MS),
       setInterval(() => this.sweepPresence(), PRESENCE_SWEEP_MS),
     )
-    // Announce current state so guests who joined before the host restarted
-    // (resume case) snap back immediately.
+    // Persist immediately so create-time nickname / resume state survive a
+    // crash before the first mutate, then announce to any waiting guests.
+    this.onSnapshot?.(this.state)
     this.broadcastState()
   }
 

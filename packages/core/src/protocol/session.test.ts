@@ -279,4 +279,37 @@ describe('host/guest session over memory transport', () => {
     expect(host.current.phase).toBe('playing')
     host.end()
   })
+
+  it('persists nickname on start and across setNickname snapshots', () => {
+    const code = generateJoinCode()
+    let snapshot: SessionState | undefined
+    const host = createHostSession({
+      code,
+      game: pokerBankEngine as never,
+      hostProfile: profile('host-1', 'Hana'),
+      transport: createMemoryTransport(code),
+      nickname: 'Friday night',
+      onSnapshot: (s) => {
+        snapshot = s
+      },
+    })
+    host.start()
+    expect(snapshot?.nickname).toBe('Friday night')
+    expect(host.current.nickname).toBe('Friday night')
+
+    host.setNickname('Cabin trip')
+    expect(snapshot?.nickname).toBe('Cabin trip')
+
+    host.stop()
+    const resumed = createHostSession({
+      code,
+      game: pokerBankEngine as never,
+      hostProfile: profile('host-1', 'Hana'),
+      transport: createMemoryTransport(code),
+      resumeFrom: snapshot!,
+    })
+    resumed.start()
+    expect(resumed.current.nickname).toBe('Cabin trip')
+    resumed.end()
+  })
 })

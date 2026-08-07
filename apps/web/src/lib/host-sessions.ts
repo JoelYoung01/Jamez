@@ -95,6 +95,12 @@ export function clearHostSnapshot(state: Pick<SessionState, 'gameId' | 'code'>):
   writeVault(vault)
 }
 
+export async function clearHostSnapshotAsync(
+  state: Pick<SessionState, 'gameId' | 'code'>,
+): Promise<void> {
+  clearHostSnapshot(state)
+}
+
 export function clearAllHostSnapshots(): void {
   try {
     localStorage.removeItem(HOST_SESSIONS_VAULT_KEY)

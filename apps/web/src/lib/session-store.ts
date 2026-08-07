@@ -19,6 +19,7 @@ import { create } from 'zustand'
 import { historyStore } from './history'
 import {
   clearHostSnapshot,
+  clearHostSnapshotAsync,
   listHostSnapshots,
   listResumableHostSnapshots,
   persistHostSnapshot,
@@ -29,7 +30,12 @@ import { currentProfile } from './profile'
 import { activeRelays } from './settings'
 
 export type { HostSnapshot }
-export { listHostSnapshots, listResumableHostSnapshots, readHostSnapshot }
+export {
+  clearHostSnapshotAsync,
+  listHostSnapshots,
+  listResumableHostSnapshots,
+  readHostSnapshot,
+}
 
 export type SessionRole = 'host' | 'guest'
 
