@@ -145,6 +145,11 @@ export function defaultPokerBankConfig(): PokerBankConfig {
   }
 }
 
+/** Round to 6 dp so fractional pts/$ (e.g. 0.25) and dollar cents survive. */
+function roundPoints(n: number): number {
+  return Math.round(n * 1e6) / 1e6
+}
+
 export function toPoints(
   amount: number,
   unit: PokerCurrencyMode,
@@ -152,7 +157,8 @@ export function toPoints(
 ): number {
   if (unit === 'points') return amount
   const rate = pointsPerDollar > 0 ? pointsPerDollar : 1
-  return Math.round(amount * rate)
+  // Do not integer-round: $1 at 0.25 pts/$ is 0.25 points, not 0.
+  return roundPoints(amount * rate)
 }
 
 export function fromPoints(
@@ -307,7 +313,11 @@ export const pokerBankEngine: GameEngine<PokerBankConfig, PokerBankState, PokerB
       return 'Point amounts must be whole numbers'
     }
     const points = toPoints(action.amount, action.unit, state.config.pointsPerDollar)
-    if (points <= 0) return 'Amount is too small'
+    if (!(points > 0)) {
+      return action.unit === 'dollars'
+        ? 'Amount is too small for the current points-per-dollar rate'
+        : 'Amount is too small'
+    }
     if (points > 10_000_000) return 'Amount is too large'
     if (action.type === 'withdraw' && points > bank.balance) {
       return 'Not enough balance'

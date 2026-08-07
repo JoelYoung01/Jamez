@@ -107,7 +107,9 @@ function SheetEditor({
           </View>
           <Switch
             value={sheet.done}
-            onValueChange={(done) => send({ type: 'setDone', playerId, done })}
+            onValueChange={(done) => {
+              void send({ type: 'setDone', playerId, done })
+            }}
             trackColor={{ true: '#fbbf24' }}
             thumbColor="#ffffff"
           />

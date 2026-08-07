@@ -41,6 +41,32 @@ describe('poker bank engine', () => {
   it('converts dollars using pointsPerDollar', () => {
     expect(toPoints(10, 'dollars', 5)).toBe(50)
     expect(toPoints(10, 'points', 5)).toBe(10)
+    // Fractional rates / dollar cents must not round to zero points.
+    expect(toPoints(1, 'dollars', 0.25)).toBe(0.25)
+    expect(toPoints(0.25, 'dollars', 1)).toBe(0.25)
+    expect(toPoints(4, 'dollars', 0.25)).toBe(1)
+  })
+
+  it('accepts dollar deposits that convert to fractional points', () => {
+    const host = player('host', 'Host')
+    let state = pokerBankEngine.init(
+      { ...pokerBankEngine.defaultConfig(), pointsPerDollar: 0.25, currencyMode: 'dollars' },
+      [host],
+    )
+    const ctx = { actorId: 'host', isHost: true, now: 100 }
+    expect(
+      pokerBankEngine.validateAction(
+        state,
+        { type: 'deposit', playerId: 'host', amount: 1, unit: 'dollars' },
+        ctx,
+      ),
+    ).toBeNull()
+    state = pokerBankEngine.applyAction(
+      state,
+      { type: 'deposit', playerId: 'host', amount: 1, unit: 'dollars' },
+      ctx,
+    )
+    expect(state.banks.host?.balance).toBe(500.25)
   })
 
   it('deposits and withdraws with chip-friendly balances', () => {

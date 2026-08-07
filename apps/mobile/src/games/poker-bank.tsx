@@ -8,7 +8,7 @@ import {
   type PokerCurrencyMode,
   type SessionPlayer,
 } from '@jamez/core'
-import { CoinsIcon, Settings2Icon } from 'lucide-react-native'
+import { CoinsIcon, DollarSignIcon, Settings2Icon } from 'lucide-react-native'
 import * as React from 'react'
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
@@ -70,6 +70,49 @@ function PointsPerDollarField({
   )
 }
 
+/** Integer chip value — draft while typing; coerce to ≥1 on blur. */
+function ChipValueField({
+  value,
+  onChange,
+  className,
+}: {
+  value: number
+  onChange: (next: number) => void
+  className?: string
+}) {
+  const [text, setText] = React.useState(String(value))
+
+  React.useEffect(() => {
+    setText(String(value))
+  }, [value])
+
+  const commit = () => {
+    const n = Number.parseInt(text.replace(/\D/g, ''), 10)
+    const next = Number.isNaN(n) ? 1 : Math.max(1, n)
+    onChange(next)
+    setText(String(next))
+  }
+
+  return (
+    <AppTextInput
+      keyboardType="number-pad"
+      value={text}
+      onChangeText={(t) => {
+        const cleaned = t.replace(/\D/g, '')
+        setText(cleaned)
+        const n = Number.parseInt(cleaned, 10)
+        if (!Number.isNaN(n) && n >= 1) onChange(n)
+      }}
+      onBlur={commit}
+      onSubmitEditing={commit}
+      className={
+        className ??
+        'h-9 w-16 rounded-lg border border-line bg-background px-2 font-mono text-sm text-zinc-100'
+      }
+    />
+  )
+}
+
 function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
   const set = (patch: Partial<PokerBankConfig>) => onChange({ ...config, ...patch })
   const updateChip = (index: number, patch: Partial<PokerChipDenom>) => {
@@ -118,14 +161,9 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
               onChangeText={(label) => updateChip(index, { label: label.slice(0, 16) })}
               className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-background px-2 text-sm text-zinc-100"
             />
-            <AppTextInput
-              keyboardType="number-pad"
-              value={String(chip.value)}
-              onChangeText={(t) => {
-                const n = Number.parseInt(t.replace(/\D/g, ''), 10)
-                updateChip(index, { value: Number.isNaN(n) ? 1 : Math.max(1, n) })
-              }}
-              className="h-9 w-16 rounded-lg border border-line bg-background px-2 font-mono text-sm text-zinc-100"
+            <ChipValueField
+              value={chip.value}
+              onChange={(value) => updateChip(index, { value })}
             />
             <ColorPicker
               value={chip.color}
@@ -230,14 +268,9 @@ function BankSettingsSheet({
                     onChangeText={(label) => updateChip(index, { label: label.slice(0, 16) })}
                     className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-background px-2 text-sm text-zinc-100"
                   />
-                  <AppTextInput
-                    keyboardType="number-pad"
-                    value={String(chip.value)}
-                    onChangeText={(t) => {
-                      const n = Number.parseInt(t.replace(/\D/g, ''), 10)
-                      updateChip(index, { value: Number.isNaN(n) ? 1 : Math.max(1, n) })
-                    }}
-                    className="h-9 w-16 rounded-lg border border-line bg-background px-2 font-mono text-sm text-zinc-100"
+                  <ChipValueField
+                    value={chip.value}
+                    onChange={(value) => updateChip(index, { value })}
                   />
                   <ColorPicker
                     value={chip.color}
@@ -278,11 +311,11 @@ function BankSettingsSheet({
                 title="Save bank"
                 className="flex-1"
                 onPress={() => {
-                  send({
+                  const error = send({
                     type: 'updateConfig',
                     config: { currencyMode, pointsPerDollar, startingStack, chips },
                   })
-                  onClose()
+                  if (!error) onClose()
                 }}
               />
             </View>
@@ -350,16 +383,29 @@ function CashSheet({
                 { value: 'dollars', label: 'Dollars' },
               ]}
             />
-            <AppTextInput
-              autoFocus
-              keyboardAccessory={false}
-              keyboardType="decimal-pad"
-              value={amount}
-              onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ''))}
-              placeholder={unit === 'dollars' ? '0.00' : '0'}
-              placeholderTextColor="#71717a"
-              className="mt-3 h-12 rounded-xl border border-line bg-background px-3 font-mono text-lg text-zinc-100"
-            />
+            <View className="mt-3 flex-row items-center rounded-xl border border-line bg-background px-3">
+              {unit === 'dollars' ? (
+                <DollarSignIcon size={18} color="#a1a1ab" accessibilityLabel="Dollars" />
+              ) : null}
+              <AppTextInput
+                autoFocus
+                keyboardAccessory={false}
+                keyboardType="decimal-pad"
+                value={amount}
+                onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ''))}
+                placeholder={unit === 'dollars' ? '0.00' : '0'}
+                placeholderTextColor="#71717a"
+                className="h-12 min-w-0 flex-1 bg-transparent px-2 font-mono text-lg text-zinc-100"
+              />
+            </View>
+            {points > 0 ? (
+              <Muted className="mt-2">
+                = {formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}
+                {unit === 'dollars'
+                  ? ` · ${formatPokerAmount(points, game.config)}`
+                  : ''}
+              </Muted>
+            ) : null}
             {mode === 'withdraw' && breakdown.length > 0 && (
               <View className="mt-3 flex-row flex-wrap gap-3 rounded-xl border border-line p-3">
                 {breakdown.map(({ chip, count }) => (
@@ -380,8 +426,13 @@ function CashSheet({
                 className="flex-1"
                 disabled={!(numeric > 0) || (mode === 'withdraw' && points > balance)}
                 onPress={() => {
-                  send({ type: mode, playerId: player.id, amount: numeric, unit })
-                  onClose()
+                  const error = send({
+                    type: mode,
+                    playerId: player.id,
+                    amount: numeric,
+                    unit,
+                  })
+                  if (!error) onClose()
                 }}
               />
             </View>

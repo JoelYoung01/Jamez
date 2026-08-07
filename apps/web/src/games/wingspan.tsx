@@ -113,7 +113,9 @@ function SheetEditor({
           <Switch
             id={`done-${playerId}`}
             checked={sheet.done}
-            onCheckedChange={(done) => send({ type: 'setDone', playerId, done }, actorOverride)}
+            onCheckedChange={(done) => {
+              void send({ type: 'setDone', playerId, done }, actorOverride)
+            }}
           />
         </div>
       )}

@@ -65,7 +65,10 @@ interface SessionStoreState {
   removePlayer: (playerId: string) => void
   claimSeat: (claimerId: string, seatId: string) => void
   mergePlayers: (fromId: string, toId: string) => void
-  sendAction: (action: { type: string } & Record<string, unknown>, actorId?: string) => void
+  sendAction: (
+    action: { type: string } & Record<string, unknown>,
+    actorId?: string,
+  ) => string | null
   parkSession: () => void
   endSession: () => void
   leaveSession: () => void
@@ -258,9 +261,11 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       if (host) {
         const error = host.applyAction(action, actorId ?? host.hostPlayerId)
         if (error) toast.error(error)
-        return
+        return error
       }
       guest?.sendAction(action)
+      // Guest rejects arrive async via onReject; treat send as accepted for UI close.
+      return null
     },
 
     parkSession() {

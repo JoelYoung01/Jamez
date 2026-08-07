@@ -13,6 +13,7 @@ import {
   ArrowDownLeftIcon,
   ArrowUpRightIcon,
   CoinsIcon,
+  DollarSignIcon,
   GitMergeIcon,
   Settings2Icon,
   UserPlusIcon,
@@ -220,6 +221,48 @@ function PointsPerDollarField({
   )
 }
 
+/** Integer chip value — draft while typing; coerce to ≥1 on blur. */
+function ChipValueField({
+  value,
+  onChange,
+  className,
+}: {
+  value: number
+  onChange: (next: number) => void
+  className?: string
+}) {
+  const [text, setText] = React.useState(String(value))
+
+  React.useEffect(() => {
+    setText(String(value))
+  }, [value])
+
+  const commit = () => {
+    const n = Number.parseInt(text.replace(/\D/g, ''), 10)
+    const next = Number.isNaN(n) ? 1 : Math.max(1, n)
+    onChange(next)
+    setText(String(next))
+  }
+
+  return (
+    <Input
+      inputMode="numeric"
+      className={cn('h-8 font-mono tabular-nums', className)}
+      value={text}
+      onChange={(e) => {
+        const cleaned = e.target.value.replace(/\D/g, '')
+        setText(cleaned)
+        const n = Number.parseInt(cleaned, 10)
+        if (!Number.isNaN(n) && n >= 1) onChange(n)
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit()
+      }}
+    />
+  )
+}
+
 function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
   const set = (patch: Partial<PokerBankConfig>) => onChange({ ...config, ...patch })
 
@@ -303,14 +346,9 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
                 className="h-8"
                 placeholder="Label"
               />
-              <Input
-                inputMode="numeric"
-                className="h-8 font-mono tabular-nums"
-                value={String(chip.value)}
-                onChange={(e) => {
-                  const n = Number.parseInt(e.target.value.replace(/\D/g, ''), 10)
-                  updateChip(index, { value: Number.isNaN(n) ? 1 : Math.max(1, n) })
-                }}
+              <ChipValueField
+                value={chip.value}
+                onChange={(value) => updateChip(index, { value })}
               />
               <ColorPicker
                 value={chip.color}
@@ -358,7 +396,8 @@ function CashDialog({
   const submit = () => {
     if (!(numeric > 0)) return
     // Host acts as host (isHost); guests always act as themselves via the store.
-    send({ type: mode, playerId: player.id, amount: numeric, unit })
+    const error = send({ type: mode, playerId: player.id, amount: numeric, unit })
+    if (error) return
     setAmount('')
     setOpen(false)
   }
@@ -390,15 +429,26 @@ function CashDialog({
               { value: 'dollars', label: 'Dollars' },
             ]}
           />
-          <Input
-            inputMode="decimal"
-            autoFocus
-            placeholder={unit === 'dollars' ? '0.00' : '0'}
-            className="h-11 font-mono text-lg tabular-nums"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-          />
+          <div className="relative">
+            {unit === 'dollars' ? (
+              <DollarSignIcon
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+            ) : null}
+            <Input
+              inputMode="decimal"
+              autoFocus
+              placeholder={unit === 'dollars' ? '0.00' : '0'}
+              className={cn(
+                'h-11 font-mono text-lg tabular-nums',
+                unit === 'dollars' && 'pl-8',
+              )}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+            />
+          </div>
           {points > 0 && (
             <p className="text-xs text-muted-foreground">
               = {formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}
@@ -452,11 +502,11 @@ function BankSettingsDialog({ game, send }: { game: PokerBankState; send: GamePl
   }
 
   const save = () => {
-    send({
+    const error = send({
       type: 'updateConfig',
       config: { currencyMode, pointsPerDollar, startingStack, chips },
     })
-    setOpen(false)
+    if (!error) setOpen(false)
   }
 
   return (
@@ -540,14 +590,9 @@ function BankSettingsDialog({ game, send }: { game: PokerBankState; send: GamePl
                     placeholder="Label"
                     onChange={(e) => updateChip(index, { label: e.target.value.slice(0, 16) })}
                   />
-                  <Input
-                    inputMode="numeric"
-                    className="h-8 font-mono tabular-nums"
-                    value={String(chip.value)}
-                    onChange={(e) => {
-                      const n = Number.parseInt(e.target.value.replace(/\D/g, ''), 10)
-                      updateChip(index, { value: Number.isNaN(n) ? 1 : Math.max(1, n) })
-                    }}
+                  <ChipValueField
+                    value={chip.value}
+                    onChange={(value) => updateChip(index, { value })}
                   />
                   <ColorPicker
                     value={chip.color}
