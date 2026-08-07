@@ -1,9 +1,10 @@
 import { DicesIcon, type LucideIcon } from 'lucide-react-native'
 import { ginRummyUI } from './gin-rummy'
+import { pokerBankUI } from './poker-bank'
 import type { GameUIModule } from './types'
 import { wingspanUI } from './wingspan'
 
-const modules: GameUIModule[] = [wingspanUI, ginRummyUI]
+const modules: GameUIModule[] = [wingspanUI, ginRummyUI, pokerBankUI]
 
 export function getGameUI(id: string): GameUIModule | undefined {
   return modules.find((m) => m.id === id)

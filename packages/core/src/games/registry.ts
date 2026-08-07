@@ -1,4 +1,5 @@
 import { ginRummyEngine } from './gin-rummy'
+import { pokerBankEngine } from './poker-bank'
 import type { GameEngine } from './types'
 import { wingspanEngine } from './wingspan'
 
@@ -9,6 +10,7 @@ import { wingspanEngine } from './wingspan'
 export const gameEngines: ReadonlyArray<GameEngine<any, any, any>> = [
   wingspanEngine,
   ginRummyEngine,
+  pokerBankEngine,
 ]
 
 export function getGameEngine(id: string): GameEngine<any, any, any> | undefined {

@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
   createGuestSession,
   createHostSession,
@@ -7,6 +6,7 @@ import {
   generateJoinCode,
   getGameEngine,
   historyRecordFromState,
+  isOngoingGame,
   type GuestSession,
   type GuestStatus,
   type HostSession,
@@ -16,18 +16,20 @@ import {
 } from '@jamez/core'
 import { create } from 'zustand'
 import { historyStore } from './history'
+import {
+  clearHostSnapshot,
+  listResumableHostSnapshots,
+  persistHostSnapshot,
+  readHostSnapshot,
+  type HostSnapshot,
+} from './host-sessions'
 import { endSessionLiveActivity, syncSessionLiveActivity } from './live-activity'
 import { currentProfile } from './profile'
 import { activeRelays } from './settings'
 import { toast } from './toast'
 
-const HOST_SNAPSHOT_KEY = 'jamez.host-session.v1'
-
-export interface HostSnapshot {
-  state: SessionState
-  passAndPlay: boolean
-  savedAt: number
-}
+export type { HostSnapshot }
+export { listResumableHostSnapshots, readHostSnapshot }
 
 export type SessionRole = 'host' | 'guest'
 
@@ -45,9 +47,13 @@ interface SessionStoreState {
   startGame: () => void
   finishGame: () => void
   rematch: () => void
+  reopenGame: () => void
   addLocalPlayer: (profile: { name: string; emoji: string }) => void
   removePlayer: (playerId: string) => void
+  claimSeat: (claimerId: string, seatId: string) => void
+  mergePlayers: (fromId: string, toId: string) => void
   sendAction: (action: { type: string } & Record<string, unknown>, actorId?: string) => void
+  parkSession: () => void
   endSession: () => void
   leaveSession: () => void
 }
@@ -65,27 +71,6 @@ function cleanupRefs(): void {
   guest = null
 }
 
-function persistHostSnapshot(state: SessionState, passAndPlay: boolean): void {
-  const snapshot: HostSnapshot = { state, passAndPlay, savedAt: Date.now() }
-  void AsyncStorage.setItem(HOST_SNAPSHOT_KEY, JSON.stringify(snapshot)).catch(() => {})
-}
-
-export async function readHostSnapshot(): Promise<HostSnapshot | null> {
-  try {
-    const raw = await AsyncStorage.getItem(HOST_SNAPSHOT_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as HostSnapshot
-    if (!parsed?.state?.code) return null
-    return parsed
-  } catch {
-    return null
-  }
-}
-
-export function clearHostSnapshot(): void {
-  void AsyncStorage.removeItem(HOST_SNAPSHOT_KEY).catch(() => {})
-}
-
 function saveHistoryIfFinished(state: SessionState, myPlayerId: string): void {
   const record = historyRecordFromState(state, myPlayerId)
   if (record) void historyStore.save(record)
@@ -95,6 +80,17 @@ function makeTransport(code: string, passAndPlay: boolean) {
   return passAndPlay
     ? createMemoryTransport(code)
     : createNostrTransport({ code, relays: activeRelays() })
+}
+
+function resetSessionFields() {
+  return {
+    role: null as SessionRole | null,
+    code: null as string | null,
+    state: null as SessionState | null,
+    guestStatus: null as GuestStatus | null,
+    passAndPlay: false,
+    transportStatus: 'connecting' as TransportStatus,
+  }
 }
 
 export const useSession = create<SessionStoreState>()((set, get) => {
@@ -120,12 +116,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
   }
 
   return {
-    role: null,
-    code: null,
-    state: null,
-    guestStatus: null,
-    transportStatus: 'connecting',
-    passAndPlay: false,
+    ...resetSessionFields(),
 
     hostGame({ gameId, config, passAndPlay }) {
       const game = getGameEngine(gameId)
@@ -186,7 +177,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
     },
 
     async resumeHost(code) {
-      const snapshot = await readHostSnapshot()
+      const snapshot = await readHostSnapshot(code)
       if (!snapshot) return false
       if (code && snapshot.state.code !== code.toUpperCase()) return false
       const game = getGameEngine(snapshot.state.gameId)
@@ -220,6 +211,11 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       if (error) toast.error(error)
     },
 
+    reopenGame() {
+      const error = host?.reopen()
+      if (error) toast.error(error)
+    },
+
     addLocalPlayer(profile) {
       const error = host?.addLocalPlayer(profile)
       if (error) toast.error(error)
@@ -227,6 +223,16 @@ export const useSession = create<SessionStoreState>()((set, get) => {
 
     removePlayer(playerId) {
       const error = host?.removePlayer(playerId)
+      if (error) toast.error(error)
+    },
+
+    claimSeat(claimerId, seatId) {
+      const error = host?.claimSeat(claimerId, seatId)
+      if (error) toast.error(error)
+    },
+
+    mergePlayers(fromId, toId) {
+      const error = host?.mergePlayers(fromId, toId)
       if (error) toast.error(error)
     },
 
@@ -239,33 +245,36 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       guest?.sendAction(action)
     },
 
-    endSession() {
-      host?.end()
-      clearHostSnapshot()
+    parkSession() {
+      const state = host?.current
+      const passAndPlay = get().passAndPlay
+      if (state) persistHostSnapshot(state, passAndPlay)
+      host?.stop()
       cleanupRefs()
       void endSessionLiveActivity('default')
-      set({
-        role: null,
-        code: null,
-        state: null,
-        guestStatus: null,
-        passAndPlay: false,
-        transportStatus: 'connecting',
-      })
+      set(resetSessionFields())
+    },
+
+    endSession() {
+      const state = host?.current
+      host?.end()
+      if (state) clearHostSnapshot(state)
+      cleanupRefs()
+      void endSessionLiveActivity('default')
+      set(resetSessionFields())
     },
 
     leaveSession() {
       guest?.leave()
       cleanupRefs()
       void endSessionLiveActivity('immediate')
-      set({
-        role: null,
-        code: null,
-        state: null,
-        guestStatus: null,
-        passAndPlay: false,
-        transportStatus: 'connecting',
-      })
+      set(resetSessionFields())
     },
   }
 })
+
+export function sessionIsOngoing(state: SessionState | null | undefined): boolean {
+  if (!state) return false
+  const engine = getGameEngine(state.gameId)
+  return engine ? isOngoingGame(engine) : false
+}

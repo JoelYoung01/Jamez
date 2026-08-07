@@ -7,7 +7,7 @@ Jamez is a peer-to-peer score tracker for board & card game nights. One person *
 | 🌐 **Web app** | React + Vite + Tailwind 4, shadcn-style UI, deployed to GitHub Pages |
 | 📱 **iOS app** | Expo + React Native + NativeWind, shipped to TestFlight via GitHub Actions |
 | 🧠 **Shared core** | One TypeScript engine (`@jamez/core`) powers both apps |
-| 🎮 **Games** | Wingspan 🐦 and Gin Rummy 🃏 today; engines are pluggable |
+| 🎮 **Games** | Wingspan 🐦, Gin Rummy 🃏, Poker Bank 🪙; engines are pluggable |
 
 ## How it works
 
@@ -99,7 +99,7 @@ Triggers on `main` pushes that touch `apps/mobile/**` or `packages/core/**`, or 
 
 Games are plug-ins in three parts. The whole of Wingspan is ~200 lines of engine + one UI file per app:
 
-1. **Engine** (`packages/core/src/games/<game>.ts`): implement `GameEngine`: a pure, serializable state machine (`defaultConfig / init / validateAction / applyAction / isFinished / summary`). The host runs it; guests never need game logic to submit actions. Register it in `games/registry.ts` and add a test file next to it.
+1. **Engine** (`packages/core/src/games/<game>.ts`): implement `GameEngine`: a pure, serializable state machine (`defaultConfig / init / validateAction / applyAction / isFinished / summary`). Optional: `sessionMode: 'ongoing'` for long-lived rooms, plus `claimSeat` / `mergePlayers` when seats can transfer. The host runs it; guests never need game logic to submit actions. Register it in `games/registry.ts` and add a test file next to it. Host snapshots are vaulted under `${gameId}:${CODE}` so plugins stay isolated.
 2. **Web UI** (`apps/web/src/games/<game>.tsx`): a `GameUIModule` with a `SetupForm` (host options), `PlayView` (score entry + live standings) and optional `ResultsDetail`. Register in `apps/web/src/games/registry.ts`.
 3. **Mobile UI** (`apps/mobile/src/games/<game>.tsx`): same module shape in React Native. Register in `apps/mobile/src/games/registry.ts`.
 
@@ -109,6 +109,7 @@ Design rule of thumb: guests may edit **their own** scores (`validateAction` enf
 
 - **🐦 Wingspan:** full end-game score sheet (birds, bonus cards, end-of-round goals, eggs, cached food, tucked cards + optional Oceania nectar), live standings, official tie-breaker (unused food).
 - **🃏 Gin Rummy:** hand-by-hand recorder (knock / gin / big gin / undercut with configurable bonuses), running totals to a target score, boxes, and the official final tally with line bonuses.
+- **🪙 Poker Bank:** long-running chip bank (`sessionMode: 'ongoing'`). Starting stacks, cash in/out with chip breakdowns, host-configured chip colors, guest seats that real devices can claim, and account merges. Host can park & resume across nights; state is stored in a game-scoped host vault.
 
 ## Roadmap ideas
 
@@ -116,3 +117,4 @@ Design rule of thumb: guests may edit **their own** scores (`validateAction` enf
 - Host entitlements (the "host is the paid user" model; guests always free)
 - More games: Scrabble, Yahtzee, Hearts, Farkle, Azul…
 - Shared long-term leagues: signed, portable stat exports players can merge
+- Dedicated iCloud/CloudKit sync for host vaults (device backups already cover AsyncStorage)

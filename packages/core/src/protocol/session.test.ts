@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ginRummyEngine } from '../games/gin-rummy'
+import { pokerBankEngine, type PokerBankState } from '../games/poker-bank'
 import { wingspanEngine, type WingspanState } from '../games/wingspan'
 import { createMemoryTransport } from '../transport/memory'
 import { generateJoinCode } from '../util/ids'
@@ -206,5 +207,54 @@ describe('host/guest session over memory transport', () => {
 
     resumed.end()
     g1.stop()
+  })
+
+  it('claims a guest seat and merges player accounts in poker bank', async () => {
+    const code = generateJoinCode()
+    const host = createHostSession({
+      code,
+      game: pokerBankEngine as never,
+      hostProfile: profile('host-1', 'Hana'),
+      transport: createMemoryTransport(code),
+    })
+    host.start()
+    expect(host.addLocalPlayer({ name: 'Seat A', emoji: '🃏' })).toBeNull()
+    const seatId = host.current.players.find((p) => p.name === 'Seat A')!.id
+    expect(host.startGame()).toBeNull()
+
+    // Inflate the guest seat balance above the starting stack.
+    expect(
+      host.applyAction({ type: 'deposit', playerId: seatId, amount: 200, unit: 'points' }),
+    ).toBeNull()
+
+    const g1 = makeGuest(code, 'phone-1', 'Pat')
+    await until(() => (g1.status === 'joined' ? true : null))
+    await until(() => (host.current.players.some((p) => p.id === 'phone-1') ? true : null))
+
+    expect(host.claimSeat('phone-1', seatId)).toBeNull()
+    expect(host.current.players.find((p) => p.id === seatId)).toBeUndefined()
+    const bank = host.current.game as PokerBankState
+    expect(bank.banks['phone-1']?.balance).toBe(700)
+    expect(bank.banks[seatId]).toBeUndefined()
+
+    // Second remote player joins; host merges them into phone-1 (player+player).
+    const g2 = makeGuest(code, 'phone-2', 'Quinn')
+    await until(() => (host.current.players.some((p) => p.id === 'phone-2') ? true : null))
+    expect(
+      host.applyAction({ type: 'deposit', playerId: 'phone-2', amount: 50, unit: 'points' }),
+    ).toBeNull()
+    expect(host.mergePlayers('phone-2', 'phone-1')).toBeNull()
+    expect(host.current.players.find((p) => p.id === 'phone-2')).toBeUndefined()
+    const merged = host.current.game as PokerBankState
+    expect(merged.banks['phone-1']?.balance).toBe(1250)
+
+    // Guest must fold into player, not the other way around.
+    expect(host.addLocalPlayer({ name: 'Seat B', emoji: '🎴' })).toBeNull()
+    const seatB = host.current.players.find((p) => p.name === 'Seat B')!.id
+    expect(host.mergePlayers('phone-1', seatB)).toMatch(/player must receive/)
+
+    host.end()
+    g1.stop()
+    g2.stop()
   })
 })
