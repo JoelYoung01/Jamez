@@ -152,27 +152,39 @@ describe('host/guest session over memory transport', () => {
     host.end()
   })
 
-  it('soft-deactivates players and reactivates them on rejoin', async () => {
+  it('keeps poker roster seats not present until checked in', async () => {
     const code = generateJoinCode()
     const host = makeHost(code, pokerBankEngine as never)
     expect(host.addLocalPlayer({ name: 'Seat', emoji: '🃏' })).toBeNull()
     const seatId = host.current.players.find((p) => p.name === 'Seat')!.id
+    expect(host.current.players.find((p) => p.id === seatId)?.active).toBe(false)
+
     expect(host.startGame()).toBeNull()
+    // Not-present seats stay on the roster but do not get a starting stack yet.
+    expect(host.current.players.some((p) => p.id === seatId)).toBe(true)
+    let bank = host.current.game as PokerBankState
+    expect(bank.banks[seatId]).toBeUndefined()
+    expect(bank.banks[host.hostPlayerId]?.balance).toBe(500)
+
+    expect(host.reactivatePlayer(seatId)).toBeNull()
+    expect(host.current.players.find((p) => p.id === seatId)?.active).not.toBe(false)
+    bank = host.current.game as PokerBankState
+    expect(bank.banks[seatId]?.balance).toBe(500)
 
     const g1 = makeGuest(code, 'phone-1', 'Pat')
     await until(() => (host.current.players.some((p) => p.id === 'phone-1') ? true : null))
+    expect(host.current.players.find((p) => p.id === 'phone-1')?.active).not.toBe(false)
 
     expect(host.deactivatePlayer(seatId)).toBeNull()
     expect(host.current.players.find((p) => p.id === seatId)?.active).toBe(false)
-    // Bank + ledger survive soft-remove.
-    const bank = host.current.game as PokerBankState
-    expect(bank.banks[seatId]?.balance).toBe(500)
+    // Bank + ledger survive marking not present.
+    expect((host.current.game as PokerBankState).banks[seatId]?.balance).toBe(500)
 
     expect(host.deactivatePlayer('phone-1')).toBeNull()
     await until(() => (g1.status === 'removed' ? true : null))
     expect(host.current.players.find((p) => p.id === 'phone-1')?.active).toBe(false)
 
-    // Remote rejoins → reactivated with prior bank.
+    // Remote rejoins → checked in at the table with prior bank.
     const g1b = makeGuest(code, 'phone-1', 'Pat')
     await until(() => {
       const p = host.current.players.find((x) => x.id === 'phone-1')
@@ -187,6 +199,45 @@ describe('host/guest session over memory transport', () => {
     host.end()
     g1.stop()
     g1b.stop()
+  })
+
+  it('marks remotes not present on explicit leave, not on abrupt disconnect', async () => {
+    const code = generateJoinCode()
+    const host = makeHost(code, pokerBankEngine as never)
+    expect(host.startGame()).toBeNull()
+
+    const g1 = makeGuest(code, 'phone-1', 'Pat')
+    await until(() => (g1.status === 'joined' ? true : null))
+    expect(host.current.players.find((p) => p.id === 'phone-1')?.active).not.toBe(false)
+
+    // Abrupt disconnect (app killed / sleep) does not send bye — still at the table.
+    g1.stop()
+    expect(host.current.players.find((p) => p.id === 'phone-1')?.active).not.toBe(false)
+
+    const g1b = makeGuest(code, 'phone-1', 'Pat')
+    await until(() => {
+      const p = host.current.players.find((x) => x.id === 'phone-1')
+      return p?.connected && p.active !== false ? true : null
+    })
+
+    // Explicit leave checks them out; bank balance remains.
+    g1b.leave()
+    await until(() => {
+      const p = host.current.players.find((x) => x.id === 'phone-1')
+      return p?.active === false ? true : null
+    })
+    expect((host.current.game as PokerBankState).banks['phone-1']?.balance).toBe(500)
+
+    host.end()
+  })
+
+  it('defaults match local players to at the table', () => {
+    const code = generateJoinCode()
+    const host = makeHost(code, wingspanEngine as never)
+    expect(host.addLocalPlayer({ name: 'Local', emoji: '🪶' })).toBeNull()
+    const seat = host.current.players.find((p) => p.name === 'Local')!
+    expect(seat.active).not.toBe(false)
+    host.end()
   })
 
   it('finishes gin automatically at the target and supports rematch', async () => {
@@ -271,6 +322,7 @@ describe('host/guest session over memory transport', () => {
     expect(host.addLocalPlayer({ name: 'Seat A', emoji: '🃏' })).toBeNull()
     const seatId = host.current.players.find((p) => p.name === 'Seat A')!.id
     expect(host.startGame()).toBeNull()
+    expect(host.reactivatePlayer(seatId)).toBeNull()
 
     // Inflate the guest seat balance above the starting stack.
     expect(

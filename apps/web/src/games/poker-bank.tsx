@@ -27,7 +27,7 @@ import {
   UserRoundCheckIcon,
 } from 'lucide-react'
 import * as React from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ColorPicker } from '@/components/color-picker'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { PokerChip } from '@/components/poker-chip'
@@ -112,7 +112,7 @@ function AddGuestButton() {
       </DialogTrigger>
       <DialogContent keyboardAvoid>
         <DialogHeader>
-          <DialogTitle>Add a guest seat</DialogTitle>
+          <DialogTitle>Add to session roster</DialogTitle>
         </DialogHeader>
         <GuestProfileFields
           nameId="guest-name"
@@ -124,7 +124,7 @@ function AddGuestButton() {
         />
         <DialogFooter>
           <Button onClick={add} disabled={!name.trim()}>
-            Add guest
+            Add to roster
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -181,7 +181,7 @@ function EditGuestDialog({
         />
         <DialogFooter className="sm:justify-between">
           <Button type="button" variant="ghost" onClick={remove} className="text-muted-foreground">
-            Remove from table
+            Mark not present
           </Button>
           <Button onClick={save} disabled={!name.trim()}>
             Save
@@ -817,7 +817,7 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
                       {guests.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}
-                          {isPlayerActive(p) ? ' (guest)' : ' (inactive)'}
+                          {isPlayerActive(p) ? ' (guest)' : ' (not present)'}
                         </option>
                       ))}
                     </select>
@@ -888,9 +888,9 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
 
           {inactive.length > 0 ? (
             <div className="grid gap-2 rounded-xl border border-border/50 p-3">
-              <div className="text-xs font-medium">Inactive seats</div>
+              <div className="text-xs font-medium">Not present</div>
               <p className="text-[11px] text-muted-foreground">
-                Hidden from the table — restore or claim later.
+                On the session roster but hidden from the table — mark at the table or claim later.
               </p>
               <div className="grid gap-2">
                 {inactive.map((p) => (
@@ -899,7 +899,7 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
                       {p.emoji} {p.name}
                     </span>
                     <Button size="sm" variant="outline" onClick={() => reactivatePlayer(p.id)}>
-                      Restore
+                      At the table
                     </Button>
                   </div>
                 ))}
@@ -913,6 +913,9 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
 }
 
 function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
+  const deactivatePlayer = useSession((s) => s.deactivatePlayer)
+  const leaveSession = useSession((s) => s.leaveSession)
+  const navigate = useNavigate()
   const game = state.game as PokerBankState
   const ranked = state.players
     .filter(isPlayerActive)
@@ -924,7 +927,7 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-2 pb-2">
           <div>
-            <CardTitle className="text-sm">Bank</CardTitle>
+            <CardTitle className="text-sm">At the table</CardTitle>
             <CardDescription className="text-xs">
               Start {formatPokerAmount(game.config.startingStack, game.config)}
               {' · '}
@@ -995,17 +998,43 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                 ) : (
                   <div className="flex min-w-0 flex-1 items-center gap-3">{identity}</div>
                 )}
-                {canAct && (
-                  <div className="flex flex-wrap gap-2">
-                    <CashDialog mode="deposit" player={player} game={game} send={send} />
-                    <CashDialog mode="withdraw" player={player} game={game} send={send} />
-                  </div>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {canAct && (
+                    <>
+                      <CashDialog mode="deposit" player={player} game={game} send={send} />
+                      <CashDialog mode="withdraw" player={player} game={game} send={send} />
+                    </>
+                  )}
+                  {isHost && !player.isHost && !isGuest ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground"
+                      onClick={() => deactivatePlayer(player.id)}
+                    >
+                      Not present
+                    </Button>
+                  ) : null}
+                </div>
               </CardContent>
             </Card>
           )
         })}
       </div>
+
+      {!isHost && me ? (
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            leaveSession()
+            navigate('/')
+          }}
+        >
+          Leave table
+        </Button>
+      ) : null}
 
       {isHost && (
         <div className="flex flex-wrap gap-2">

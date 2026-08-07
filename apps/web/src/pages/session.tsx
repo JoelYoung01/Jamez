@@ -1,5 +1,6 @@
 import {
   getGameEngine,
+  isPlayerActive,
   normalizeJoinCode,
   sessionDisplayName,
   SESSION_NICKNAME_MAX,
@@ -88,8 +89,8 @@ export function SessionPage() {
       return (
         <StatusCard
           icon={HandIcon}
-          title="You were removed"
-          body="The host removed you from this session."
+          title="Not at the table"
+          body="You're still on this session's roster. Rejoin with the code when you're back, or head home."
           action={<BackHomeButton onClick={() => store.leaveSession()} />}
         />
       )
@@ -355,7 +356,10 @@ function LobbyView() {
   const game = getGameEngine(state.gameId)
   const ui = getGameUI(state.gameId)
   const summary = ui?.configSummary?.(state.gameConfig) ?? []
-  const canStart = state.players.length >= (game?.minPlayers ?? 1)
+  const atTable = state.players.filter(isPlayerActive)
+  const notPresent = state.players.filter((p) => !isPlayerActive(p))
+  const ongoing = sessionIsOngoing(state)
+  const canStart = atTable.length >= (game?.minPlayers ?? 1)
 
   return (
     <div className="grid gap-4">
@@ -371,7 +375,7 @@ function LobbyView() {
         <CardHeader className="flex-row items-center justify-between">
           <div>
             <CardTitle className="text-sm">
-              Players ({state.players.length}
+              {ongoing ? 'At the table' : 'Players'} ({atTable.length}
               {game ? `/${game.maxPlayers}` : ''})
             </CardTitle>
             {summary.length > 0 && (
@@ -387,19 +391,51 @@ function LobbyView() {
           {isHost && <AddLocalPlayerDialog />}
         </CardHeader>
         <CardContent className="grid gap-2">
-          {state.players.map((player) => (
+          {atTable.map((player) => (
             <PlayerRow
               key={player.id}
               player={player}
               canKick={isHost && !player.isHost}
-              onKick={() => store.removePlayer(player.id)}
+              onKick={() =>
+                ongoing ? store.deactivatePlayer(player.id) : store.removePlayer(player.id)
+              }
             />
           ))}
-          {state.players.length === 1 && !store.passAndPlay && (
+          {atTable.length === 1 && !store.passAndPlay && (
             <p className="py-2 text-center text-xs text-muted-foreground/70">
               Waiting for friends… they can scan the QR or enter the code at this site.
             </p>
           )}
+          {isHost && ongoing && notPresent.length > 0 ? (
+            <div className="mt-2 grid gap-2 rounded-xl border border-border/50 p-3">
+              <div className="text-xs font-medium">Not present</div>
+              <p className="text-[11px] text-muted-foreground">
+                On the session roster — mark at the table when they show up.
+              </p>
+              {notPresent.map((player) => (
+                <div key={player.id} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {player.emoji} {player.name}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => store.reactivatePlayer(player.id)}
+                  >
+                    At the table
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Remove ${player.name}`}
+                    onClick={() => store.removePlayer(player.id)}
+                  >
+                    <XIcon />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -407,7 +443,7 @@ function LobbyView() {
         <Button size="lg" onClick={() => store.startGame()} disabled={!canStart}>
           <PlayIcon />
           {canStart
-            ? sessionIsOngoing(state)
+            ? ongoing
               ? 'Open the bank'
               : 'Start the game'
             : `Need ${game?.minPlayers ?? 1}+ players to start`}

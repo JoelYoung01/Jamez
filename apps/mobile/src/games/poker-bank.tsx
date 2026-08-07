@@ -614,7 +614,7 @@ function ClaimMergePanel() {
                     <Pressable key={p.id} onPress={() => setSeatId(p.id)}>
                       <Chip tone={seatId === p.id ? 'default' : 'outline'}>
                         {p.name}
-                        {isPlayerActive(p) ? ' (guest)' : ' (inactive)'}
+                        {isPlayerActive(p) ? ' (guest)' : ' (not present)'}
                       </Chip>
                     </Pressable>
                   ))}
@@ -663,8 +663,8 @@ function ClaimMergePanel() {
 
           {inactive.length > 0 ? (
             <View className="gap-2 rounded-xl border border-line p-3">
-              <Text className="text-xs font-medium text-zinc-100">Inactive seats</Text>
-              <Muted>Hidden from the table — restore or claim later.</Muted>
+              <Text className="text-xs font-medium text-zinc-100">Not present</Text>
+              <Muted>On the session roster but hidden from the table — mark at the table or claim later.</Muted>
               {inactive.map((p) => (
                 <View key={p.id} className="flex-row items-center gap-2">
                   <Text className="min-w-0 flex-1 text-sm text-zinc-300" numberOfLines={1}>
@@ -673,7 +673,7 @@ function ClaimMergePanel() {
                   <AppButton
                     size="sm"
                     variant="outline"
-                    title="Restore"
+                    title="At the table"
                     onPress={() => store.reactivatePlayer(p.id)}
                   />
                 </View>
@@ -764,7 +764,7 @@ function GuestProfileModal({
               </View>
               {onRemove ? (
                 <AppButton
-                  title="Remove from table"
+                  title="Mark not present"
                   variant="secondary"
                   onPress={onRemove}
                 />
@@ -791,7 +791,7 @@ function AddGuestButton() {
       <AppButton size="sm" variant="outline" title="Add guest" onPress={() => setOpen(true)} />
       {open ? (
         <GuestProfileModal
-          title="Add a guest seat"
+          title="Add to session roster"
           confirmLabel="Add"
           initialName=""
           initialEmoji={randomEmoji()}
@@ -870,6 +870,8 @@ function GuestIdentity({
 }
 
 function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
+  const deactivatePlayer = useSession((s) => s.deactivatePlayer)
+  const leaveSession = useSession((s) => s.leaveSession)
   const game = state.game as PokerBankState
   const ranked = state.players
     .filter(isPlayerActive)
@@ -885,7 +887,7 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
       <Card className="gap-2 p-4">
         <View className="flex-row items-start justify-between gap-2">
           <View className="min-w-0 flex-1 gap-1">
-            <CardTitle>Bank</CardTitle>
+            <CardTitle>At the table</CardTitle>
             <Muted>
               Start {formatPokerAmount(game.config.startingStack, game.config)}
               {' · '}
@@ -942,7 +944,7 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                   editable={Boolean(isHost && isGuest)}
                 />
               </View>
-              {canAct && (
+              {canAct ? (
                 <View className="flex-row gap-2">
                   <AppButton
                     size="sm"
@@ -958,11 +960,30 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                     onPress={() => setCash({ mode: 'withdraw', player })}
                   />
                 </View>
-              )}
+              ) : null}
+              {isHost && !player.isHost && !isGuest ? (
+                <AppButton
+                  size="sm"
+                  variant="secondary"
+                  title="Not present"
+                  onPress={() => deactivatePlayer(player.id)}
+                />
+              ) : null}
             </Card>
           )
         })}
       </View>
+
+      {!isHost && me ? (
+        <AppButton
+          variant="secondary"
+          title="Leave table"
+          onPress={() => {
+            leaveSession()
+            router.replace('/')
+          }}
+        />
+      ) : null}
 
       {isHost && <AddGuestButton />}
       {isHost && <ClaimMergePanel />}

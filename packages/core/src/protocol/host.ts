@@ -158,7 +158,14 @@ export class HostSession {
   // -- Lobby management ------------------------------------------------------
 
   addLocalPlayer(profile: { name: string; emoji: string }): string | null {
-    if (this.state.players.filter(isPlayerActive).length >= this.game.maxPlayers) {
+    if (this.state.players.length >= this.game.maxPlayers) {
+      return 'Session is full'
+    }
+    // Match lobbies: adding someone means they're playing. Ongoing banks
+    // (Poker Bank): new seats join the roster as not present until the host
+    // marks them at the table (or a remote claims the seat).
+    const atTable = this.game.sessionMode !== 'ongoing'
+    if (atTable && this.state.players.filter(isPlayerActive).length >= this.game.maxPlayers) {
       return 'Session is full'
     }
     const player: SessionPlayer = {
@@ -170,11 +177,11 @@ export class HostSession {
       remote: false,
       connected: true,
       joinedAt: this.now(),
-      active: true,
+      active: atTable,
     }
     this.mutate((s) => {
       s.players = [...s.players, player]
-      if (s.phase === 'playing' && this.game.addPlayer && s.game) {
+      if (atTable && s.phase === 'playing' && this.game.addPlayer && s.game) {
         s.game = this.game.addPlayer(s.game, player)
       }
     })
@@ -225,12 +232,12 @@ export class HostSession {
   }
 
   /**
-   * Soft-remove a non-host player: hide them from the main roster without
-   * deleting their bank / history. They can rejoin later (remotes via hello,
-   * guests via host reactivation or seat claim).
+   * Mark a non-host player not present: hide them from the main “at the table”
+   * list without deleting their bank / history. Remotes can check back in via
+   * join; host-created guests via host “At the table” or seat claim.
    */
   deactivatePlayer(playerId: string): string | null {
-    if (playerId === this.hostId) return 'The host cannot be removed'
+    if (playerId === this.hostId) return 'The host stays at the table'
     const player = this.state.players.find((p) => p.id === playerId)
     if (!player) return 'Player not found'
     if (!isPlayerActive(player)) return null
@@ -242,7 +249,7 @@ export class HostSession {
     return null
   }
 
-  /** Bring an inactive seat back onto the main roster (host-created guests). */
+  /** Mark a not-present seat as at the table (and grant game resources if needed). */
   reactivatePlayer(playerId: string): string | null {
     const player = this.state.players.find((p) => p.id === playerId)
     if (!player) return 'Player not found'
@@ -253,6 +260,10 @@ export class HostSession {
       s.players = s.players.map((p) =>
         p.id === playerId ? { ...p, active: true, connected: p.remote ? p.connected : true } : p,
       )
+      if (s.phase === 'playing' && s.game && this.game.addPlayer) {
+        const seated = s.players.find((p) => p.id === playerId)
+        if (seated) s.game = this.game.addPlayer(s.game, seated)
+      }
     })
     return null
   }
@@ -268,8 +279,8 @@ export class HostSession {
       return `${this.game.name} supports at most ${this.game.maxPlayers} players`
     }
     this.mutate((s) => {
-      // Only seat active players when the bank / match opens.
-      s.players = active
+      // Keep the full roster (including not-present seats). Only people at the
+      // table receive initial game resources; others join later via check-in.
       s.game = this.game.init(s.gameConfig, active)
       s.phase = 'playing'
       s.startedAt = this.now()
@@ -414,11 +425,11 @@ export class HostSession {
       return fail('Game is not in progress')
     }
     const actor = this.state.players.find((p) => p.id === actorId)
-    if (!actor || !isPlayerActive(actor)) return fail('You are not in this session')
+    if (!actor || !isPlayerActive(actor)) return fail('You are not at the table')
     const targetId = typeof action.playerId === 'string' ? action.playerId : undefined
     if (targetId && targetId !== actorId) {
       const target = this.state.players.find((p) => p.id === targetId)
-      if (target && !isPlayerActive(target)) return fail('That player is inactive')
+      if (target && !isPlayerActive(target)) return fail('That player is not at the table')
     }
     const ctx = { actorId, isHost: actorId === this.hostId, now: this.now() }
     const error = this.game.validateAction(this.state.game, action, ctx)
@@ -445,7 +456,13 @@ export class HostSession {
         this.handleHello(msg.player)
         break
       case 'bye':
-        this.markConnected(msg.playerId, false)
+        // Explicit leave = not present (keeps bank / history). App background
+        // and reconnects use heartbeats / hello and must not go through bye.
+        if (msg.playerId !== this.hostId) {
+          this.deactivatePlayer(msg.playerId)
+        } else {
+          this.markConnected(msg.playerId, false)
+        }
         break
       case 'hb':
         this.lastSeen.set(msg.playerId, this.now())
@@ -488,10 +505,15 @@ export class HostSession {
                 name: profile.name,
                 emoji: profile.emoji,
                 connected: true,
+                // Explicit join / rejoin checks them in at the table.
                 active: true,
               }
             : p,
         )
+        if (s.phase === 'playing' && s.game && this.game.addPlayer) {
+          const seated = s.players.find((p) => p.id === profile.id)
+          if (seated) s.game = this.game.addPlayer(s.game, seated)
+        }
       })
       this.sendState()
       return
