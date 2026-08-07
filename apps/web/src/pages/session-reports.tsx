@@ -2,13 +2,15 @@ import {
   buildPokerBalanceReport,
   formatPokerAmount,
   normalizeJoinCode,
+  type PokerBalanceReport,
+  type PokerBankConfig,
   type PokerBankState,
 } from '@jamez/core'
 import { ArrowLeftIcon, ChartLineIcon } from 'lucide-react'
+import * as React from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -19,13 +21,160 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSession } from '@/lib/session-store'
-import { formatDate } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 
 function formatTickTime(at: number): string {
   return new Date(at).toLocaleTimeString(undefined, {
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+function togglePlayerHidden(
+  hidden: ReadonlySet<string>,
+  playerId: string,
+  totalPlayers: number,
+): Set<string> {
+  const next = new Set(hidden)
+  if (next.has(playerId)) {
+    next.delete(playerId)
+    return next
+  }
+  // Keep at least one series visible so the chart never goes blank.
+  if (totalPlayers - next.size <= 1) return next
+  next.add(playerId)
+  return next
+}
+
+function PlayerSeriesKey({
+  report,
+  hidden,
+  onToggle,
+  onShowAll,
+}: {
+  report: PokerBalanceReport
+  hidden: ReadonlySet<string>
+  onToggle: (playerId: string) => void
+  onShowAll: () => void
+}) {
+  if (report.series.length === 0) return null
+  const allVisible = hidden.size === 0
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {report.series.map((s) => {
+        const on = !hidden.has(s.playerId)
+        return (
+          <button
+            key={s.playerId}
+            type="button"
+            aria-pressed={on}
+            aria-label={`${on ? 'Hide' : 'Show'} ${s.name} on chart`}
+            onClick={() => onToggle(s.playerId)}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
+              on
+                ? 'border-border/70 bg-background/50 text-foreground'
+                : 'border-border/40 bg-transparent text-muted-foreground/70 line-through',
+            )}
+          >
+            <span
+              className="size-2.5 shrink-0 rounded-full"
+              style={{ background: s.color, opacity: on ? 1 : 0.35 }}
+            />
+            <span className="max-w-28 truncate font-medium">{s.name}</span>
+          </button>
+        )
+      })}
+      {!allVisible && (
+        <button
+          type="button"
+          className="px-2 py-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          onClick={onShowAll}
+        >
+          Show all
+        </button>
+      )}
+    </div>
+  )
+}
+
+function BalanceOverTimeChart({
+  report,
+  config,
+}: {
+  report: PokerBalanceReport
+  config: PokerBankConfig
+}) {
+  const [hidden, setHidden] = React.useState<Set<string>>(() => new Set())
+  const visibleSeries = report.series.filter((s) => !hidden.has(s.playerId))
+
+  return (
+    <div className="grid gap-3">
+      <PlayerSeriesKey
+        report={report}
+        hidden={hidden}
+        onToggle={(playerId) =>
+          setHidden((prev) => togglePlayerHidden(prev, playerId, report.series.length))
+        }
+        onShowAll={() => setHidden(new Set())}
+      />
+      <p className="text-[11px] text-muted-foreground">Tap a name to show or hide their line.</p>
+      <div className="h-72 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={report.rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid stroke="oklch(1 0 0 / 8%)" strokeDasharray="3 3" />
+            <XAxis
+              dataKey="at"
+              type="number"
+              domain={['dataMin', 'dataMax']}
+              tickFormatter={formatTickTime}
+              stroke="oklch(0.68 0.012 275)"
+              tick={{ fill: 'oklch(0.68 0.012 275)', fontSize: 11 }}
+              minTickGap={28}
+            />
+            <YAxis
+              stroke="oklch(0.68 0.012 275)"
+              tick={{ fill: 'oklch(0.68 0.012 275)', fontSize: 11 }}
+              width={56}
+              tickFormatter={(v: number) =>
+                formatPokerAmount(v, {
+                  currencyMode: config.currencyMode,
+                  pointsPerDollar: config.pointsPerDollar,
+                }).replace(' pts', '')
+              }
+            />
+            <Tooltip
+              contentStyle={{
+                background: 'oklch(0.205 0.012 275)',
+                border: '1px solid oklch(1 0 0 / 12%)',
+                borderRadius: 12,
+                fontSize: 12,
+              }}
+              labelFormatter={(label) => formatDate(Number(label))}
+              formatter={(value, name) => {
+                const series = report.series.find((s) => s.playerId === name)
+                const n = typeof value === 'number' ? value : Number(value)
+                return [formatPokerAmount(n, config), series?.name ?? String(name)]
+              }}
+            />
+            {visibleSeries.map((s) => (
+              <Line
+                key={s.playerId}
+                type="stepAfter"
+                dataKey={s.playerId}
+                name={s.playerId}
+                stroke={s.color}
+                strokeWidth={2}
+                dot={report.rows.length <= 24}
+                connectNulls
+                isAnimationActive
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
 }
 
 export function SessionReportsPage() {
@@ -100,68 +249,7 @@ export function SessionReportsPage() {
               No ledger activity yet. Cash in or out to start the chart.
             </p>
           ) : (
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={report.rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="oklch(1 0 0 / 8%)" strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="at"
-                    type="number"
-                    domain={['dataMin', 'dataMax']}
-                    tickFormatter={formatTickTime}
-                    stroke="oklch(0.68 0.012 275)"
-                    tick={{ fill: 'oklch(0.68 0.012 275)', fontSize: 11 }}
-                    minTickGap={28}
-                  />
-                  <YAxis
-                    stroke="oklch(0.68 0.012 275)"
-                    tick={{ fill: 'oklch(0.68 0.012 275)', fontSize: 11 }}
-                    width={56}
-                    tickFormatter={(v: number) =>
-                      formatPokerAmount(v, {
-                        currencyMode: game.config.currencyMode,
-                        pointsPerDollar: game.config.pointsPerDollar,
-                      }).replace(' pts', '')
-                    }
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: 'oklch(0.205 0.012 275)',
-                      border: '1px solid oklch(1 0 0 / 12%)',
-                      borderRadius: 12,
-                      fontSize: 12,
-                    }}
-                    labelFormatter={(label) => formatDate(Number(label))}
-                    formatter={(value, name) => {
-                      const series = report.series.find((s) => s.playerId === name)
-                      const n = typeof value === 'number' ? value : Number(value)
-                      return [
-                        formatPokerAmount(n, game.config),
-                        series?.name ?? String(name),
-                      ]
-                    }}
-                  />
-                  <Legend
-                    formatter={(value) =>
-                      report.series.find((s) => s.playerId === value)?.name ?? value
-                    }
-                  />
-                  {report.series.map((s) => (
-                    <Line
-                      key={s.playerId}
-                      type="stepAfter"
-                      dataKey={s.playerId}
-                      name={s.playerId}
-                      stroke={s.color}
-                      strokeWidth={2}
-                      dot={report.rows.length <= 24}
-                      connectNulls
-                      isAnimationActive
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <BalanceOverTimeChart report={report} config={game.config} />
           )}
         </CardContent>
       </Card>
