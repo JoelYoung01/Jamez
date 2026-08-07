@@ -17,7 +17,7 @@ export type SessionLiveProps = {
   statusLine: string
   /** Compact Dynamic Island trailing text */
   trailing: string
-  /** Up to 4 short standing lines for the banner / expanded island */
+  /** Up to 4 short standing lines for the expanded island */
   lines: string[]
   accentColor: string
 }
@@ -41,32 +41,31 @@ const SessionLiveActivityLayout = (props: SessionLiveProps, _env: LiveActivityEn
     banner: (
       <VStack modifiers={[padding({ all: 12 })]}>
         <HStack>
-          <Image systemName={symbol} color={accent} size={18} />
+          <Image systemName={symbol} color={accent} size={20} />
           <VStack>
-            <Text modifiers={[font({ weight: 'bold', size: 15 }), foregroundStyle('#F4F4F5')]}>
+            <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle('#F4F4F5')]}>
               {props.gameName}
             </Text>
             <Text modifiers={[font({ size: 12 }), foregroundStyle('#A1A1AB')]}>
-              {roleLabel} · {phaseLabel} · {props.code}
+              {roleLabel} · {phaseLabel}
+            </Text>
+            <Text
+              modifiers={[
+                font({ weight: 'bold', size: 22 }),
+                foregroundStyle(accent),
+              ]}
+            >
+              {props.code}
             </Text>
           </VStack>
           <Spacer />
-          <Text modifiers={[font({ weight: 'semibold', size: 13 }), foregroundStyle(accent)]}>
-            {props.trailing}
-          </Text>
         </HStack>
-        <Text modifiers={[font({ size: 13 }), foregroundStyle('#E4E4E7')]}>{props.statusLine}</Text>
-        {standingLines.map((line, index) => (
-          <Text key={index} modifiers={[font({ size: 12 }), foregroundStyle('#A1A1AB')]}>
-            {line}
-          </Text>
-        ))}
       </VStack>
     ),
     compactLeading: <Image systemName={symbol} color={accent} size={16} />,
     compactTrailing: (
-      <Text modifiers={[font({ weight: 'semibold', size: 14 }), foregroundStyle(accent)]}>
-        {props.trailing}
+      <Text modifiers={[font({ weight: 'semibold', size: 13 }), foregroundStyle(accent)]}>
+        {props.code}
       </Text>
     ),
     minimal: <Image systemName={symbol} color={accent} size={14} />,
@@ -78,7 +77,7 @@ const SessionLiveActivityLayout = (props: SessionLiveProps, _env: LiveActivityEn
     ),
     expandedTrailing: (
       <VStack modifiers={[padding({ all: 10 })]}>
-        <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle(accent)]}>
+        <Text modifiers={[font({ weight: 'bold', size: 18 }), foregroundStyle(accent)]}>
           {props.code}
         </Text>
         <Text modifiers={[font({ size: 11 }), foregroundStyle('#A1A1AB')]}>{phaseLabel}</Text>
@@ -89,7 +88,9 @@ const SessionLiveActivityLayout = (props: SessionLiveProps, _env: LiveActivityEn
         <Text modifiers={[font({ weight: 'semibold', size: 13 }), foregroundStyle('#F4F4F5')]}>
           {props.gameName}
         </Text>
-        <Text modifiers={[font({ size: 12 }), foregroundStyle('#E4E4E7')]}>{props.statusLine}</Text>
+        <Text modifiers={[font({ size: 12 }), foregroundStyle('#A1A1AB')]}>
+          {roleLabel} · {phaseLabel}
+        </Text>
         {standingLines.map((line, index) => (
           <Text key={index} modifiers={[font({ size: 12 }), foregroundStyle('#A1A1AB')]}>
             {line}
