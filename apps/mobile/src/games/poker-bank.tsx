@@ -510,14 +510,17 @@ function CashSheet({
                 />
               </View>
             )}
-            {points > 0 ? (
-              <Muted className="mt-2">
-                = {formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}
-                {game.config.currencyMode === 'dollars' || unit === 'dollars'
-                  ? ` · ${formatPokerAmount(points, game.config)}`
-                  : ''}
-              </Muted>
-            ) : null}
+            <Muted className="mt-2">
+              {points > 0
+                ? `= ${formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}${
+                    game.config.currencyMode === 'dollars' || unit === 'dollars'
+                      ? ` · ${formatPokerAmount(points, game.config)}`
+                      : ''
+                  }`
+                : mode === 'withdraw'
+                  ? 'Nothing to cash out yet'
+                  : 'Nothing to cash in yet'}
+            </Muted>
             {mode === 'withdraw' && breakdown.length > 0 && (
               <View className="mt-3 flex-row flex-wrap gap-3 rounded-xl border border-line p-3">
                 {breakdown.map(({ chip, count }) => (

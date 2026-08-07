@@ -563,14 +563,17 @@ function CashDialog({
               />
             </div>
           )}
-          {points > 0 && (
-            <p className="text-xs text-muted-foreground">
-              = {formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}
-              {game.config.currencyMode === 'dollars' || unit === 'dollars'
-                ? ` · ${formatPokerAmount(points, game.config)}`
-                : ''}
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            {points > 0
+              ? `= ${formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}${
+                  game.config.currencyMode === 'dollars' || unit === 'dollars'
+                    ? ` · ${formatPokerAmount(points, game.config)}`
+                    : ''
+                }`
+              : mode === 'withdraw'
+                ? 'Nothing to cash out yet'
+                : 'Nothing to cash in yet'}
+          </p>
           {mode === 'withdraw' && breakdown.length > 0 && (
             <div className="rounded-xl border border-border/60 bg-background/40 p-3">
               <div className="mb-2 text-xs font-medium text-muted-foreground">Take these chips</div>
