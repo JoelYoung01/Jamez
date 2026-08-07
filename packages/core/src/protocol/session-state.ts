@@ -2,6 +2,14 @@ import type { GameSummary } from '../games/types'
 
 export type SessionPhase = 'lobby' | 'playing' | 'finished'
 
+export const SESSION_NICKNAME_MAX = 32
+
+/** Trim and clamp a nickname; empty/whitespace clears it. */
+export function normalizeNickname(raw: string | undefined | null): string | undefined {
+  const t = (raw ?? '').trim().slice(0, SESSION_NICKNAME_MAX)
+  return t.length > 0 ? t : undefined
+}
+
 export interface PlayerProfile {
   /** Stable per-device identity so reconnects reclaim the same seat. */
   id: string
@@ -34,6 +42,8 @@ export interface SessionState<GS = unknown> {
   startedAt?: number
   finishedAt?: number
   summary?: GameSummary
+  /** Optional host-set label (e.g. "Friday night bank"). Empty/undefined = no nickname. */
+  nickname?: string
 }
 
 export const PLAYER_COLORS = [

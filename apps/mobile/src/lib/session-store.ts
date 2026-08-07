@@ -18,6 +18,7 @@ import { create } from 'zustand'
 import { historyStore } from './history'
 import {
   clearHostSnapshot,
+  listHostSnapshots,
   listResumableHostSnapshots,
   persistHostSnapshot,
   readHostSnapshot,
@@ -29,7 +30,7 @@ import { activeRelays } from './settings'
 import { toast } from './toast'
 
 export type { HostSnapshot }
-export { listResumableHostSnapshots, readHostSnapshot }
+export { listHostSnapshots, listResumableHostSnapshots, readHostSnapshot }
 
 export type SessionRole = 'host' | 'guest'
 
@@ -41,13 +42,19 @@ interface SessionStoreState {
   transportStatus: TransportStatus
   passAndPlay: boolean
 
-  hostGame: (opts: { gameId: string; config: unknown; passAndPlay: boolean }) => string | null
+  hostGame: (opts: {
+    gameId: string
+    config: unknown
+    passAndPlay: boolean
+    nickname?: string
+  }) => string | null
   joinGame: (code: string) => void
   resumeHost: (code?: string) => Promise<boolean>
   startGame: () => void
   finishGame: () => void
   rematch: () => void
   reopenGame: () => void
+  setNickname: (nickname: string) => void
   addLocalPlayer: (profile: { name: string; emoji: string }) => void
   removePlayer: (playerId: string) => void
   claimSeat: (claimerId: string, seatId: string) => void
@@ -118,7 +125,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
   return {
     ...resetSessionFields(),
 
-    hostGame({ gameId, config, passAndPlay }) {
+    hostGame({ gameId, config, passAndPlay, nickname }) {
       const game = getGameEngine(gameId)
       if (!game) {
         toast.error(`Unknown game: ${gameId}`)
@@ -133,6 +140,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
         hostProfile: currentProfile(),
         transport: makeTransport(code, passAndPlay),
         onSnapshot: (state) => persistHostSnapshot(state, passAndPlay),
+        nickname,
       })
       wireHost(host, passAndPlay)
       host.start()
@@ -214,6 +222,10 @@ export const useSession = create<SessionStoreState>()((set, get) => {
     reopenGame() {
       const error = host?.reopen()
       if (error) toast.error(error)
+    },
+
+    setNickname(nickname) {
+      host?.setNickname(nickname)
     },
 
     addLocalPlayer(profile) {

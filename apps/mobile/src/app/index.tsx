@@ -1,4 +1,10 @@
-import { gameEngines, getGameEngine } from '@jamez/core'
+import {
+  buildActivityFeed,
+  gameEngines,
+  getGameEngine,
+  sessionDisplayName,
+  type ActivityItem,
+} from '@jamez/core'
 import { Link, router, useFocusEffect } from 'expo-router'
 import {
   ArrowRightIcon,
@@ -16,31 +22,28 @@ import { getGameIcon } from '@/games/registry'
 import { formatDate } from '@/lib/format'
 import { useHistory } from '@/lib/history'
 import { useProfile } from '@/lib/profile'
-import { listResumableHostSnapshots, useSession, type HostSnapshot } from '@/lib/session-store'
+import { listHostSnapshots, useSession, type HostSnapshot } from '@/lib/session-store'
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets()
   const history = useHistory()
   const activeCode = useSession((s) => s.code)
   const { name, emoji } = useProfile()
-  const recent = history.slice(0, 3)
 
-  const [snapshots, setSnapshots] = React.useState<HostSnapshot[]>([])
+  const [vault, setVault] = React.useState<HostSnapshot[]>([])
   useFocusEffect(
     React.useCallback(() => {
       let alive = true
-      if (activeCode) {
-        setSnapshots([])
-      } else {
-        void listResumableHostSnapshots().then((snaps) => {
-          if (alive) setSnapshots(snaps)
-        })
-      }
+      void listHostSnapshots().then((snaps) => {
+        if (alive) setVault(snaps)
+      })
       return () => {
         alive = false
       }
-    }, [activeCode]),
+    }, []),
   )
+
+  const recent = buildActivityFeed({ history, vault }).slice(0, 5)
 
   return (
     <Screen>
@@ -98,31 +101,6 @@ export default function HomeScreen() {
             </View>
           </Card>
         )}
-
-        {!activeCode &&
-          snapshots.map((snapshot) => (
-            <Card
-              key={`${snapshot.state.gameId}:${snapshot.state.code}`}
-              className="mb-3 border-primary/40 bg-primary/10 p-4"
-            >
-              <View className="flex-row items-center justify-between gap-3">
-                <View className="min-w-0 flex-1">
-                  <Text className="text-sm font-semibold text-zinc-100" numberOfLines={1}>
-                    Resume {getGameEngine(snapshot.state.gameId)?.name ?? snapshot.state.gameId}
-                  </Text>
-                  <Text className="font-mono text-xs tracking-widest text-muted-foreground">
-                    {snapshot.state.code}
-                  </Text>
-                </View>
-                <AppButton
-                  size="sm"
-                  title="Resume"
-                  iconRight={<ArrowRightIcon size={14} color="#251a02" />}
-                  onPress={() => router.push(`/session/${snapshot.state.code}`)}
-                />
-              </View>
-            </Card>
-          ))}
 
         <View className="gap-3">
           <Pressable onPress={() => router.push('/host')} className="active:opacity-80">
@@ -183,23 +161,9 @@ export default function HomeScreen() {
               </Pressable>
             </View>
             <View className="gap-2">
-              {recent.map((record) => {
-                const game = getGameEngine(record.gameId)
-                const Icon = getGameIcon(record.gameId)
-                return (
-                  <Card key={record.id} className="flex-row items-center gap-3 p-3.5">
-                    <Icon size={22} color={game?.accentColor ?? '#a1a1ab'} />
-                    <View className="min-w-0 flex-1">
-                      <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
-                        {record.summary.headline}
-                      </Text>
-                      <Muted>
-                        {game?.name} · {formatDate(record.finishedAt)}
-                      </Muted>
-                    </View>
-                  </Card>
-                )
-              })}
+              {recent.map((item) => (
+                <ActivityRow key={item.key} item={item} />
+              ))}
             </View>
           </View>
         )}
@@ -214,5 +178,58 @@ export default function HomeScreen() {
         )}
       </View>
     </Screen>
+  )
+}
+
+function ActivityRow({ item }: { item: ActivityItem }) {
+  if (item.kind === 'parked') {
+    const game = getGameEngine(item.gameId)
+    const Icon = getGameIcon(item.gameId)
+    const title = sessionDisplayName({ nickname: item.nickname, gameId: item.gameId })
+    return (
+      <Pressable onPress={() => router.push(`/session/${item.code}`)} className="active:opacity-80">
+        <Card className="flex-row items-center gap-3 p-3.5">
+          <Icon size={22} color={game?.accentColor ?? '#a1a1ab'} />
+          <View className="min-w-0 flex-1">
+            <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
+              {title}
+            </Text>
+            <Muted>
+              Parked · {item.code}
+            </Muted>
+          </View>
+          <Chip tone="outline">Open</Chip>
+        </Card>
+      </Pressable>
+    )
+  }
+
+  const { record, canOpen } = item
+  const game = getGameEngine(record.gameId)
+  const Icon = getGameIcon(record.gameId)
+  const title = record.nickname
+    ? sessionDisplayName({ nickname: record.nickname, gameId: record.gameId })
+    : record.summary.headline
+
+  return (
+    <Pressable
+      onPress={() =>
+        canOpen ? router.push(`/session/${record.code}`) : router.push(`/history/${record.id}`)
+      }
+      className="active:opacity-80"
+    >
+      <Card className="flex-row items-center gap-3 p-3.5">
+        <Icon size={22} color={game?.accentColor ?? '#a1a1ab'} />
+        <View className="min-w-0 flex-1">
+          <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
+            {title}
+          </Text>
+          <Muted>
+            {game?.name} · {formatDate(record.finishedAt)}
+          </Muted>
+        </View>
+        {canOpen ? <Chip tone="outline">Open</Chip> : null}
+      </Card>
+    </Pressable>
   )
 }

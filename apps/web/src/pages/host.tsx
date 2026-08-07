@@ -1,10 +1,11 @@
-import { gameEngines, getGameEngine } from '@jamez/core'
+import { gameEngines, getGameEngine, SESSION_NICKNAME_MAX } from '@jamez/core'
 import { ArrowLeftIcon, ArrowRightIcon, UsersIcon } from 'lucide-react'
 import * as React from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { RequireProfile } from '@/components/require-profile'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { getGameIcon, getGameUI } from '@/games/registry'
@@ -63,6 +64,7 @@ export function HostConfigPage() {
   const ui = getGameUI(gameId)
   const [config, setConfig] = React.useState<unknown>(() => game?.defaultConfig())
   const [passAndPlay, setPassAndPlay] = React.useState(false)
+  const [nickname, setNickname] = React.useState('')
 
   if (!game || !ui) {
     return (
@@ -83,7 +85,7 @@ export function HostConfigPage() {
   const GameIcon = getGameIcon(gameId)
 
   const create = () => {
-    const code = hostGame({ gameId, config, passAndPlay })
+    const code = hostGame({ gameId, config, passAndPlay, nickname })
     if (code) navigate(`/session/${code}`)
   }
 
@@ -105,7 +107,20 @@ export function HostConfigPage() {
           <CardHeader>
             <CardTitle className="text-sm">Game options</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="nickname">Nickname (optional)</Label>
+              <Input
+                id="nickname"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value.slice(0, SESSION_NICKNAME_MAX))}
+                placeholder="e.g. Friday night bank"
+                maxLength={SESSION_NICKNAME_MAX}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Shown in history and on parked sessions. Leave blank to use the game name.
+              </p>
+            </div>
             <SetupForm config={config} onChange={setConfig} />
           </CardContent>
         </Card>

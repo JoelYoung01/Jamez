@@ -1,19 +1,26 @@
-import { gameEngines, getGameEngine } from '@jamez/core'
+import {
+  buildActivityFeed,
+  gameEngines,
+  getGameEngine,
+  sessionDisplayName,
+  type ActivityItem,
+} from '@jamez/core'
 import { ArrowRightIcon, RadioTowerIcon, TicketIcon, TrophyIcon } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { getGameIcon } from '@/games/registry'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useHistory } from '@/lib/history'
-import { listResumableHostSnapshots, useSession } from '@/lib/session-store'
+import { listHostSnapshots, useSession } from '@/lib/session-store'
 import { formatDate } from '@/lib/utils'
 
 export function HomePage() {
   const history = useHistory()
   const activeCode = useSession((s) => s.code)
-  const snapshots = !activeCode ? listResumableHostSnapshots() : []
-  const recent = history.slice(0, 3)
+  const navigate = useNavigate()
+  const vault = listHostSnapshots()
+  const recent = buildActivityFeed({ history, vault }).slice(0, 5)
 
   return (
     <div className="grid gap-4">
@@ -35,28 +42,6 @@ export function HomePage() {
             </Button>
           </CardContent>
         </Card>
-      )}
-
-      {snapshots.length > 0 && (
-        <div className="grid gap-2">
-          {snapshots.map((snapshot) => (
-            <Card key={`${snapshot.state.gameId}:${snapshot.state.code}`} className="border-primary/40 bg-primary/5">
-              <CardContent className="flex items-center justify-between gap-3 p-4">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold">
-                    Resume {getGameEngine(snapshot.state.gameId)?.name ?? snapshot.state.gameId}
-                  </div>
-                  <div className="font-mono text-xs text-muted-foreground">{snapshot.state.code}</div>
-                </div>
-                <Button asChild size="sm">
-                  <Link to={`/session/${snapshot.state.code}`}>
-                    Resume <ArrowRightIcon />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -118,26 +103,83 @@ export function HomePage() {
             </Button>
           </div>
           <div className="grid gap-2">
-            {recent.map((record) => {
-              const game = getGameEngine(record.gameId)
-              const Icon = getGameIcon(record.gameId)
-              return (
-                <Card key={record.id}>
-                  <CardContent className="flex items-center gap-3 p-3.5">
-                    <Icon className="size-6 shrink-0" style={{ color: game?.accentColor }} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{record.summary.headline}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {game?.name} · {formatDate(record.finishedAt)}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+            {recent.map((item) => (
+              <ActivityRow
+                key={item.key}
+                item={item}
+                onOpen={(code) => navigate(`/session/${code}`)}
+                onHistory={(id) => navigate(`/history/${id}`)}
+              />
+            ))}
           </div>
         </section>
       )}
     </div>
+  )
+}
+
+function ActivityRow({
+  item,
+  onOpen,
+  onHistory,
+}: {
+  item: ActivityItem
+  onOpen: (code: string) => void
+  onHistory: (id: string) => void
+}) {
+  if (item.kind === 'parked') {
+    const game = getGameEngine(item.gameId)
+    const Icon = getGameIcon(item.gameId)
+    const title = sessionDisplayName({ nickname: item.nickname, gameId: item.gameId })
+    return (
+      <button
+        type="button"
+        onClick={() => onOpen(item.code)}
+        className="w-full rounded-xl text-left transition-colors hover:bg-accent/30"
+      >
+        <Card>
+          <CardContent className="flex items-center gap-3 p-3.5">
+            <Icon className="size-6 shrink-0" style={{ color: game?.accentColor }} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium">{title}</div>
+              <div className="text-xs text-muted-foreground">
+                {item.nickname ? game?.name : null}
+                {item.nickname ? ' · ' : null}
+                Parked · {item.code}
+              </div>
+            </div>
+            <Badge variant="outline">Open</Badge>
+          </CardContent>
+        </Card>
+      </button>
+    )
+  }
+
+  const { record, canOpen } = item
+  const game = getGameEngine(record.gameId)
+  const Icon = getGameIcon(record.gameId)
+  const title = record.nickname
+    ? sessionDisplayName({ nickname: record.nickname, gameId: record.gameId })
+    : record.summary.headline
+  return (
+    <button
+      type="button"
+      onClick={() => (canOpen ? onOpen(record.code) : onHistory(record.id))}
+      className="w-full rounded-xl text-left transition-colors hover:bg-accent/30"
+    >
+      <Card>
+        <CardContent className="flex items-center gap-3 p-3.5">
+          <Icon className="size-6 shrink-0" style={{ color: game?.accentColor }} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium">{title}</div>
+            <div className="text-xs text-muted-foreground">
+              {record.nickname ? `${record.summary.headline} · ` : null}
+              {game?.name} · {formatDate(record.finishedAt)}
+            </div>
+          </div>
+          {canOpen ? <Badge variant="outline">Open</Badge> : null}
+        </CardContent>
+      </Card>
+    </button>
   )
 }

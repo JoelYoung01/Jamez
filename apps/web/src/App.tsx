@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/app-shell'
-import { HistoryPage } from '@/pages/history'
+import { HistoryDetailPage, HistoryPage } from '@/pages/history'
 import { HomePage } from '@/pages/home'
 import { HostConfigPage, HostPage } from '@/pages/host'
 import { JoinPage } from '@/pages/join'
@@ -17,6 +17,7 @@ export function App() {
         <Route path="/join/:code" element={<JoinPage />} />
         <Route path="/session/:code" element={<SessionPage />} />
         <Route path="/history" element={<HistoryPage />} />
+        <Route path="/history/:id" element={<HistoryDetailPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

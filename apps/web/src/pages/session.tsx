@@ -1,6 +1,8 @@
 import {
   getGameEngine,
   normalizeJoinCode,
+  sessionDisplayName,
+  SESSION_NICKNAME_MAX,
   type SessionPlayer,
   type SessionState,
 } from '@jamez/core'
@@ -13,6 +15,7 @@ import {
   LogOutIcon,
   MedalIcon,
   MoonIcon,
+  PencilIcon,
   PlayIcon,
   RotateCcwIcon,
   TrophyIcon,
@@ -128,17 +131,91 @@ function SessionHeader({ state }: { state: SessionState }) {
   const store = useSession()
   const game = getGameEngine(state.gameId)
   const GameIcon = getGameIcon(state.gameId)
+  const title = sessionDisplayName({ nickname: state.nickname, gameId: state.gameId })
+  const isHost = store.role === 'host'
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-2.5">
         <GameIcon className="size-6 shrink-0" style={{ color: game?.accentColor }} />
         <div className="min-w-0">
-          <div className="truncate font-semibold leading-tight">{game?.name ?? state.gameId}</div>
-          <div className="font-mono text-xs tracking-widest text-muted-foreground">{state.code}</div>
+          <div className="flex items-center gap-1.5">
+            <div className="truncate font-semibold leading-tight">{title}</div>
+            {isHost && <NicknameDialog state={state} />}
+          </div>
+          <div className="font-mono text-xs tracking-widest text-muted-foreground">
+            {state.nickname ? `${game?.name ?? state.gameId} · ` : null}
+            {state.code}
+          </div>
         </div>
       </div>
       <StatusPill transportStatus={store.transportStatus} passAndPlay={store.passAndPlay} />
     </div>
+  )
+}
+
+function NicknameDialog({ state }: { state: SessionState }) {
+  const setNickname = useSession((s) => s.setNickname)
+  const [open, setOpen] = React.useState(false)
+  const [draft, setDraft] = React.useState(state.nickname ?? '')
+
+  React.useEffect(() => {
+    if (open) setDraft(state.nickname ?? '')
+  }, [open, state.nickname])
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Edit nickname"
+          className="shrink-0 text-muted-foreground"
+        >
+          <PencilIcon className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Session nickname</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-2">
+          <Label htmlFor="session-nickname">Nickname (optional)</Label>
+          <Input
+            id="session-nickname"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.slice(0, SESSION_NICKNAME_MAX))}
+            placeholder="e.g. Friday night bank"
+            maxLength={SESSION_NICKNAME_MAX}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setNickname(draft)
+                setOpen(false)
+              }
+            }}
+          />
+        </div>
+        <DialogFooter>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setNickname('')
+              setOpen(false)
+            }}
+          >
+            Clear
+          </Button>
+          <Button
+            onClick={() => {
+              setNickname(draft)
+              setOpen(false)
+            }}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
