@@ -214,7 +214,7 @@ function NicknameModal({
           <Text className="text-lg font-semibold text-zinc-100">Session nickname</Text>
           <View>
             <SectionLabel>Nickname (optional)</SectionLabel>
-            <TextInput
+            <AppTextInput
               value={draft}
               onChangeText={(t) => setDraft(t.slice(0, SESSION_NICKNAME_MAX))}
               placeholder="e.g. Friday night bank"

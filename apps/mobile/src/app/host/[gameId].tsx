@@ -1,8 +1,9 @@
 import { getGameEngine, SESSION_NICKNAME_MAX } from '@jamez/core'
 import { router, useLocalSearchParams } from 'expo-router'
 import * as React from 'react'
-import { Switch, Text, TextInput, View } from 'react-native'
+import { Switch, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { AppTextInput } from '@/components/app-text-input'
 import { PageHeader } from '@/components/page-header'
 import { RequireProfile } from '@/components/require-profile'
 import { AppButton, Card, CardTitle, Muted, Screen, SectionLabel } from '@/components/ui'
@@ -51,7 +52,7 @@ export default function HostConfigScreen() {
               <CardTitle>Game options</CardTitle>
               <View>
                 <SectionLabel>Nickname (optional)</SectionLabel>
-                <TextInput
+                <AppTextInput
                   value={nickname}
                   onChangeText={(t) => setNickname(t.slice(0, SESSION_NICKNAME_MAX))}
                   placeholder="e.g. Friday night bank"
