@@ -83,10 +83,38 @@ export type PokerBankAction =
 export const DEFAULT_POKER_CHIPS: PokerChipDenom[] = [
   { id: 'white', label: 'White', value: 1, color: '#f4f4f5' },
   { id: 'red', label: 'Red', value: 5, color: '#ef4444' },
-  { id: 'blue', label: 'Blue', value: 10, color: '#3b82f6' },
   { id: 'green', label: 'Green', value: 25, color: '#22c55e' },
-  { id: 'black', label: 'Black', value: 100, color: '#18181b' },
+  { id: 'blue', label: 'Blue', value: 100, color: '#3b82f6' },
+  { id: 'black', label: 'Black', value: 500, color: '#18181b' },
+  { id: 'purple', label: 'Purple', value: 1000, color: '#a855f7' },
 ]
+
+/** Deep-clone a poker bank config (chips included). */
+export function clonePokerBankConfig(config: PokerBankConfig): PokerBankConfig {
+  return {
+    startingStack: config.startingStack,
+    currencyMode: config.currencyMode,
+    pointsPerDollar: config.pointsPerDollar,
+    chips: config.chips.map((c) => ({ ...c })),
+  }
+}
+
+/**
+ * Prefer the live bank settings (`game.config`) when present; otherwise the
+ * lobby-time `gameConfig`. Returns null when the session is not a poker bank.
+ */
+export function pokerBankConfigFromSession(state: {
+  gameId: string
+  gameConfig?: unknown
+  game?: unknown
+}): PokerBankConfig | null {
+  if (state.gameId !== 'poker-bank') return null
+  const live = state.game as PokerBankState | null | undefined
+  if (live?.config?.chips?.length) return clonePokerBankConfig(live.config)
+  const lobby = state.gameConfig as PokerBankConfig | undefined
+  if (lobby?.chips?.length) return clonePokerBankConfig(lobby)
+  return null
+}
 
 /** Common chip colors offered by the config color picker (hex, 6-digit). */
 export const CHIP_COLOR_PRESETS: readonly string[] = [
@@ -117,6 +145,11 @@ export function defaultPokerBankConfig(): PokerBankConfig {
   }
 }
 
+/** Round to 6 dp so fractional pts/$ (e.g. 0.25) and dollar cents survive. */
+function roundPoints(n: number): number {
+  return Math.round(n * 1e6) / 1e6
+}
+
 export function toPoints(
   amount: number,
   unit: PokerCurrencyMode,
@@ -124,7 +157,8 @@ export function toPoints(
 ): number {
   if (unit === 'points') return amount
   const rate = pointsPerDollar > 0 ? pointsPerDollar : 1
-  return Math.round(amount * rate)
+  // Do not integer-round: $1 at 0.25 pts/$ is 0.25 points, not 0.
+  return roundPoints(amount * rate)
 }
 
 export function fromPoints(
@@ -169,6 +203,20 @@ export function chipBreakdown(
     }
   }
   return out
+}
+
+/** Sum chip counts × denomination values into a point total. */
+export function pointsFromChipCounts(
+  counts: Record<string, number>,
+  chips: PokerChipDenom[],
+): number {
+  let total = 0
+  for (const chip of chips) {
+    const n = counts[chip.id] ?? 0
+    if (!Number.isFinite(n) || n <= 0) continue
+    total += Math.floor(n) * chip.value
+  }
+  return total
 }
 
 function validateChip(chip: PokerChipDenom): string | null {
@@ -279,7 +327,11 @@ export const pokerBankEngine: GameEngine<PokerBankConfig, PokerBankState, PokerB
       return 'Point amounts must be whole numbers'
     }
     const points = toPoints(action.amount, action.unit, state.config.pointsPerDollar)
-    if (points <= 0) return 'Amount is too small'
+    if (!(points > 0)) {
+      return action.unit === 'dollars'
+        ? 'Amount is too small for the current points-per-dollar rate'
+        : 'Amount is too small'
+    }
     if (points > 10_000_000) return 'Amount is too large'
     if (action.type === 'withdraw' && points > bank.balance) {
       return 'Not enough balance'

@@ -16,6 +16,10 @@ import {
  * included in standard device/iCloud backups — good enough to restore a lost
  * phone from backup. Dedicated CloudKit sync is intentionally deferred; keep
  * this shape JSON-serializable so that migration stays easy.
+ *
+ * All vault mutations are serialized through a promise chain so concurrent
+ * read-modify-write calls (nickname edit racing a cash-in, etc.) cannot
+ * clobber each other.
  */
 
 export interface HostSnapshot {
@@ -25,6 +29,20 @@ export interface HostSnapshot {
 }
 
 type Vault = Record<string, HostSnapshot>
+
+/** Serializes vault RMW so later writes always win over in-flight earlier ones. */
+let vaultQueue: Promise<void> = Promise.resolve()
+
+function enqueueVaultOp(op: (vault: Vault) => void | Promise<void>): Promise<void> {
+  const next = vaultQueue.then(async () => {
+    const vault = await readVaultRaw()
+    await op(vault)
+    await writeVault(vault)
+  })
+  // Keep the chain alive after failures so later ops still run.
+  vaultQueue = next.catch(() => {})
+  return next
+}
 
 async function readVaultRaw(): Promise<Vault> {
   try {
@@ -66,15 +84,25 @@ async function writeVault(vault: Vault): Promise<void> {
 
 export function persistHostSnapshot(state: SessionState, passAndPlay: boolean): void {
   const snapshot: HostSnapshot = { state, passAndPlay, savedAt: Date.now() }
-  void readVaultRaw()
-    .then((vault) => {
-      vault[hostSessionEntryKey(state.gameId, state.code)] = snapshot
-      return writeVault(vault)
-    })
-    .catch(() => {})
+  void enqueueVaultOp((vault) => {
+    vault[hostSessionEntryKey(state.gameId, state.code)] = snapshot
+  })
+}
+
+/** Awaitable persist — used when a follow-up read must see the write. */
+export function persistHostSnapshotAsync(
+  state: SessionState,
+  passAndPlay: boolean,
+): Promise<void> {
+  const snapshot: HostSnapshot = { state, passAndPlay, savedAt: Date.now() }
+  return enqueueVaultOp((vault) => {
+    vault[hostSessionEntryKey(state.gameId, state.code)] = snapshot
+  }).catch(() => {})
 }
 
 export async function readHostSnapshot(code?: string): Promise<HostSnapshot | null> {
+  // Wait for in-flight writes so resume/list see the latest nickname, etc.
+  await vaultQueue.catch(() => {})
   const vault = await readVaultRaw()
   if (code) {
     const upper = code.toUpperCase()
@@ -90,6 +118,7 @@ export async function readHostSnapshot(code?: string): Promise<HostSnapshot | nu
 }
 
 export async function listHostSnapshots(): Promise<HostSnapshot[]> {
+  await vaultQueue.catch(() => {})
   const vault = await readVaultRaw()
   return Object.values(vault).sort((a, b) => b.savedAt - a.savedAt)
 }
@@ -105,10 +134,13 @@ export async function listResumableHostSnapshots(): Promise<HostSnapshot[]> {
 }
 
 export function clearHostSnapshot(state: Pick<SessionState, 'gameId' | 'code'>): void {
-  void readVaultRaw()
-    .then((vault) => {
-      delete vault[hostSessionEntryKey(state.gameId, state.code)]
-      return writeVault(vault)
-    })
-    .catch(() => {})
+  void clearHostSnapshotAsync(state)
+}
+
+export function clearHostSnapshotAsync(
+  state: Pick<SessionState, 'gameId' | 'code'>,
+): Promise<void> {
+  return enqueueVaultOp((vault) => {
+    delete vault[hostSessionEntryKey(state.gameId, state.code)]
+  }).catch(() => {})
 }

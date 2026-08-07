@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { SessionPlayer } from '../protocol/session-state'
 import {
   chipBreakdown,
+  clonePokerBankConfig,
   formatPokerAmount,
+  pointsFromChipCounts,
+  pokerBankConfigFromSession,
   pokerBankEngine,
   toPoints,
   type PokerBankState,
@@ -39,6 +42,32 @@ describe('poker bank engine', () => {
   it('converts dollars using pointsPerDollar', () => {
     expect(toPoints(10, 'dollars', 5)).toBe(50)
     expect(toPoints(10, 'points', 5)).toBe(10)
+    // Fractional rates / dollar cents must not round to zero points.
+    expect(toPoints(1, 'dollars', 0.25)).toBe(0.25)
+    expect(toPoints(0.25, 'dollars', 1)).toBe(0.25)
+    expect(toPoints(4, 'dollars', 0.25)).toBe(1)
+  })
+
+  it('accepts dollar deposits that convert to fractional points', () => {
+    const host = player('host', 'Host')
+    let state = pokerBankEngine.init(
+      { ...pokerBankEngine.defaultConfig(), pointsPerDollar: 0.25, currencyMode: 'dollars' },
+      [host],
+    )
+    const ctx = { actorId: 'host', isHost: true, now: 100 }
+    expect(
+      pokerBankEngine.validateAction(
+        state,
+        { type: 'deposit', playerId: 'host', amount: 1, unit: 'dollars' },
+        ctx,
+      ),
+    ).toBeNull()
+    state = pokerBankEngine.applyAction(
+      state,
+      { type: 'deposit', playerId: 'host', amount: 1, unit: 'dollars' },
+      ctx,
+    )
+    expect(state.banks.host?.balance).toBe(500.25)
   })
 
   it('deposits and withdraws with chip-friendly balances', () => {
@@ -160,13 +189,33 @@ describe('poker bank engine', () => {
 
   it('breaks amounts into chips greedily', () => {
     const chips = pokerBankEngine.defaultConfig().chips
+    expect(chips.map((c) => [c.id, c.value])).toEqual([
+      ['white', 1],
+      ['red', 5],
+      ['green', 25],
+      ['blue', 100],
+      ['black', 500],
+      ['purple', 1000],
+    ])
     const parts = chipBreakdown(137, chips)
     expect(parts.map((p) => [p.chip.id, p.count])).toEqual([
-      ['black', 1],
-      ['green', 1],
       ['blue', 1],
+      ['green', 1],
+      ['red', 2],
       ['white', 2],
     ])
+  })
+
+  it('sums chip counts into points', () => {
+    const chips = pokerBankEngine.defaultConfig().chips
+    expect(
+      pointsFromChipCounts(
+        { white: 2, red: 2, green: 1, blue: 1, black: 0, purple: 0 },
+        chips,
+      ),
+    ).toBe(137)
+    expect(pointsFromChipCounts({ red: 3 }, chips)).toBe(15)
+    expect(pointsFromChipCounts({}, chips)).toBe(0)
   })
 
   it('formats dollars and points', () => {
@@ -177,5 +226,27 @@ describe('poker bank engine', () => {
 
   it('never auto-finishes', () => {
     expect(pokerBankEngine.isFinished(started(player('host', 'Host')))).toBe(false)
+  })
+
+  it('reads config from live game state ahead of lobby gameConfig', () => {
+    const lobby = pokerBankEngine.defaultConfig()
+    const live = clonePokerBankConfig(lobby)
+    live.startingStack = 999
+    live.currencyMode = 'dollars'
+    expect(
+      pokerBankConfigFromSession({
+        gameId: 'poker-bank',
+        gameConfig: lobby,
+        game: { config: live, banks: {}, ledger: [] },
+      })?.startingStack,
+    ).toBe(999)
+    expect(
+      pokerBankConfigFromSession({
+        gameId: 'poker-bank',
+        gameConfig: lobby,
+        game: null,
+      })?.startingStack,
+    ).toBe(500)
+    expect(pokerBankConfigFromSession({ gameId: 'wingspan', gameConfig: lobby })).toBeNull()
   })
 })

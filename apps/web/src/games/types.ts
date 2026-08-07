@@ -11,7 +11,8 @@ export interface GamePlayProps {
    * Send a game action. Hosts may pass `actorId` to act as a local
    * (pass-and-play) player; guests always act as themselves.
    */
-  send: (action: { type: string } & Record<string, unknown>, actorId?: string) => void
+  /** Returns an error string when the host rejects the action; null on success. */
+  send: (action: { type: string } & Record<string, unknown>, actorId?: string) => string | null
 }
 
 export interface GameSetupProps<C = unknown> {

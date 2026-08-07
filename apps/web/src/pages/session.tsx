@@ -437,7 +437,12 @@ function PlayingView() {
 
   return (
     <div className="grid gap-4">
-      <PlayView state={state} me={me} isHost={isHost} send={(action, actorId) => store.sendAction(action, actorId)} />
+      <PlayView
+        state={state}
+        me={me}
+        isHost={isHost}
+        send={(action, actorId) => store.sendAction(action, actorId) ?? null}
+      />
       {isHost && (
         <div className="grid gap-2">
           {!ongoing && (

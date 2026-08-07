@@ -2,31 +2,41 @@ import { getGameEngine, sessionDisplayName } from '@jamez/core'
 import { router, useFocusEffect } from 'expo-router'
 import { MoonIcon } from 'lucide-react-native'
 import * as React from 'react'
-import { Pressable, Text, View } from 'react-native'
+import { ActionSheetIOS, Alert, Platform, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PageHeader } from '@/components/page-header'
 import { AppButton, Card, CardTitle, Chip, Muted, Screen } from '@/components/ui'
 import { getGameIcon } from '@/games/registry'
 import { formatDate } from '@/lib/format'
-import { listLongTermSessions } from '@/lib/long-term-sessions'
-import { listHostSnapshots, useSession, type HostSnapshot } from '@/lib/session-store'
+import { listLongTermSessions, type LongTermRoom } from '@/lib/long-term-sessions'
+import {
+  clearHostSnapshotAsync,
+  listHostSnapshots,
+  useSession,
+  type HostSnapshot,
+} from '@/lib/session-store'
 
 export default function ContinueScreen() {
   const insets = useSafeAreaInsets()
   const activeCode = useSession((s) => s.code)
   const state = useSession((s) => s.state)
+  const endSession = useSession((s) => s.endSession)
   const [vault, setVault] = React.useState<HostSnapshot[]>([])
+
+  const refreshVault = React.useCallback(() => {
+    let alive = true
+    void listHostSnapshots().then((snaps) => {
+      if (alive) setVault(snaps)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   useFocusEffect(
     React.useCallback(() => {
-      let alive = true
-      void listHostSnapshots().then((snaps) => {
-        if (alive) setVault(snaps)
-      })
-      return () => {
-        alive = false
-      }
-    }, []),
+      return refreshVault()
+    }, [refreshVault]),
   )
 
   const rooms = listLongTermSessions(vault, {
@@ -34,6 +44,82 @@ export default function ContinueScreen() {
     gameId: state?.gameId ?? '',
     nickname: state?.nickname,
   })
+
+  const openRoom = (room: LongTermRoom) => {
+    router.push(`/session/${room.code}`)
+  }
+
+  const removeRoom = async (room: LongTermRoom) => {
+    if (room.live) {
+      endSession()
+    } else {
+      await clearHostSnapshotAsync({ gameId: room.gameId, code: room.code })
+    }
+    refreshVault()
+  }
+
+  const confirmEnd = (room: LongTermRoom) => {
+    Alert.alert(
+      'End this game?',
+      'The room will close and be removed. Connected guests will be disconnected.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'End',
+          style: 'destructive',
+          onPress: () => {
+            void removeRoom(room)
+          },
+        },
+      ],
+    )
+  }
+
+  const confirmDelete = (room: LongTermRoom) => {
+    Alert.alert(
+      'Delete this game?',
+      'Remove it from your list. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void removeRoom(room)
+          },
+        },
+      ],
+    )
+  }
+
+  const showRoomActions = (room: LongTermRoom) => {
+    const title = sessionDisplayName({
+      nickname: room.nickname,
+      gameId: room.gameId,
+    })
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title,
+          options: ['Open', 'End', 'Delete', 'Cancel'],
+          destructiveButtonIndex: [1, 2],
+          cancelButtonIndex: 3,
+        },
+        (index) => {
+          if (index === 0) openRoom(room)
+          else if (index === 1) confirmEnd(room)
+          else if (index === 2) confirmDelete(room)
+        },
+      )
+      return
+    }
+    Alert.alert(title, undefined, [
+      { text: 'Open', onPress: () => openRoom(room) },
+      { text: 'End', style: 'destructive', onPress: () => confirmEnd(room) },
+      { text: 'Delete', style: 'destructive', onPress: () => confirmDelete(room) },
+      { text: 'Cancel', style: 'cancel' },
+    ])
+  }
 
   return (
     <Screen>
@@ -55,6 +141,7 @@ export default function ContinueScreen() {
           </Card>
         ) : (
           <View className="gap-2">
+            <Muted>Tap to open · long-press for End or Delete</Muted>
             {rooms.map((room) => {
               const game = getGameEngine(room.gameId)
               const Icon = getGameIcon(room.gameId)
@@ -65,7 +152,9 @@ export default function ContinueScreen() {
               return (
                 <Pressable
                   key={room.key}
-                  onPress={() => router.push(`/session/${room.code}`)}
+                  onPress={() => openRoom(room)}
+                  onLongPress={() => showRoomActions(room)}
+                  delayLongPress={350}
                   className="active:opacity-80"
                 >
                   <Card

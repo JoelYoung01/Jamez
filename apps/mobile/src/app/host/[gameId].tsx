@@ -8,17 +8,39 @@ import { PageHeader } from '@/components/page-header'
 import { RequireProfile } from '@/components/require-profile'
 import { AppButton, Card, CardTitle, Muted, Screen, SectionLabel } from '@/components/ui'
 import { getGameIcon, getGameUI } from '@/games/registry'
-import { useSession } from '@/lib/session-store'
+import { initialPokerBankConfig } from '@/lib/poker-defaults'
+import { listHostSnapshots, useSession } from '@/lib/session-store'
 
 export default function HostConfigScreen() {
   const insets = useSafeAreaInsets()
   const { gameId = '' } = useLocalSearchParams<{ gameId: string }>()
   const hostGame = useSession((s) => s.hostGame)
+  const activeState = useSession((s) => s.state)
   const game = getGameEngine(gameId)
   const ui = getGameUI(gameId)
   const [config, setConfig] = React.useState<unknown>(() => game?.defaultConfig())
   const [passAndPlay, setPassAndPlay] = React.useState(false)
   const [nickname, setNickname] = React.useState('')
+  const [seededFromPrior, setSeededFromPrior] = React.useState(false)
+
+  React.useEffect(() => {
+    if (gameId !== 'poker-bank') return
+    let alive = true
+    void listHostSnapshots().then((vault) => {
+      if (!alive) return
+      const next = initialPokerBankConfig({ vault, active: activeState })
+      setConfig(next)
+      const usedPrior =
+        Boolean(activeState?.gameId === 'poker-bank') ||
+        vault.some((s) => s.state.gameId === 'poker-bank')
+      setSeededFromPrior(usedPrior)
+    })
+    return () => {
+      alive = false
+    }
+    // Seed once on mount for this game; don't churn if activeState updates later.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId])
 
   if (!game || !ui) {
     return (
@@ -50,6 +72,9 @@ export default function HostConfigScreen() {
           <View className="gap-4">
             <Card className="gap-3 p-4">
               <CardTitle>Game options</CardTitle>
+              {gameId === 'poker-bank' && seededFromPrior ? (
+                <Muted>Starting from your most recent Poker Bank settings.</Muted>
+              ) : null}
               <View>
                 <SectionLabel>Nickname (optional)</SectionLabel>
                 <AppTextInput
@@ -60,9 +85,6 @@ export default function HostConfigScreen() {
                   maxLength={SESSION_NICKNAME_MAX}
                   className="h-11 rounded-xl border border-line bg-field px-3 text-base text-zinc-100"
                 />
-                <Muted className="mt-1">
-                  Shown in history and on parked sessions. Leave blank for the game name.
-                </Muted>
               </View>
               <SetupForm config={config} onChange={setConfig} />
             </Card>

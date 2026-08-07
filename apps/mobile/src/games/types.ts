@@ -6,7 +6,8 @@ export interface GamePlayProps {
   state: SessionState
   me: SessionPlayer | null
   isHost: boolean
-  send: (action: { type: string } & Record<string, unknown>, actorId?: string) => void
+  /** Returns an error string when the host rejects the action; null on success. */
+  send: (action: { type: string } & Record<string, unknown>, actorId?: string) => string | null
 }
 
 export interface GameSetupProps<C = unknown> {

@@ -2,6 +2,7 @@ import {
   chipBreakdown,
   formatPokerAmount,
   getGameEngine,
+  pointsFromChipCounts,
   toPoints,
   type PokerBankConfig,
   type PokerBankState,
@@ -13,6 +14,7 @@ import {
   ArrowDownLeftIcon,
   ArrowUpRightIcon,
   CoinsIcon,
+  DollarSignIcon,
   GitMergeIcon,
   Settings2Icon,
   UserPlusIcon,
@@ -173,6 +175,95 @@ function EditGuestDialog({
   )
 }
 
+/** Allow typing partial decimals (e.g. clear → "0.25"); coerce on blur. */
+function parsePointsPerDollar(raw: string): number {
+  const n = Number.parseFloat(raw.trim())
+  if (!Number.isFinite(n) || n <= 0) return 1
+  return Math.min(1_000_000, n)
+}
+
+function PointsPerDollarField({
+  value,
+  onChange,
+  className,
+}: {
+  value: number
+  onChange: (next: number) => void
+  className?: string
+}) {
+  const [text, setText] = React.useState(String(value))
+
+  React.useEffect(() => {
+    setText(String(value))
+  }, [value])
+
+  const commit = () => {
+    const next = parsePointsPerDollar(text)
+    onChange(next)
+    setText(String(next))
+  }
+
+  return (
+    <Input
+      inputMode="decimal"
+      className={cn('h-9 font-mono tabular-nums', className)}
+      value={text}
+      onChange={(e) => {
+        const t = e.target.value
+        setText(t)
+        const n = Number.parseFloat(t.trim())
+        if (Number.isFinite(n) && n > 0) onChange(Math.min(1_000_000, n))
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit()
+      }}
+    />
+  )
+}
+
+/** Integer chip value — draft while typing; coerce to ≥1 on blur. */
+function ChipValueField({
+  value,
+  onChange,
+  className,
+}: {
+  value: number
+  onChange: (next: number) => void
+  className?: string
+}) {
+  const [text, setText] = React.useState(String(value))
+
+  React.useEffect(() => {
+    setText(String(value))
+  }, [value])
+
+  const commit = () => {
+    const n = Number.parseInt(text.replace(/\D/g, ''), 10)
+    const next = Number.isNaN(n) ? 1 : Math.max(1, n)
+    onChange(next)
+    setText(String(next))
+  }
+
+  return (
+    <Input
+      inputMode="numeric"
+      className={cn('h-8 font-mono tabular-nums', className)}
+      value={text}
+      onChange={(e) => {
+        const cleaned = e.target.value.replace(/\D/g, '')
+        setText(cleaned)
+        const n = Number.parseInt(cleaned, 10)
+        if (!Number.isNaN(n) && n >= 1) onChange(n)
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit()
+      }}
+    />
+  )
+}
+
 function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
   const set = (patch: Partial<PokerBankConfig>) => onChange({ ...config, ...patch })
 
@@ -210,14 +301,9 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
       </div>
       <div className="grid gap-1.5">
         <Label className="text-xs text-muted-foreground">Points per dollar</Label>
-        <Input
-          inputMode="decimal"
-          className="h-9 font-mono tabular-nums"
-          value={String(config.pointsPerDollar)}
-          onChange={(e) => {
-            const n = Number.parseFloat(e.target.value)
-            set({ pointsPerDollar: Number.isFinite(n) && n > 0 ? n : 1 })
-          }}
+        <PointsPerDollarField
+          value={config.pointsPerDollar}
+          onChange={(pointsPerDollar) => set({ pointsPerDollar })}
         />
         <p className="text-[11px] text-muted-foreground">
           Cash-in amounts can be entered in either unit; chip math always uses points.
@@ -261,14 +347,9 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
                 className="h-8"
                 placeholder="Label"
               />
-              <Input
-                inputMode="numeric"
-                className="h-8 font-mono tabular-nums"
-                value={String(chip.value)}
-                onChange={(e) => {
-                  const n = Number.parseInt(e.target.value.replace(/\D/g, ''), 10)
-                  updateChip(index, { value: Number.isNaN(n) ? 1 : Math.max(1, n) })
-                }}
+              <ChipValueField
+                value={chip.value}
+                onChange={(value) => updateChip(index, { value })}
               />
               <ColorPicker
                 value={chip.color}
@@ -291,6 +372,20 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
   )
 }
 
+type CashInputMode = PokerCurrencyMode | 'chips'
+
+function parseChipCountDrafts(
+  drafts: Record<string, string>,
+  chips: PokerChipDenom[],
+): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const chip of chips) {
+    const n = Number.parseInt(drafts[chip.id] ?? '', 10)
+    if (!Number.isNaN(n) && n > 0) counts[chip.id] = n
+  }
+  return counts
+}
+
 function CashDialog({
   mode,
   player,
@@ -304,20 +399,42 @@ function CashDialog({
 }) {
   const [open, setOpen] = React.useState(false)
   const [amount, setAmount] = React.useState('')
-  const [unit, setUnit] = React.useState<PokerCurrencyMode>(game.config.currencyMode)
+  const [unit, setUnit] = React.useState<CashInputMode>(game.config.currencyMode)
+  const [chipDrafts, setChipDrafts] = React.useState<Record<string, string>>({})
   const numeric = Number.parseFloat(amount)
+  const chipPoints = pointsFromChipCounts(
+    parseChipCountDrafts(chipDrafts, game.config.chips),
+    game.config.chips,
+  )
   const points =
-    Number.isFinite(numeric) && numeric > 0
-      ? toPoints(numeric, unit, game.config.pointsPerDollar)
-      : 0
-  const breakdown = mode === 'withdraw' ? chipBreakdown(points, game.config.chips) : []
+    unit === 'chips'
+      ? chipPoints
+      : Number.isFinite(numeric) && numeric > 0
+        ? toPoints(numeric, unit, game.config.pointsPerDollar)
+        : 0
+  const breakdown =
+    mode === 'withdraw' && unit !== 'chips' ? chipBreakdown(points, game.config.chips) : []
   const balance = game.banks[player.id]?.balance ?? 0
 
-  const submit = () => {
-    if (!(numeric > 0)) return
-    // Host acts as host (isHost); guests always act as themselves via the store.
-    send({ type: mode, playerId: player.id, amount: numeric, unit })
+  React.useEffect(() => {
+    if (!open) return
     setAmount('')
+    setUnit(game.config.currencyMode)
+    setChipDrafts({})
+  }, [open, game.config.currencyMode])
+
+  const submit = () => {
+    if (!(points > 0)) return
+    // Host acts as host (isHost); guests always act as themselves via the store.
+    const error = send({
+      type: mode,
+      playerId: player.id,
+      amount: unit === 'chips' ? points : numeric,
+      unit: unit === 'chips' ? 'points' : unit,
+    })
+    if (error) return
+    setAmount('')
+    setChipDrafts({})
     setOpen(false)
   }
 
@@ -337,30 +454,76 @@ function CashDialog({
         </DialogHeader>
         <div className="grid gap-3">
           <p className="text-xs text-muted-foreground">
-            Balance {formatPokerAmount(balance, game.config)}
-            {game.config.currencyMode === 'dollars' ? ` (${balance} pts)` : ''}
+            {mode === 'deposit'
+              ? `Put chips into ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`
+              : `Take chips out of ${player.name}'s bank. Holding ${formatPokerAmount(balance, game.config)}`}
+            {game.config.currencyMode === 'dollars' ? ` (${balance} pts)` : ''}.
           </p>
           <Segmented
             value={unit}
-            onChange={(v) => setUnit(v as PokerCurrencyMode)}
+            onChange={(v) => setUnit(v as CashInputMode)}
             options={[
               { value: 'points', label: 'Points' },
               { value: 'dollars', label: 'Dollars' },
+              { value: 'chips', label: 'Chips' },
             ]}
           />
-          <Input
-            inputMode="decimal"
-            autoFocus
-            placeholder={unit === 'dollars' ? '0.00' : '0'}
-            className="h-11 font-mono text-lg tabular-nums"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-          />
+          {unit === 'chips' ? (
+            <div className="grid gap-2">
+              {game.config.chips.map((chip) => (
+                <div
+                  key={chip.id}
+                  className="flex items-center gap-2 rounded-lg border border-border/60 px-2 py-2"
+                >
+                  <PokerChip color={chip.color} size={28} label={String(chip.value)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">{chip.label}</div>
+                    <div className="text-[11px] text-muted-foreground">{chip.value} pts each</div>
+                  </div>
+                  <span className="text-muted-foreground">×</span>
+                  <Input
+                    inputMode="numeric"
+                    placeholder="0"
+                    className="h-9 w-16 text-center font-mono tabular-nums"
+                    value={chipDrafts[chip.id] ?? ''}
+                    onChange={(e) =>
+                      setChipDrafts((prev) => ({
+                        ...prev,
+                        [chip.id]: e.target.value.replace(/\D/g, ''),
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="relative">
+              {unit === 'dollars' ? (
+                <DollarSignIcon
+                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+              ) : null}
+              <Input
+                inputMode="decimal"
+                autoFocus
+                placeholder={unit === 'dollars' ? '0.00' : '0'}
+                className={cn(
+                  'h-11 font-mono text-lg tabular-nums',
+                  unit === 'dollars' && 'pl-8',
+                )}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                onKeyDown={(e) => e.key === 'Enter' && submit()}
+              />
+            </div>
+          )}
           {points > 0 && (
             <p className="text-xs text-muted-foreground">
               = {formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}
-              {unit === 'dollars' ? ` · ${formatPokerAmount(points, game.config)}` : ''}
+              {game.config.currencyMode === 'dollars' || unit === 'dollars'
+                ? ` · ${formatPokerAmount(points, game.config)}`
+                : ''}
             </p>
           )}
           {mode === 'withdraw' && breakdown.length > 0 && (
@@ -381,7 +544,7 @@ function CashDialog({
           )}
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={!(numeric > 0) || (mode === 'withdraw' && points > balance)}>
+          <Button onClick={submit} disabled={!(points > 0) || (mode === 'withdraw' && points > balance)}>
             Confirm
           </Button>
         </DialogFooter>
@@ -410,11 +573,11 @@ function BankSettingsDialog({ game, send }: { game: PokerBankState; send: GamePl
   }
 
   const save = () => {
-    send({
+    const error = send({
       type: 'updateConfig',
       config: { currencyMode, pointsPerDollar, startingStack, chips },
     })
-    setOpen(false)
+    if (!error) setOpen(false)
   }
 
   return (
@@ -443,15 +606,7 @@ function BankSettingsDialog({ game, send }: { game: PokerBankState; send: GamePl
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">Points per dollar</Label>
-              <Input
-                inputMode="decimal"
-                className="h-9 font-mono tabular-nums"
-                value={String(pointsPerDollar)}
-                onChange={(e) => {
-                  const n = Number.parseFloat(e.target.value)
-                  setPointsPerDollar(Number.isFinite(n) && n > 0 ? n : 1)
-                }}
-              />
+              <PointsPerDollarField value={pointsPerDollar} onChange={setPointsPerDollar} />
             </div>
           </div>
           <div className="grid gap-1.5">
@@ -506,14 +661,9 @@ function BankSettingsDialog({ game, send }: { game: PokerBankState; send: GamePl
                     placeholder="Label"
                     onChange={(e) => updateChip(index, { label: e.target.value.slice(0, 16) })}
                   />
-                  <Input
-                    inputMode="numeric"
-                    className="h-8 font-mono tabular-nums"
-                    value={String(chip.value)}
-                    onChange={(e) => {
-                      const n = Number.parseInt(e.target.value.replace(/\D/g, ''), 10)
-                      updateChip(index, { value: Number.isNaN(n) ? 1 : Math.max(1, n) })
-                    }}
+                  <ChipValueField
+                    value={chip.value}
+                    onChange={(value) => updateChip(index, { value })}
                   />
                   <ColorPicker
                     value={chip.color}
@@ -700,8 +850,8 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
               key={chip.id}
               className="flex items-center gap-1.5 rounded-full border border-border/50 bg-background/40 px-2 py-1"
             >
-              <PokerChip color={chip.color} size={22} />
-              <span className="text-xs font-medium">
+              <PokerChip color={chip.color} size={28} label={String(chip.value)} />
+              <span className="text-sm font-semibold">
                 {chip.label} · {chip.value}
               </span>
             </div>

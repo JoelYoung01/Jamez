@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { getGameIcon, getGameUI } from '@/games/registry'
-import { useSession } from '@/lib/session-store'
+import { initialPokerBankConfig } from '@/lib/poker-defaults'
+import { listHostSnapshots, useSession } from '@/lib/session-store'
 
 export function HostPage() {
   return (
@@ -60,11 +61,35 @@ export function HostConfigPage() {
   const { gameId = '' } = useParams()
   const navigate = useNavigate()
   const hostGame = useSession((s) => s.hostGame)
+  const activeState = useSession((s) => s.state)
   const game = getGameEngine(gameId)
   const ui = getGameUI(gameId)
-  const [config, setConfig] = React.useState<unknown>(() => game?.defaultConfig())
+  const vault = listHostSnapshots()
+  const seededFromPrior =
+    gameId === 'poker-bank' &&
+    (activeState?.gameId === 'poker-bank' || vault.some((s) => s.state.gameId === 'poker-bank'))
+  const [config, setConfig] = React.useState<unknown>(() =>
+    gameId === 'poker-bank'
+      ? initialPokerBankConfig({ vault, active: activeState })
+      : game?.defaultConfig(),
+  )
   const [passAndPlay, setPassAndPlay] = React.useState(false)
   const [nickname, setNickname] = React.useState('')
+
+  React.useEffect(() => {
+    if (gameId === 'poker-bank') {
+      setConfig(
+        initialPokerBankConfig({
+          vault: listHostSnapshots(),
+          active: useSession.getState().state,
+        }),
+      )
+    } else {
+      setConfig(getGameEngine(gameId)?.defaultConfig())
+    }
+    setPassAndPlay(false)
+    setNickname('')
+  }, [gameId])
 
   if (!game || !ui) {
     return (
@@ -108,6 +133,11 @@ export function HostConfigPage() {
             <CardTitle className="text-sm">Game options</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
+            {seededFromPrior ? (
+              <p className="text-[11px] text-muted-foreground">
+                Starting from your most recent Poker Bank settings.
+              </p>
+            ) : null}
             <div className="grid gap-2">
               <Label htmlFor="nickname">Nickname (optional)</Label>
               <Input
@@ -117,9 +147,6 @@ export function HostConfigPage() {
                 placeholder="e.g. Friday night bank"
                 maxLength={SESSION_NICKNAME_MAX}
               />
-              <p className="text-[11px] text-muted-foreground">
-                Shown in history and on parked sessions. Leave blank to use the game name.
-              </p>
             </div>
             <SetupForm config={config} onChange={setConfig} />
           </CardContent>

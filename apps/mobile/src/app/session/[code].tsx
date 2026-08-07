@@ -469,7 +469,7 @@ function PlayingView() {
         state={state}
         me={me}
         isHost={isHost}
-        send={(action, actorId) => store.sendAction(action, actorId)}
+        send={(action, actorId) => store.sendAction(action, actorId) ?? null}
       />
       {isHost && (
         <View className="gap-2">
