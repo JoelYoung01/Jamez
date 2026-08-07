@@ -205,6 +205,20 @@ export function chipBreakdown(
   return out
 }
 
+/** Sum chip counts × denomination values into a point total. */
+export function pointsFromChipCounts(
+  counts: Record<string, number>,
+  chips: PokerChipDenom[],
+): number {
+  let total = 0
+  for (const chip of chips) {
+    const n = counts[chip.id] ?? 0
+    if (!Number.isFinite(n) || n <= 0) continue
+    total += Math.floor(n) * chip.value
+  }
+  return total
+}
+
 function validateChip(chip: PokerChipDenom): string | null {
   if (!chip.id.trim()) return 'Chip id is required'
   if (!chip.label.trim()) return 'Chip label is required'

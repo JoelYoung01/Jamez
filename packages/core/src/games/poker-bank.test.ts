@@ -4,6 +4,7 @@ import {
   chipBreakdown,
   clonePokerBankConfig,
   formatPokerAmount,
+  pointsFromChipCounts,
   pokerBankConfigFromSession,
   pokerBankEngine,
   toPoints,
@@ -203,6 +204,18 @@ describe('poker bank engine', () => {
       ['red', 2],
       ['white', 2],
     ])
+  })
+
+  it('sums chip counts into points', () => {
+    const chips = pokerBankEngine.defaultConfig().chips
+    expect(
+      pointsFromChipCounts(
+        { white: 2, red: 2, green: 1, blue: 1, black: 0, purple: 0 },
+        chips,
+      ),
+    ).toBe(137)
+    expect(pointsFromChipCounts({ red: 3 }, chips)).toBe(15)
+    expect(pointsFromChipCounts({}, chips)).toBe(0)
   })
 
   it('formats dollars and points', () => {

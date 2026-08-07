@@ -103,6 +103,7 @@ export {
   defaultPokerBankConfig,
   formatPokerAmount,
   fromPoints,
+  pointsFromChipCounts,
   pokerBankConfigFromSession,
   pokerBankEngine,
   toPoints,

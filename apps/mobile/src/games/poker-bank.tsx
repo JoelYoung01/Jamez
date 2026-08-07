@@ -1,6 +1,7 @@
 import {
   chipBreakdown,
   formatPokerAmount,
+  pointsFromChipCounts,
   toPoints,
   type PokerBankConfig,
   type PokerBankState,
@@ -326,6 +327,20 @@ function BankSettingsSheet({
   )
 }
 
+type CashInputMode = PokerCurrencyMode | 'chips'
+
+function parseChipCountDrafts(
+  drafts: Record<string, string>,
+  chips: PokerChipDenom[],
+): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const chip of chips) {
+    const n = Number.parseInt(drafts[chip.id] ?? '', 10)
+    if (!Number.isNaN(n) && n > 0) counts[chip.id] = n
+  }
+  return counts
+}
+
 function CashSheet({
   mode,
   player,
@@ -341,13 +356,21 @@ function CashSheet({
 }) {
   const keyboardHeight = useKeyboardHeight()
   const [amount, setAmount] = React.useState('')
-  const [unit, setUnit] = React.useState<PokerCurrencyMode>(game.config.currencyMode)
+  const [unit, setUnit] = React.useState<CashInputMode>(game.config.currencyMode)
+  const [chipDrafts, setChipDrafts] = React.useState<Record<string, string>>({})
   const numeric = Number.parseFloat(amount)
+  const chipPoints = pointsFromChipCounts(
+    parseChipCountDrafts(chipDrafts, game.config.chips),
+    game.config.chips,
+  )
   const points =
-    Number.isFinite(numeric) && numeric > 0
-      ? toPoints(numeric, unit, game.config.pointsPerDollar)
-      : 0
-  const breakdown = mode === 'withdraw' ? chipBreakdown(points, game.config.chips) : []
+    unit === 'chips'
+      ? chipPoints
+      : Number.isFinite(numeric) && numeric > 0
+        ? toPoints(numeric, unit, game.config.pointsPerDollar)
+        : 0
+  const breakdown =
+    mode === 'withdraw' && unit !== 'chips' ? chipBreakdown(points, game.config.chips) : []
   const balance = game.banks[player.id]?.balance ?? 0
 
   // Bottom sheet sits under the keyboard unless we lift it by the keyboard frame.
@@ -381,27 +404,60 @@ function CashSheet({
               options={[
                 { value: 'points', label: 'Points' },
                 { value: 'dollars', label: 'Dollars' },
+                { value: 'chips', label: 'Chips' },
               ]}
             />
-            <View className="mt-3 flex-row items-center rounded-xl border border-line bg-background px-3">
-              {unit === 'dollars' ? (
-                <DollarSignIcon size={18} color="#a1a1ab" accessibilityLabel="Dollars" />
-              ) : null}
-              <AppTextInput
-                autoFocus
-                keyboardAccessory={false}
-                keyboardType="decimal-pad"
-                value={amount}
-                onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ''))}
-                placeholder={unit === 'dollars' ? '0.00' : '0'}
-                placeholderTextColor="#71717a"
-                className="h-12 min-w-0 flex-1 bg-transparent px-2 font-mono text-lg text-zinc-100"
-              />
-            </View>
+            {unit === 'chips' ? (
+              <View className="mt-3 gap-2">
+                {game.config.chips.map((chip) => (
+                  <View
+                    key={chip.id}
+                    className="flex-row items-center gap-2 rounded-xl border border-line px-2 py-2"
+                  >
+                    <PokerChip color={chip.color} size={28} label={String(chip.value)} />
+                    <View className="min-w-0 flex-1">
+                      <Text className="text-sm font-medium text-zinc-100">{chip.label}</Text>
+                      <Muted>{chip.value} pts each</Muted>
+                    </View>
+                    <Text className="text-muted-foreground">×</Text>
+                    <AppTextInput
+                      keyboardAccessory={false}
+                      keyboardType="number-pad"
+                      value={chipDrafts[chip.id] ?? ''}
+                      onChangeText={(t) =>
+                        setChipDrafts((prev) => ({
+                          ...prev,
+                          [chip.id]: t.replace(/\D/g, ''),
+                        }))
+                      }
+                      placeholder="0"
+                      placeholderTextColor="#71717a"
+                      className="h-10 w-16 rounded-lg border border-line bg-background px-2 text-center font-mono text-base text-zinc-100"
+                    />
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View className="mt-3 flex-row items-center rounded-xl border border-line bg-background px-3">
+                {unit === 'dollars' ? (
+                  <DollarSignIcon size={18} color="#a1a1ab" accessibilityLabel="Dollars" />
+                ) : null}
+                <AppTextInput
+                  autoFocus
+                  keyboardAccessory={false}
+                  keyboardType="decimal-pad"
+                  value={amount}
+                  onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ''))}
+                  placeholder={unit === 'dollars' ? '0.00' : '0'}
+                  placeholderTextColor="#71717a"
+                  className="h-12 min-w-0 flex-1 bg-transparent px-2 font-mono text-lg text-zinc-100"
+                />
+              </View>
+            )}
             {points > 0 ? (
               <Muted className="mt-2">
                 = {formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}
-                {unit === 'dollars'
+                {game.config.currencyMode === 'dollars' || unit === 'dollars'
                   ? ` · ${formatPokerAmount(points, game.config)}`
                   : ''}
               </Muted>
@@ -424,13 +480,13 @@ function CashSheet({
               <AppButton
                 title="Confirm"
                 className="flex-1"
-                disabled={!(numeric > 0) || (mode === 'withdraw' && points > balance)}
+                disabled={!(points > 0) || (mode === 'withdraw' && points > balance)}
                 onPress={() => {
                   const error = send({
                     type: mode,
                     playerId: player.id,
-                    amount: numeric,
-                    unit,
+                    amount: unit === 'chips' ? points : numeric,
+                    unit: unit === 'chips' ? 'points' : unit,
                   })
                   if (!error) onClose()
                 }}

@@ -2,6 +2,7 @@ import {
   chipBreakdown,
   formatPokerAmount,
   getGameEngine,
+  pointsFromChipCounts,
   toPoints,
   type PokerBankConfig,
   type PokerBankState,
@@ -371,6 +372,20 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
   )
 }
 
+type CashInputMode = PokerCurrencyMode | 'chips'
+
+function parseChipCountDrafts(
+  drafts: Record<string, string>,
+  chips: PokerChipDenom[],
+): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const chip of chips) {
+    const n = Number.parseInt(drafts[chip.id] ?? '', 10)
+    if (!Number.isNaN(n) && n > 0) counts[chip.id] = n
+  }
+  return counts
+}
+
 function CashDialog({
   mode,
   player,
@@ -384,21 +399,42 @@ function CashDialog({
 }) {
   const [open, setOpen] = React.useState(false)
   const [amount, setAmount] = React.useState('')
-  const [unit, setUnit] = React.useState<PokerCurrencyMode>(game.config.currencyMode)
+  const [unit, setUnit] = React.useState<CashInputMode>(game.config.currencyMode)
+  const [chipDrafts, setChipDrafts] = React.useState<Record<string, string>>({})
   const numeric = Number.parseFloat(amount)
+  const chipPoints = pointsFromChipCounts(
+    parseChipCountDrafts(chipDrafts, game.config.chips),
+    game.config.chips,
+  )
   const points =
-    Number.isFinite(numeric) && numeric > 0
-      ? toPoints(numeric, unit, game.config.pointsPerDollar)
-      : 0
-  const breakdown = mode === 'withdraw' ? chipBreakdown(points, game.config.chips) : []
+    unit === 'chips'
+      ? chipPoints
+      : Number.isFinite(numeric) && numeric > 0
+        ? toPoints(numeric, unit, game.config.pointsPerDollar)
+        : 0
+  const breakdown =
+    mode === 'withdraw' && unit !== 'chips' ? chipBreakdown(points, game.config.chips) : []
   const balance = game.banks[player.id]?.balance ?? 0
 
+  React.useEffect(() => {
+    if (!open) return
+    setAmount('')
+    setUnit(game.config.currencyMode)
+    setChipDrafts({})
+  }, [open, game.config.currencyMode])
+
   const submit = () => {
-    if (!(numeric > 0)) return
+    if (!(points > 0)) return
     // Host acts as host (isHost); guests always act as themselves via the store.
-    const error = send({ type: mode, playerId: player.id, amount: numeric, unit })
+    const error = send({
+      type: mode,
+      playerId: player.id,
+      amount: unit === 'chips' ? points : numeric,
+      unit: unit === 'chips' ? 'points' : unit,
+    })
     if (error) return
     setAmount('')
+    setChipDrafts({})
     setOpen(false)
   }
 
@@ -423,36 +459,69 @@ function CashDialog({
           </p>
           <Segmented
             value={unit}
-            onChange={(v) => setUnit(v as PokerCurrencyMode)}
+            onChange={(v) => setUnit(v as CashInputMode)}
             options={[
               { value: 'points', label: 'Points' },
               { value: 'dollars', label: 'Dollars' },
+              { value: 'chips', label: 'Chips' },
             ]}
           />
-          <div className="relative">
-            {unit === 'dollars' ? (
-              <DollarSignIcon
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden
+          {unit === 'chips' ? (
+            <div className="grid gap-2">
+              {game.config.chips.map((chip) => (
+                <div
+                  key={chip.id}
+                  className="flex items-center gap-2 rounded-lg border border-border/60 px-2 py-2"
+                >
+                  <PokerChip color={chip.color} size={28} label={String(chip.value)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">{chip.label}</div>
+                    <div className="text-[11px] text-muted-foreground">{chip.value} pts each</div>
+                  </div>
+                  <span className="text-muted-foreground">×</span>
+                  <Input
+                    inputMode="numeric"
+                    placeholder="0"
+                    className="h-9 w-16 text-center font-mono tabular-nums"
+                    value={chipDrafts[chip.id] ?? ''}
+                    onChange={(e) =>
+                      setChipDrafts((prev) => ({
+                        ...prev,
+                        [chip.id]: e.target.value.replace(/\D/g, ''),
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="relative">
+              {unit === 'dollars' ? (
+                <DollarSignIcon
+                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+              ) : null}
+              <Input
+                inputMode="decimal"
+                autoFocus
+                placeholder={unit === 'dollars' ? '0.00' : '0'}
+                className={cn(
+                  'h-11 font-mono text-lg tabular-nums',
+                  unit === 'dollars' && 'pl-8',
+                )}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                onKeyDown={(e) => e.key === 'Enter' && submit()}
               />
-            ) : null}
-            <Input
-              inputMode="decimal"
-              autoFocus
-              placeholder={unit === 'dollars' ? '0.00' : '0'}
-              className={cn(
-                'h-11 font-mono text-lg tabular-nums',
-                unit === 'dollars' && 'pl-8',
-              )}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-              onKeyDown={(e) => e.key === 'Enter' && submit()}
-            />
-          </div>
+            </div>
+          )}
           {points > 0 && (
             <p className="text-xs text-muted-foreground">
               = {formatPokerAmount(points, { currencyMode: 'points', pointsPerDollar: 1 })}
-              {unit === 'dollars' ? ` · ${formatPokerAmount(points, game.config)}` : ''}
+              {game.config.currencyMode === 'dollars' || unit === 'dollars'
+                ? ` · ${formatPokerAmount(points, game.config)}`
+                : ''}
             </p>
           )}
           {mode === 'withdraw' && breakdown.length > 0 && (
@@ -473,7 +542,7 @@ function CashDialog({
           )}
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={!(numeric > 0) || (mode === 'withdraw' && points > balance)}>
+          <Button onClick={submit} disabled={!(points > 0) || (mode === 'withdraw' && points > balance)}>
             Confirm
           </Button>
         </DialogFooter>
