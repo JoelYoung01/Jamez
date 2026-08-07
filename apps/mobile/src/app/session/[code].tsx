@@ -1,6 +1,8 @@
 import {
   getGameEngine,
   normalizeJoinCode,
+  sessionDisplayName,
+  SESSION_NICKNAME_MAX,
   type SessionPlayer,
   type SessionState,
 } from '@jamez/core'
@@ -13,6 +15,7 @@ import {
   HandIcon,
   MedalIcon,
   MoonIcon,
+  PencilIcon,
   RotateCcwIcon,
   TrophyIcon,
   UserPlusIcon,
@@ -142,6 +145,10 @@ function SessionHeader({ state }: { state: SessionState }) {
   const store = useSession()
   const game = getGameEngine(state.gameId)
   const GameIcon = getGameIcon(state.gameId)
+  const title = sessionDisplayName({ nickname: state.nickname, gameId: state.gameId })
+  const isHost = store.role === 'host'
+  const [nickOpen, setNickOpen] = React.useState(false)
+
   return (
     <View className="flex-row items-center justify-between gap-2">
       <View className="min-w-0 flex-1 flex-row items-center gap-2.5">
@@ -154,14 +161,81 @@ function SessionHeader({ state }: { state: SessionState }) {
         </Pressable>
         <GameIcon size={24} color={game?.accentColor ?? '#a1a1ab'} />
         <View className="min-w-0 flex-1">
-          <Text className="font-semibold text-zinc-100" numberOfLines={1}>
-            {game?.name ?? state.gameId}
+          <View className="flex-row items-center gap-1">
+            <Text className="min-w-0 flex-1 font-semibold text-zinc-100" numberOfLines={1}>
+              {title}
+            </Text>
+            {isHost ? (
+              <Pressable
+                accessibilityLabel="Edit nickname"
+                hitSlop={8}
+                onPress={() => setNickOpen(true)}
+                className="h-8 w-8 items-center justify-center rounded-lg active:opacity-70"
+              >
+                <PencilIcon size={14} color="#a1a1ab" />
+              </Pressable>
+            ) : null}
+          </View>
+          <Text className="font-mono text-xs tracking-widest text-muted-foreground">
+            {state.nickname ? `${game?.name ?? state.gameId} · ` : ''}
+            {state.code}
           </Text>
-          <Text className="font-mono text-xs tracking-widest text-muted-foreground">{state.code}</Text>
         </View>
       </View>
       <StatusPill transportStatus={store.transportStatus} passAndPlay={store.passAndPlay} />
+      {nickOpen ? (
+        <NicknameModal
+          initial={state.nickname ?? ''}
+          onClose={() => setNickOpen(false)}
+          onSave={(value) => {
+            store.setNickname(value)
+            setNickOpen(false)
+          }}
+        />
+      ) : null}
     </View>
+  )
+}
+
+function NicknameModal({
+  initial,
+  onClose,
+  onSave,
+}: {
+  initial: string
+  onClose: () => void
+  onSave: (value: string) => void
+}) {
+  const [draft, setDraft] = React.useState(initial)
+  return (
+    <Modal transparent animationType="fade" visible onRequestClose={onClose}>
+      <Pressable className="flex-1 justify-center bg-black/70 px-5" onPress={onClose}>
+        <Pressable onPress={() => {}} className="gap-3 rounded-2xl border border-line bg-card p-5">
+          <Text className="text-lg font-semibold text-zinc-100">Session nickname</Text>
+          <View>
+            <SectionLabel>Nickname (optional)</SectionLabel>
+            <TextInput
+              value={draft}
+              onChangeText={(t) => setDraft(t.slice(0, SESSION_NICKNAME_MAX))}
+              placeholder="e.g. Friday night bank"
+              placeholderTextColor="rgba(255,255,255,0.25)"
+              maxLength={SESSION_NICKNAME_MAX}
+              autoFocus
+              className="h-12 rounded-xl border border-line bg-field px-3 text-base text-zinc-100"
+            />
+          </View>
+          <View className="flex-row gap-2">
+            <AppButton
+              title="Clear"
+              variant="secondary"
+              className="flex-1"
+              onPress={() => onSave('')}
+            />
+            <AppButton title="Save" className="flex-1" onPress={() => onSave(draft)} />
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   )
 }
 

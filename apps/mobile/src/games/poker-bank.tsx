@@ -304,22 +304,10 @@ function GuestProfileModal({
     <Modal transparent animationType="fade" visible onRequestClose={onClose}>
       <Pressable className="flex-1 items-center justify-center bg-black/60 px-6" onPress={onClose}>
         <Pressable className="w-full gap-3 rounded-2xl border border-line bg-card p-4" onPress={() => {}}>
-<<<<<<< HEAD
-          <Text className="text-lg font-semibold text-zinc-100">Add a guest seat</Text>
-          <AppTextInput
-            autoFocus
-            value={name}
-            onChangeText={setName}
-            placeholder="Name"
-            placeholderTextColor="#71717a"
-            maxLength={24}
-            className="h-11 rounded-xl border border-line bg-background px-3 text-zinc-100"
-          />
-=======
           <Text className="text-lg font-semibold text-zinc-100">{title}</Text>
           <View>
             <SectionLabel>Name</SectionLabel>
-            <TextInput
+            <AppTextInput
               autoFocus
               value={name}
               onChangeText={setName}
@@ -333,7 +321,6 @@ function GuestProfileModal({
             <SectionLabel>Emoji</SectionLabel>
             <EmojiGrid value={emoji} onChange={setEmoji} />
           </View>
->>>>>>> origin/cursor/edit-guest-player-fde1
           <View className="flex-row gap-2">
             <AppButton title="Cancel" variant="secondary" className="flex-1" onPress={onClose} />
             <AppButton

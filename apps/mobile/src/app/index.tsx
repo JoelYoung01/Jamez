@@ -1,8 +1,16 @@
-import { gameEngines, getGameEngine } from '@jamez/core'
+import {
+  buildActivityFeed,
+  getGameEngine,
+  isOngoingGame,
+  sessionDisplayName,
+  type ActivityItem,
+} from '@jamez/core'
 import { Link, router, useFocusEffect } from 'expo-router'
 import {
   ArrowRightIcon,
   DicesIcon,
+  LayoutGridIcon,
+  MoonIcon,
   RadioTowerIcon,
   SettingsIcon,
   TicketIcon,
@@ -11,36 +19,42 @@ import {
 import * as React from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { AppButton, Card, Chip, Muted, Screen } from '@/components/ui'
+import { Card, Chip, Muted, Screen } from '@/components/ui'
 import { getGameIcon } from '@/games/registry'
 import { formatDate } from '@/lib/format'
 import { useHistory } from '@/lib/history'
+import { listLongTermSessions } from '@/lib/long-term-sessions'
 import { useProfile } from '@/lib/profile'
-import { listResumableHostSnapshots, useSession, type HostSnapshot } from '@/lib/session-store'
+import { listHostSnapshots, useSession, type HostSnapshot } from '@/lib/session-store'
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets()
   const history = useHistory()
   const activeCode = useSession((s) => s.code)
+  const state = useSession((s) => s.state)
   const { name, emoji } = useProfile()
-  const recent = history.slice(0, 3)
 
-  const [snapshots, setSnapshots] = React.useState<HostSnapshot[]>([])
+  const [vault, setVault] = React.useState<HostSnapshot[]>([])
   useFocusEffect(
     React.useCallback(() => {
       let alive = true
-      if (activeCode) {
-        setSnapshots([])
-      } else {
-        void listResumableHostSnapshots().then((snaps) => {
-          if (alive) setSnapshots(snaps)
-        })
-      }
+      void listHostSnapshots().then((snaps) => {
+        if (alive) setVault(snaps)
+      })
       return () => {
         alive = false
       }
-    }, [activeCode]),
+    }, []),
   )
+
+  const recent = buildActivityFeed({ history, vault })
+    .filter((item) => item.kind === 'history')
+    .slice(0, 5)
+  const longTermCount = listLongTermSessions(vault, {
+    code: activeCode ?? '',
+    gameId: state?.gameId ?? '',
+    nickname: state?.nickname,
+  }).length
 
   return (
     <Screen>
@@ -82,97 +96,44 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {activeCode && (
-          <Card className="mb-3 border-primary/40 bg-primary/10 p-4">
-            <View className="flex-row items-center justify-between gap-3">
-              <View>
-                <Text className="text-sm font-semibold text-zinc-100">Session in progress</Text>
-                <Text className="font-mono text-xs tracking-widest text-muted-foreground">{activeCode}</Text>
-              </View>
-              <AppButton
-                size="sm"
-                title="Return"
-                iconRight={<ArrowRightIcon size={14} color="#251a02" />}
-                onPress={() => router.push(`/session/${activeCode}`)}
-              />
-            </View>
-          </Card>
-        )}
-
-        {!activeCode &&
-          snapshots.map((snapshot) => (
-            <Card
-              key={`${snapshot.state.gameId}:${snapshot.state.code}`}
-              className="mb-3 border-primary/40 bg-primary/10 p-4"
-            >
-              <View className="flex-row items-center justify-between gap-3">
-                <View className="min-w-0 flex-1">
-                  <Text className="text-sm font-semibold text-zinc-100" numberOfLines={1}>
-                    Resume {getGameEngine(snapshot.state.gameId)?.name ?? snapshot.state.gameId}
-                  </Text>
-                  <Text className="font-mono text-xs tracking-widest text-muted-foreground">
-                    {snapshot.state.code}
-                  </Text>
-                </View>
-                <AppButton
-                  size="sm"
-                  title="Resume"
-                  iconRight={<ArrowRightIcon size={14} color="#251a02" />}
-                  onPress={() => router.push(`/session/${snapshot.state.code}`)}
-                />
-              </View>
-            </Card>
-          ))}
-
         <View className="gap-3">
-          <Pressable onPress={() => router.push('/host')} className="active:opacity-80">
-            <Card className="p-5">
-              <View className="mb-2 h-11 w-11 items-center justify-center rounded-xl bg-primary/15">
-                <RadioTowerIcon size={20} color="#fbbf24" />
-              </View>
-              <Text className="text-lg font-semibold text-zinc-100">Host a game</Text>
-              <Muted className="mt-0.5 text-sm">
-                Start a session on this phone and invite the table with a QR code.
-              </Muted>
-              <View className="mt-3 flex-row items-center gap-1">
-                <Text className="text-sm font-medium text-primary">Choose a game</Text>
-                <ArrowRightIcon size={14} color="#fbbf24" />
-              </View>
-            </Card>
-          </Pressable>
-
-          <Pressable onPress={() => router.push('/join')} className="active:opacity-80">
-            <Card className="p-5">
-              <View className="mb-2 h-11 w-11 items-center justify-center rounded-xl bg-primary/15">
-                <TicketIcon size={20} color="#fbbf24" />
-              </View>
-              <Text className="text-lg font-semibold text-zinc-100">Join a game</Text>
-              <Muted className="mt-0.5 text-sm">
-                Got a code from the host? Jump in and submit your own scores.
-              </Muted>
-              <View className="mt-3 flex-row items-center gap-1">
-                <Text className="text-sm font-medium text-primary">Enter code or scan</Text>
-                <ArrowRightIcon size={14} color="#fbbf24" />
-              </View>
-            </Card>
-          </Pressable>
-        </View>
-
-        <View className="flex-row flex-wrap items-center justify-center gap-2 py-4">
-          <Muted>On the shelf:</Muted>
-          {gameEngines.map((game) => {
-            const Icon = getGameIcon(game.id)
-            return (
-              <Chip key={game.id} icon={<Icon size={12} color={game.accentColor} />}>
-                {game.name}
-              </Chip>
-            )
-          })}
-          <Chip tone="outline">more coming</Chip>
+          <View className="flex-row gap-3">
+            <HomeTile
+              icon={<RadioTowerIcon size={20} color="#fbbf24" />}
+              title="Host"
+              description="Start a session and invite the table."
+              cta="Choose a game"
+              onPress={() => router.push('/host')}
+            />
+            <HomeTile
+              icon={<TicketIcon size={20} color="#fbbf24" />}
+              title="Join"
+              description="Enter a code or scan a QR."
+              cta="Enter code"
+              onPress={() => router.push('/join')}
+            />
+          </View>
+          <View className="flex-row gap-3">
+            <HomeTile
+              icon={<MoonIcon size={20} color="#fbbf24" />}
+              title="Return to game"
+              description="Parked banks and long-term rooms."
+              cta={longTermCount > 0 ? `${longTermCount} open` : 'None parked'}
+              badge={longTermCount > 0 ? String(longTermCount) : undefined}
+              onPress={() => router.push('/continue')}
+            />
+            <HomeTile
+              icon={<LayoutGridIcon size={20} color="#fbbf24" />}
+              title="Browse shelf"
+              description="See every game on the shelf."
+              cta="Browse games"
+              onPress={() => router.push('/host')}
+            />
+          </View>
         </View>
 
         {recent.length > 0 && (
-          <View>
+          <View className="mt-5">
             <View className="mb-2 flex-row items-center justify-between">
               <View className="flex-row items-center gap-1.5">
                 <TrophyIcon size={14} color="#a1a1ab" />
@@ -183,29 +144,15 @@ export default function HomeScreen() {
               </Pressable>
             </View>
             <View className="gap-2">
-              {recent.map((record) => {
-                const game = getGameEngine(record.gameId)
-                const Icon = getGameIcon(record.gameId)
-                return (
-                  <Card key={record.id} className="flex-row items-center gap-3 p-3.5">
-                    <Icon size={22} color={game?.accentColor ?? '#a1a1ab'} />
-                    <View className="min-w-0 flex-1">
-                      <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
-                        {record.summary.headline}
-                      </Text>
-                      <Muted>
-                        {game?.name} · {formatDate(record.finishedAt)}
-                      </Muted>
-                    </View>
-                  </Card>
-                )
-              })}
+              {recent.map((item) => (
+                <ActivityRow key={item.key} item={item} />
+              ))}
             </View>
           </View>
         )}
 
         {recent.length === 0 && (
-          <Pressable onPress={() => router.push('/history')} className="items-center py-2 active:opacity-70">
+          <Pressable onPress={() => router.push('/history')} className="items-center py-4 active:opacity-70">
             <View className="flex-row items-center gap-1">
               <Text className="text-xs font-medium text-muted-foreground">History & stats</Text>
               <ArrowRightIcon size={12} color="#a1a1ab" />
@@ -214,5 +161,76 @@ export default function HomeScreen() {
         )}
       </View>
     </Screen>
+  )
+}
+
+function HomeTile({
+  icon,
+  title,
+  description,
+  cta,
+  badge,
+  onPress,
+}: {
+  icon: React.ReactNode
+  title: string
+  description: string
+  cta: string
+  badge?: string
+  onPress: () => void
+}) {
+  return (
+    <Pressable onPress={onPress} className="min-w-0 flex-1 active:opacity-80">
+      <Card className="relative h-full p-4">
+        {badge ? (
+          <View className="absolute right-2.5 top-2.5 rounded-full bg-primary px-2 py-0.5">
+            <Text className="text-[10px] font-bold text-primary-foreground">{badge}</Text>
+          </View>
+        ) : null}
+        <View className="mb-2 h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
+          {icon}
+        </View>
+        <Text className="text-base font-semibold leading-tight text-zinc-100">{title}</Text>
+        <Muted className="mt-0.5 text-xs leading-snug">{description}</Muted>
+        <View className="mt-2 flex-row items-center gap-0.5">
+          <Text className="text-xs font-medium text-primary">{cta}</Text>
+          <ArrowRightIcon size={12} color="#fbbf24" />
+        </View>
+      </Card>
+    </Pressable>
+  )
+}
+
+function ActivityRow({ item }: { item: ActivityItem }) {
+  if (item.kind !== 'history') return null
+
+  const { record, canOpen } = item
+  const game = getGameEngine(record.gameId)
+  const Icon = getGameIcon(record.gameId)
+  const title = record.nickname
+    ? sessionDisplayName({ nickname: record.nickname, gameId: record.gameId })
+    : record.summary.headline
+  const ongoing = game ? isOngoingGame(game) : false
+
+  return (
+    <Pressable
+      onPress={() =>
+        canOpen ? router.push(`/session/${record.code}`) : router.push(`/history/${record.id}`)
+      }
+      className="active:opacity-80"
+    >
+      <Card className="flex-row items-center gap-3 p-3.5">
+        <Icon size={22} color={game?.accentColor ?? '#a1a1ab'} />
+        <View className="min-w-0 flex-1">
+          <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
+            {title}
+          </Text>
+          <Muted>
+            {game?.name} · {formatDate(record.finishedAt)}
+          </Muted>
+        </View>
+        {canOpen ? <Chip tone="outline">{ongoing ? 'Open' : 'Resume'}</Chip> : null}
+      </Card>
+    </Pressable>
   )
 }

@@ -1,11 +1,11 @@
-import { getGameEngine } from '@jamez/core'
+import { getGameEngine, SESSION_NICKNAME_MAX } from '@jamez/core'
 import { router, useLocalSearchParams } from 'expo-router'
 import * as React from 'react'
-import { Switch, Text, View } from 'react-native'
+import { Switch, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PageHeader } from '@/components/page-header'
 import { RequireProfile } from '@/components/require-profile'
-import { AppButton, Card, CardTitle, Muted, Screen } from '@/components/ui'
+import { AppButton, Card, CardTitle, Muted, Screen, SectionLabel } from '@/components/ui'
 import { getGameIcon, getGameUI } from '@/games/registry'
 import { useSession } from '@/lib/session-store'
 
@@ -17,6 +17,7 @@ export default function HostConfigScreen() {
   const ui = getGameUI(gameId)
   const [config, setConfig] = React.useState<unknown>(() => game?.defaultConfig())
   const [passAndPlay, setPassAndPlay] = React.useState(false)
+  const [nickname, setNickname] = React.useState('')
 
   if (!game || !ui) {
     return (
@@ -36,7 +37,7 @@ export default function HostConfigScreen() {
   const GameIcon = getGameIcon(gameId)
 
   const create = () => {
-    const code = hostGame({ gameId, config, passAndPlay })
+    const code = hostGame({ gameId, config, passAndPlay, nickname })
     if (code) router.replace(`/session/${code}`)
   }
 
@@ -46,9 +47,21 @@ export default function HostConfigScreen() {
         <PageHeader title={`Host ${game.name}`} icon={<GameIcon size={20} color={game.accentColor} />} />
         <RequireProfile>
           <View className="gap-4">
-            <Card className="p-4">
-              <View className="mb-3">
-                <CardTitle>Game options</CardTitle>
+            <Card className="gap-3 p-4">
+              <CardTitle>Game options</CardTitle>
+              <View>
+                <SectionLabel>Nickname (optional)</SectionLabel>
+                <TextInput
+                  value={nickname}
+                  onChangeText={(t) => setNickname(t.slice(0, SESSION_NICKNAME_MAX))}
+                  placeholder="e.g. Friday night bank"
+                  placeholderTextColor="rgba(255,255,255,0.25)"
+                  maxLength={SESSION_NICKNAME_MAX}
+                  className="h-11 rounded-xl border border-line bg-field px-3 text-base text-zinc-100"
+                />
+                <Muted className="mt-1">
+                  Shown in history and on parked sessions. Leave blank for the game name.
+                </Muted>
               </View>
               <SetupForm config={config} onChange={setConfig} />
             </Card>

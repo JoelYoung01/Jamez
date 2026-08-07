@@ -5,6 +5,7 @@ import { Emitter, type Unsubscribe } from '../util/emitter'
 import { randomId } from '../util/ids'
 import {
   makeEnvelope,
+  normalizeNickname,
   parseEnvelope,
   pickPlayerColor,
   type PlayerProfile,
@@ -28,6 +29,8 @@ export interface HostSessionOptions {
   onSnapshot?: (state: SessionState) => void
   /** Resume a previous session (e.g. after the host app reloads). */
   resumeFrom?: SessionState
+  /** Optional display nickname for a brand-new session. */
+  nickname?: string
   now?: () => number
 }
 
@@ -80,6 +83,7 @@ export class HostSession {
         connected: true,
         joinedAt: this.now(),
       }
+      const nickname = normalizeNickname(options.nickname)
       this.state = {
         v: 1,
         sessionId: randomId(8),
@@ -91,6 +95,7 @@ export class HostSession {
         players: [hostPlayer],
         game: null,
         createdAt: this.now(),
+        ...(nickname ? { nickname } : {}),
       }
     }
 
@@ -135,6 +140,17 @@ export class HostSession {
     if (this.broadcastTimer) clearTimeout(this.broadcastTimer)
     for (const u of this.unsubscribes) u()
     this.transport.stop()
+  }
+
+  /** Set or clear the optional session nickname (host-only). */
+  setNickname(nickname: string | undefined | null): void {
+    const next = normalizeNickname(nickname)
+    const prev = normalizeNickname(this.state.nickname)
+    if (next === prev) return
+    this.mutate((s) => {
+      if (next) s.nickname = next
+      else delete s.nickname
+    })
   }
 
   // -- Lobby management ------------------------------------------------------

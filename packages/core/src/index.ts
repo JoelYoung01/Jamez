@@ -37,7 +37,9 @@ export {
 // session protocol
 export {
   PLAYER_COLORS,
+  SESSION_NICKNAME_MAX,
   makeEnvelope,
+  normalizeNickname,
   parseEnvelope,
   pickPlayerColor,
   type Envelope,
@@ -129,3 +131,8 @@ export {
   type HistoryStore,
   type Stats,
 } from './history/types'
+export {
+  buildActivityFeed,
+  sessionDisplayName,
+  type ActivityItem,
+} from './history/activity'

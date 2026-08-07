@@ -13,7 +13,7 @@ export default function HostScreen() {
   return (
     <Screen>
       <View style={{ paddingTop: insets.top + 8 }}>
-        <PageHeader title="Pick a game to host" />
+        <PageHeader title="Browse the shelf" />
         <RequireProfile>
           <View className="gap-3">
             {gameEngines.map((game) => {
