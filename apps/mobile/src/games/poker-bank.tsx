@@ -10,7 +10,8 @@ import {
 } from '@jamez/core'
 import { CoinsIcon } from 'lucide-react-native'
 import * as React from 'react'
-import { Modal, Pressable, Text, TextInput, View } from 'react-native'
+import { Modal, Pressable, Text, View } from 'react-native'
+import { AppTextInput } from '@/components/app-text-input'
 import { PokerChip } from '@/components/poker-chip'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
@@ -29,7 +30,7 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
     <View className="gap-4">
       <View className="gap-1.5">
         <Muted>Starting stack (points)</Muted>
-        <TextInput
+        <AppTextInput
           keyboardType="number-pad"
           value={String(config.startingStack)}
           onChangeText={(t) => {
@@ -52,7 +53,7 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
       </View>
       <View className="gap-1.5">
         <Muted>Points per dollar</Muted>
-        <TextInput
+        <AppTextInput
           keyboardType="decimal-pad"
           value={String(config.pointsPerDollar)}
           onChangeText={(t) => {
@@ -67,12 +68,12 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
         {config.chips.map((chip, index) => (
           <View key={chip.id} className="flex-row items-center gap-2 rounded-xl border border-line p-2">
             <PokerChip color={chip.color} size={28} label={String(chip.value)} />
-            <TextInput
+            <AppTextInput
               value={chip.label}
               onChangeText={(label) => updateChip(index, { label: label.slice(0, 16) })}
               className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-background px-2 text-sm text-zinc-100"
             />
-            <TextInput
+            <AppTextInput
               keyboardType="number-pad"
               value={String(chip.value)}
               onChangeText={(t) => {
@@ -81,7 +82,7 @@ function PokerSetup({ config, onChange }: GameSetupProps<PokerBankConfig>) {
               }}
               className="h-9 w-16 rounded-lg border border-line bg-background px-2 font-mono text-sm text-zinc-100"
             />
-            <TextInput
+            <AppTextInput
               value={chip.color}
               onChangeText={(color) => {
                 if (/^#[0-9a-fA-F]{0,6}$/.test(color)) updateChip(index, { color })
@@ -148,7 +149,7 @@ function CashSheet({
               { value: 'dollars', label: 'Dollars' },
             ]}
           />
-          <TextInput
+          <AppTextInput
             autoFocus
             keyboardType="decimal-pad"
             value={amount}
@@ -282,7 +283,7 @@ function AddGuestButton() {
       <Pressable className="flex-1 items-center justify-center bg-black/60 px-6" onPress={() => setOpen(false)}>
         <Pressable className="w-full gap-3 rounded-2xl border border-line bg-card p-4" onPress={() => {}}>
           <Text className="text-lg font-semibold text-zinc-100">Add a guest seat</Text>
-          <TextInput
+          <AppTextInput
             autoFocus
             value={name}
             onChangeText={setName}

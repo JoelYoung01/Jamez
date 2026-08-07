@@ -1,7 +1,8 @@
 import { DEFAULT_RELAYS } from '@jamez/core'
 import { router } from 'expo-router'
 import * as React from 'react'
-import { TextInput, View } from 'react-native'
+import { View } from 'react-native'
+import { AppTextInput } from '@/components/app-text-input'
 import { PageHeader } from '@/components/page-header'
 import { AppButton, Card, Muted, Screen, SectionLabel } from '@/components/ui'
 import { useSettings } from '@/lib/settings'
@@ -33,7 +34,7 @@ export default function SettingsScreen() {
           </Muted>
           <View>
             <SectionLabel>Custom relays (one per line)</SectionLabel>
-            <TextInput
+            <AppTextInput
               value={draft}
               onChangeText={setDraft}
               placeholder={DEFAULT_RELAYS.join('\n')}

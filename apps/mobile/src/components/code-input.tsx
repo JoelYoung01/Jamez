@@ -1,5 +1,5 @@
 import { JOIN_CODE_ALPHABET, JOIN_CODE_LENGTH } from '@jamez/core'
-import { TextInput } from 'react-native'
+import { AppTextInput } from '@/components/app-text-input'
 
 interface CodeInputProps {
   value: string
@@ -20,7 +20,7 @@ export function CodeInput({ value, onChange, onSubmit, autoFocus }: CodeInputPro
   }
 
   return (
-    <TextInput
+    <AppTextInput
       value={value}
       onChangeText={handleChange}
       onSubmitEditing={() => {

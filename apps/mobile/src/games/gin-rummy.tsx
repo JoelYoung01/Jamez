@@ -9,14 +9,7 @@ import {
   type SessionState,
 } from '@jamez/core'
 import { clsx } from 'clsx'
-import {
-  CheckIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  Undo2Icon,
-  WalletCardsIcon,
-  ZapIcon,
-} from 'lucide-react-native'
+import { ChevronLeftIcon, ChevronRightIcon, Undo2Icon, WalletCardsIcon, ZapIcon } from 'lucide-react-native'
 import * as React from 'react'
 import {
   InputAccessoryView,
@@ -28,6 +21,8 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { AppTextInput } from '@/components/app-text-input'
+import { KeyboardDismissBar, dismissKeyboard } from '@/components/keyboard-dismiss'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
 import { AppButton, Card, SectionLabel } from '@/components/ui'
@@ -35,53 +30,41 @@ import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
 const DEADWOOD_ACCESSORY_ID = 'gin-deadwood-accessory'
 
-function DeadwoodAccessoryBar({
+function DeadwoodNav({
   canFocusKnocker,
   focused,
   onFocusKnocker,
   onFocusDefender,
-  className,
 }: {
   canFocusKnocker: boolean
   focused: 'knocker' | 'defender' | null
   onFocusKnocker: () => void
   onFocusDefender: () => void
-  className?: string
 }) {
   const prevDisabled = !canFocusKnocker || focused === 'knocker'
   const nextDisabled = focused === 'defender'
 
   return (
-    <View className={clsx('flex-row items-center justify-between bg-card px-2 py-1.5', className)}>
-      <View className="flex-row items-center gap-0.5">
-        <Pressable
-          accessibilityLabel="Previous player"
-          disabled={prevDisabled}
-          hitSlop={6}
-          onPress={onFocusKnocker}
-          className="h-10 w-10 items-center justify-center rounded-lg active:opacity-70"
-        >
-          <ChevronLeftIcon size={22} color={prevDisabled ? '#52525b' : '#f4f4f5'} />
-        </Pressable>
-        <Pressable
-          accessibilityLabel="Next player"
-          disabled={nextDisabled}
-          hitSlop={6}
-          onPress={onFocusDefender}
-          className="h-10 w-10 items-center justify-center rounded-lg active:opacity-70"
-        >
-          <ChevronRightIcon size={22} color={nextDisabled ? '#52525b' : '#f4f4f5'} />
-        </Pressable>
-      </View>
+    <>
       <Pressable
-        accessibilityLabel="Dismiss keyboard"
+        accessibilityLabel="Previous player"
+        disabled={prevDisabled}
         hitSlop={6}
-        onPress={() => Keyboard.dismiss()}
+        onPress={onFocusKnocker}
         className="h-10 w-10 items-center justify-center rounded-lg active:opacity-70"
       >
-        <CheckIcon size={22} color="#fbbf24" />
+        <ChevronLeftIcon size={22} color={prevDisabled ? '#52525b' : '#f4f4f5'} />
       </Pressable>
-    </View>
+      <Pressable
+        accessibilityLabel="Next player"
+        disabled={nextDisabled}
+        hitSlop={6}
+        onPress={onFocusDefender}
+        className="h-10 w-10 items-center justify-center rounded-lg active:opacity-70"
+      >
+        <ChevronRightIcon size={22} color={nextDisabled ? '#52525b' : '#f4f4f5'} />
+      </Pressable>
+    </>
   )
 }
 
@@ -96,31 +79,32 @@ function DeadwoodKeyboardAccessory({
   onFocusKnocker: () => void
   onFocusDefender: () => void
 }) {
+  const leading = (
+    <DeadwoodNav
+      canFocusKnocker={canFocusKnocker}
+      focused={focused}
+      onFocusKnocker={onFocusKnocker}
+      onFocusDefender={onFocusDefender}
+    />
+  )
+
   // iOS: native bar pinned above the keyboard. Android has no InputAccessoryView,
-  // so show the same controls under the fields while a deadwood input is focused.
+  // so show the same controls under the fields while a deadwood input is focused
+  // (the app-wide Android dismiss host still covers the keyboard itself).
   if (Platform.OS === 'ios') {
     return (
       <InputAccessoryView nativeID={DEADWOOD_ACCESSORY_ID}>
-        <DeadwoodAccessoryBar
-          canFocusKnocker={canFocusKnocker}
-          focused={focused}
-          onFocusKnocker={onFocusKnocker}
-          onFocusDefender={onFocusDefender}
-          className="border-t border-line"
-        />
+        <KeyboardDismissBar leading={leading} className="border-t border-line" />
       </InputAccessoryView>
     )
   }
 
   if (!focused) return null
+  // Dismiss lives on the app-wide Android keyboard host; keep prev/next near the fields.
   return (
-    <DeadwoodAccessoryBar
-      canFocusKnocker={canFocusKnocker}
-      focused={focused}
-      onFocusKnocker={onFocusKnocker}
-      onFocusDefender={onFocusDefender}
-      className="rounded-lg border border-line"
-    />
+    <View className="flex-row items-center gap-0.5 rounded-lg border border-line bg-card px-2 py-1.5">
+      {leading}
+    </View>
   )
 }
 
@@ -136,7 +120,7 @@ function NumberField({
   return (
     <View className="flex-1 gap-1.5">
       <Text className="text-xs text-muted-foreground">{label}</Text>
-      <TextInput
+      <AppTextInput
         value={String(value)}
         keyboardType="number-pad"
         onChangeText={(t) => {
@@ -215,7 +199,7 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
 
   const submit = () => {
     if (!valid) return
-    Keyboard.dismiss()
+    dismissKeyboard()
     send({ type: 'recordHand', knockerId, outcome, knockerDeadwood: kd, defenderDeadwood: dd })
     setKnockerDeadwood('')
     setDefenderDeadwood('')

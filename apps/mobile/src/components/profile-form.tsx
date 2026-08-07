@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { Text, TextInput, View } from 'react-native'
+import { Text, View } from 'react-native'
+import { AppTextInput } from '@/components/app-text-input'
 import { EmojiGrid } from '@/components/emoji-grid'
 import { AppButton, SectionLabel } from '@/components/ui'
 import { useProfile } from '@/lib/profile'
@@ -27,7 +28,7 @@ export function ProfileForm({
     <View className="gap-4">
       <View>
         <SectionLabel>Name</SectionLabel>
-        <TextInput
+        <AppTextInput
           value={draftName}
           onChangeText={setDraftName}
           placeholder="e.g. Robin"
