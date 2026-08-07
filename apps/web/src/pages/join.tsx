@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CodeInput } from '@/components/code-input'
 import { RequireProfile } from '@/components/require-profile'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useProfile } from '@/lib/profile'
 import { useSession } from '@/lib/session-store'
 
@@ -46,9 +46,6 @@ export function JoinPage() {
         <Card>
           <CardHeader>
             <CardTitle>Enter the join code</CardTitle>
-            <CardDescription>
-              It's on the host's screen, or scan their QR code with your camera.
-            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <CodeInput value={code} onChange={setCode} onSubmit={() => join(code)} autoFocus />
