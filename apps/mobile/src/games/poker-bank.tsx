@@ -14,6 +14,7 @@ import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
 import { ColorPicker } from '@/components/color-picker'
 import { EmojiGrid } from '@/components/emoji-grid'
+import { KeyboardDismissButton } from '@/components/keyboard-dismiss'
 import { PokerChip } from '@/components/poker-chip'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
@@ -135,6 +136,7 @@ function CashSheet({
 
   // Bottom sheet sits under the keyboard unless we lift it by the keyboard frame.
   // (RN Modals don't inherit the activity's adjustResize on Android.)
+  // Keep dismiss inside this sheet so we don't stack a second accessory bar.
   return (
     <Modal transparent animationType="slide" visible onRequestClose={onClose}>
       <View className="flex-1 justify-end bg-black/60">
@@ -147,7 +149,11 @@ function CashSheet({
             keyboardShouldPersistTaps="handled"
             bounces={false}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ padding: 16 }}
+            contentContainerStyle={{
+              padding: 16,
+              // Room for the floating dismiss over the bottom-right edge.
+              paddingBottom: keyboardHeight > 0 ? 56 : 16,
+            }}
           >
             <Text className="mb-1 text-lg font-semibold text-zinc-100">
               {mode === 'deposit' ? 'Cash in' : 'Cash out'} · {player.name}
@@ -163,6 +169,7 @@ function CashSheet({
             />
             <AppTextInput
               autoFocus
+              keyboardAccessory={false}
               keyboardType="decimal-pad"
               value={amount}
               onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ''))}
@@ -196,6 +203,11 @@ function CashSheet({
               />
             </View>
           </ScrollView>
+          {keyboardHeight > 0 ? (
+            <View pointerEvents="box-none" className="absolute bottom-1.5 right-2">
+              <KeyboardDismissButton floating />
+            </View>
+          ) : null}
         </View>
       </View>
     </Modal>
