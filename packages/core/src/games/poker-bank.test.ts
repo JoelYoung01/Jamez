@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionPlayer } from '../protocol/session-state'
 import {
+  buildCashOverdrawConfirm,
   buildCashTransferSummary,
   chipBreakdown,
   clonePokerBankConfig,
@@ -91,13 +92,20 @@ describe('poker bank engine', () => {
       ctx,
     )
     expect(state.banks.g1?.balance).toBe(425)
+    // Overdraw is allowed (UI confirms); balances may go negative.
     expect(
       pokerBankEngine.validateAction(
         state,
         { type: 'withdraw', playerId: 'g1', amount: 1000, unit: 'points' },
         ctx,
       ),
-    ).toBe('Not enough balance')
+    ).toBeNull()
+    state = pokerBankEngine.applyAction(
+      state,
+      { type: 'withdraw', playerId: 'g1', amount: 1000, unit: 'points' },
+      ctx,
+    )
+    expect(state.banks.g1?.balance).toBe(-575)
   })
 
   it('lets only the host edit another player or update config', () => {
@@ -254,6 +262,8 @@ describe('poker bank engine', () => {
     expect(formatPokerAmount(500, { currencyMode: 'points', pointsPerDollar: 1 })).toBe('500 pts')
     expect(formatPokerAmount(500, { currencyMode: 'dollars', pointsPerDollar: 1 })).toBe('$500')
     expect(formatPokerAmount(500, { currencyMode: 'dollars', pointsPerDollar: 2 })).toBe('$250')
+    expect(formatPokerAmount(-50, { currencyMode: 'points', pointsPerDollar: 1 })).toBe('-50 pts')
+    expect(formatPokerAmount(-50, { currencyMode: 'dollars', pointsPerDollar: 1 })).toBe('-$50')
   })
 
   it('never auto-finishes', () => {
@@ -305,7 +315,7 @@ describe('poker bank engine', () => {
       buildCashTransferSummary({ mode: 'withdraw', points: 600, balance: 500, config }),
     ).toEqual({
       primary: '= 600 pts',
-      secondary: 'Not enough — short 100 pts (holding 500 pts)',
+      secondary: 'Goes negative — bank will be -100 pts',
       tone: 'danger',
     })
     expect(
@@ -313,6 +323,62 @@ describe('poker bank engine', () => {
     ).toEqual({
       primary: '= 50 pts',
       secondary: 'Bank will be 550 pts',
+      tone: 'muted',
+    })
+    expect(
+      buildCashOverdrawConfirm({
+        playerName: 'Grandpa',
+        balance: 500,
+        points: 600,
+        config,
+      }),
+    ).toEqual({
+      title: 'Withdraw more than they hold?',
+      message: 'Grandpa is holding 500 pts. This withdraw leaves the bank at -100 pts.',
+    })
+  })
+
+  it('formats cash-transfer impact lines in the selected display unit', () => {
+    const dollarsBank = { currencyMode: 'dollars' as const, pointsPerDollar: 1 }
+    // Points / chips tab on a dollars-display bank → still show points.
+    expect(
+      buildCashTransferSummary({
+        mode: 'deposit',
+        points: 50,
+        balance: 500,
+        config: dollarsBank,
+        displayUnit: 'points',
+      }),
+    ).toEqual({
+      primary: '= 50 pts',
+      secondary: 'Bank will be 550 pts',
+      tone: 'muted',
+    })
+    // Dollars tab → Holding / Bank will be in dollars.
+    expect(
+      buildCashTransferSummary({
+        mode: 'deposit',
+        points: 50,
+        balance: 500,
+        config: dollarsBank,
+        displayUnit: 'dollars',
+      }),
+    ).toEqual({
+      primary: '= 50 pts · $50',
+      secondary: 'Bank will be $550',
+      tone: 'muted',
+    })
+    expect(
+      buildCashTransferSummary({
+        mode: 'withdraw',
+        points: 200,
+        balance: 500,
+        config: { currencyMode: 'points', pointsPerDollar: 2 },
+        displayUnit: 'dollars',
+      }),
+    ).toEqual({
+      primary: '= 200 pts · $100',
+      secondary: '$150 left in bank',
       tone: 'muted',
     })
   })

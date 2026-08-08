@@ -6,6 +6,7 @@ import {
   frame,
   padding,
   resizable,
+  widgetAccentedRenderingMode,
 } from '@expo/ui/swift-ui/modifiers'
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets'
 
@@ -28,7 +29,7 @@ export type SessionLiveProps = {
   lines: string[]
   accentColor: string
   /**
-   * `file://` URI of the app icon in the shared widgets directory.
+   * `file://` URI of a small app icon in the shared widgets directory.
    * Empty when unavailable — falls back to an SF Symbol.
    */
   iconUri: string
@@ -57,6 +58,8 @@ const SessionLiveActivityLayout = (props: SessionLiveProps, _env: LiveActivityEn
           resizable(),
           frame({ width: size, height: size }),
           clipShape('roundedRectangle', Math.round(size * 0.22)),
+          // Keep brand yellow/black instead of system-tinted gray.
+          widgetAccentedRenderingMode('fullColor'),
         ]}
       />
     ) : (

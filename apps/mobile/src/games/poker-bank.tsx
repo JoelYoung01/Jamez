@@ -1,4 +1,5 @@
 import {
+  buildCashOverdrawConfirm,
   buildCashTransferSummary,
   chipBreakdown,
   formatPokerAmount,
@@ -22,7 +23,7 @@ import {
   Settings2Icon,
 } from 'lucide-react-native'
 import * as React from 'react'
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
+import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
 import { ColorPicker } from '@/components/color-picker'
 import { EmojiGrid } from '@/components/emoji-grid'
@@ -392,12 +393,14 @@ function CashSheet({
     points,
     balance,
     config: game.config,
+    // Chips tab is point-denominated; match Holding / Bank will be to the split.
+    displayUnit: unit === 'dollars' ? 'dollars' : 'points',
     includeDollarEquiv: unit === 'dollars',
   })
   useSuppressAndroidKeyboardHost()
 
-  const confirm = React.useCallback(() => {
-    if (!(points > 0) || (mode === 'withdraw' && points > balance)) return
+  const commit = React.useCallback(() => {
+    if (!(points > 0)) return
     const error = send({
       type: mode,
       playerId: player.id,
@@ -405,7 +408,25 @@ function CashSheet({
       unit: unit === 'chips' ? 'points' : unit,
     })
     if (!error) onClose()
-  }, [balance, mode, numeric, onClose, player.id, points, send, unit])
+  }, [mode, numeric, onClose, player.id, points, send, unit])
+
+  const confirm = React.useCallback(() => {
+    if (!(points > 0)) return
+    if (mode === 'withdraw' && points > balance) {
+      const { title, message } = buildCashOverdrawConfirm({
+        playerName: player.name,
+        balance,
+        points,
+        config: game.config,
+      })
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Withdraw anyway', style: 'destructive', onPress: commit },
+      ])
+      return
+    }
+    commit()
+  }, [balance, commit, game.config, mode, player.name, points])
 
   const bumpChip = (chipId: string, delta: number) => {
     setChipDrafts((prev) => {
@@ -548,7 +569,7 @@ function CashSheet({
               <AppButton
                 title="Confirm"
                 className="flex-1"
-                disabled={!(points > 0) || (mode === 'withdraw' && points > balance)}
+                disabled={!(points > 0)}
                 onPress={confirm}
               />
             </View>
@@ -993,13 +1014,19 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
           <CardTitle>Recent activity</CardTitle>
           {recent.map((entry) => {
             const who = state.players.find((p) => p.id === entry.playerId)?.name ?? 'Player'
-            const sign = entry.points >= 0 ? '+' : ''
+            const sign = entry.points > 0 ? '+' : entry.points < 0 ? '-' : ''
+            const amountTone =
+              entry.kind === 'deposit'
+                ? 'text-emerald-400'
+                : entry.kind === 'withdraw'
+                  ? 'text-rose-400'
+                  : 'text-muted-foreground'
             return (
               <View key={entry.id} className="flex-row items-center justify-between gap-2">
                 <Text className="min-w-0 flex-1 text-xs text-muted-foreground" numberOfLines={1}>
                   <Text className="font-medium text-zinc-300">{who}</Text> {entry.kind}
                 </Text>
-                <Text className="font-mono text-xs text-muted-foreground">
+                <Text className={`font-mono text-xs ${amountTone}`}>
                   {sign}
                   {formatPokerAmount(Math.abs(entry.points), game.config)}
                 </Text>

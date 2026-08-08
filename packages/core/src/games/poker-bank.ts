@@ -178,10 +178,12 @@ export function formatPokerAmount(
   if (config.currencyMode === 'dollars') {
     const dollars = fromPoints(points, 'dollars', config.pointsPerDollar)
     const rounded = Math.round(dollars * 100) / 100
-    return `$${rounded.toLocaleString(undefined, {
-      minimumFractionDigits: Number.isInteger(rounded) ? 0 : 2,
+    const abs = Math.abs(rounded)
+    const body = abs.toLocaleString(undefined, {
+      minimumFractionDigits: Number.isInteger(abs) ? 0 : 2,
       maximumFractionDigits: 2,
-    })}`
+    })
+    return rounded < 0 ? `-$${body}` : `$${body}`
   }
   return formatPoints(points)
 }
@@ -198,6 +200,9 @@ export interface CashTransferSummary {
 /**
  * Build the cash-sheet total + account-impact lines.
  * Always returns both lines so UIs can reserve height and avoid layout jump.
+ *
+ * Pass `displayUnit` from the Points / Dollars / Chips control so Holding /
+ * Bank will be / leftover match the selected unit (chips → points).
  */
 export function buildCashTransferSummary(input: {
   mode: 'deposit' | 'withdraw'
@@ -205,20 +210,25 @@ export function buildCashTransferSummary(input: {
   points: number
   balance: number
   config: Pick<PokerBankConfig, 'currencyMode' | 'pointsPerDollar'>
+  /**
+   * Unit for Holding / Bank will be / leftover lines.
+   * Defaults to config.currencyMode. Use `points` when the chips tab is active.
+   */
+  displayUnit?: PokerCurrencyMode
   /** Also show dollar form on the primary line (e.g. dollars input mode). */
   includeDollarEquiv?: boolean
 }): CashTransferSummary {
   const { mode, points, balance, config, includeDollarEquiv = false } = input
-  const amt = (p: number) => formatPokerAmount(p, config)
+  const displayUnit = input.displayUnit ?? config.currencyMode
+  const amt = (p: number) =>
+    formatPokerAmount(p, { currencyMode: displayUnit, pointsPerDollar: config.pointsPerDollar })
   const pts = (p: number) =>
     formatPokerAmount(p, { currencyMode: 'points', pointsPerDollar: 1 })
 
   let primary: string
   if (points > 0) {
     primary = `= ${pts(points)}`
-    if (config.currencyMode === 'dollars') {
-      primary += ` · ${amt(points)}`
-    } else if (includeDollarEquiv) {
+    if (displayUnit === 'dollars' || includeDollarEquiv) {
       primary += ` · ${formatPokerAmount(points, {
         currencyMode: 'dollars',
         pointsPerDollar: config.pointsPerDollar,
@@ -233,9 +243,10 @@ export function buildCashTransferSummary(input: {
       return { primary, secondary: `Holding ${amt(balance)}`, tone: 'muted' }
     }
     if (points > balance) {
+      // Soft warning — engine allows negative balances after confirm in the UI.
       return {
         primary,
-        secondary: `Not enough — short ${amt(points - balance)} (holding ${amt(balance)})`,
+        secondary: `Goes negative — bank will be ${amt(balance - points)}`,
         tone: 'danger',
       }
     }
@@ -254,6 +265,21 @@ export function buildCashTransferSummary(input: {
     primary,
     secondary: `Bank will be ${amt(balance + points)}`,
     tone: 'muted',
+  }
+}
+
+/** Copy for the overdraw confirmation dialog (web + mobile). */
+export function buildCashOverdrawConfirm(input: {
+  playerName: string
+  balance: number
+  /** Withdraw size in points. */
+  points: number
+  config: Pick<PokerBankConfig, 'currencyMode' | 'pointsPerDollar'>
+}): { title: string; message: string } {
+  const amt = (p: number) => formatPokerAmount(p, input.config)
+  return {
+    title: 'Withdraw more than they hold?',
+    message: `${input.playerName} is holding ${amt(input.balance)}. This withdraw leaves the bank at ${amt(input.balance - input.points)}.`,
   }
 }
 
@@ -463,9 +489,7 @@ export const pokerBankEngine: GameEngine<PokerBankConfig, PokerBankState, PokerB
         : 'Amount is too small'
     }
     if (points > 10_000_000) return 'Amount is too large'
-    if (action.type === 'withdraw' && points > bank.balance) {
-      return 'Not enough balance'
-    }
+    // Overdraw is allowed (negative balances) — UIs confirm before sending.
     return null
   },
 

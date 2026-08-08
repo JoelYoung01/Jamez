@@ -1,4 +1,5 @@
 import {
+  buildCashOverdrawConfirm,
   buildCashTransferSummary,
   chipBreakdown,
   formatPokerAmount,
@@ -437,6 +438,8 @@ function CashDialog({
     points,
     balance,
     config: game.config,
+    // Chips tab is point-denominated; match Holding / Bank will be to the split.
+    displayUnit: unit === 'dollars' ? 'dollars' : 'points',
     includeDollarEquiv: unit === 'dollars',
   })
 
@@ -447,7 +450,7 @@ function CashDialog({
     setChipDrafts({})
   }, [open, game.config.currencyMode])
 
-  const submit = () => {
+  const commit = () => {
     if (!(points > 0)) return
     // Host acts as host (isHost); guests always act as themselves via the store.
     const error = send({
@@ -460,6 +463,20 @@ function CashDialog({
     setAmount('')
     setChipDrafts({})
     setOpen(false)
+  }
+
+  const submit = () => {
+    if (!(points > 0)) return
+    if (mode === 'withdraw' && points > balance) {
+      const { title, message } = buildCashOverdrawConfirm({
+        playerName: player.name,
+        balance,
+        points,
+        config: game.config,
+      })
+      if (!window.confirm(`${title}\n\n${message}`)) return
+    }
+    commit()
   }
 
   const bumpChip = (chipId: string, delta: number) => {
@@ -595,7 +612,7 @@ function CashDialog({
           )}
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={!(points > 0) || (mode === 'withdraw' && points > balance)}>
+          <Button onClick={submit} disabled={!(points > 0)}>
             Confirm
           </Button>
         </DialogFooter>
@@ -1051,7 +1068,13 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
           <CardContent className="grid gap-1.5">
             {recent.map((entry) => {
               const who = state.players.find((p) => p.id === entry.playerId)?.name ?? 'Player'
-              const sign = entry.points >= 0 ? '+' : ''
+              const sign = entry.points > 0 ? '+' : entry.points < 0 ? '-' : ''
+              const amountTone =
+                entry.kind === 'deposit'
+                  ? 'text-emerald-400'
+                  : entry.kind === 'withdraw'
+                    ? 'text-rose-400'
+                    : 'text-muted-foreground'
               return (
                 <div
                   key={entry.id}
@@ -1061,7 +1084,7 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                     <span className="font-medium text-foreground/80">{who}</span> {entry.kind}
                     {entry.note ? ` · ${entry.note}` : ''}
                   </span>
-                  <span className="font-mono tabular-nums">
+                  <span className={cn('font-mono tabular-nums', amountTone)}>
                     {sign}
                     {formatPokerAmount(Math.abs(entry.points), game.config)}
                   </span>
