@@ -1,12 +1,5 @@
 import { HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui'
-import {
-  clipShape,
-  font,
-  foregroundStyle,
-  frame,
-  padding,
-  resizable,
-} from '@expo/ui/swift-ui/modifiers'
+import { font, foregroundStyle, padding } from '@expo/ui/swift-ui/modifiers'
 import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets'
 
 /**
@@ -24,14 +17,9 @@ export type SessionLiveProps = {
   statusLine: string
   /** Compact Dynamic Island trailing text */
   trailing: string
-  /** Up to 4 short standing lines for the expanded island */
+  /** Up to 4 short standing lines for the banner / expanded island */
   lines: string[]
   accentColor: string
-  /**
-   * `file://` URI of the app icon in the shared widgets directory.
-   * Empty when unavailable — falls back to an SF Symbol.
-   */
-  iconUri: string
 }
 
 /**
@@ -46,28 +34,13 @@ const SessionLiveActivityLayout = (props: SessionLiveProps, _env: LiveActivityEn
   const roleLabel = props.role === 'host' ? 'Hosting' : 'Joined'
   const symbol =
     props.phase === 'finished' ? 'trophy.fill' : props.phase === 'lobby' ? 'qrcode' : 'dice.fill'
-  const iconUri = props.iconUri || ''
   const standingLines = (props.lines ?? []).slice(0, 4)
-
-  const appIcon = (size: number) =>
-    iconUri ? (
-      <Image
-        uiImage={iconUri}
-        modifiers={[
-          resizable(),
-          frame({ width: size, height: size }),
-          clipShape('roundedRectangle', Math.round(size * 0.22)),
-        ]}
-      />
-    ) : (
-      <Image systemName={symbol} color={accent} size={Math.round(size * 0.55)} />
-    )
 
   return {
     banner: (
-      <VStack modifiers={[padding({ all: 12 })]}>
+      <VStack spacing={6} modifiers={[padding({ all: 12 })]}>
         <HStack spacing={10} alignment="center">
-          {appIcon(36)}
+          <Image systemName={symbol} color={accent} size={20} />
           <VStack alignment="leading" spacing={2}>
             <Text modifiers={[font({ weight: 'bold', size: 16 }), foregroundStyle('#F4F4F5')]}>
               {props.gameName}
@@ -81,18 +54,24 @@ const SessionLiveActivityLayout = (props: SessionLiveProps, _env: LiveActivityEn
             {props.code}
           </Text>
         </HStack>
+        <Text modifiers={[font({ size: 13 }), foregroundStyle('#E4E4E7')]}>{props.statusLine}</Text>
+        {standingLines.map((line, index) => (
+          <Text key={index} modifiers={[font({ size: 12 }), foregroundStyle('#A1A1AB')]}>
+            {line}
+          </Text>
+        ))}
       </VStack>
     ),
-    compactLeading: appIcon(16),
+    compactLeading: <Image systemName={symbol} color={accent} size={16} />,
     compactTrailing: (
       <Text modifiers={[font({ weight: 'semibold', size: 13 }), foregroundStyle(accent)]}>
         {props.code}
       </Text>
     ),
-    minimal: appIcon(14),
+    minimal: <Image systemName={symbol} color={accent} size={14} />,
     expandedLeading: (
       <VStack spacing={4} modifiers={[padding({ all: 10 })]}>
-        {appIcon(28)}
+        <Image systemName={symbol} color={accent} size={22} />
         <Text modifiers={[font({ size: 11 }), foregroundStyle('#A1A1AB')]}>{roleLabel}</Text>
       </VStack>
     ),
@@ -109,9 +88,7 @@ const SessionLiveActivityLayout = (props: SessionLiveProps, _env: LiveActivityEn
         <Text modifiers={[font({ weight: 'semibold', size: 13 }), foregroundStyle('#F4F4F5')]}>
           {props.gameName}
         </Text>
-        <Text modifiers={[font({ size: 12 }), foregroundStyle('#A1A1AB')]}>
-          {roleLabel} · {phaseLabel}
-        </Text>
+        <Text modifiers={[font({ size: 12 }), foregroundStyle('#E4E4E7')]}>{props.statusLine}</Text>
         {standingLines.map((line, index) => (
           <Text key={index} modifiers={[font({ size: 12 }), foregroundStyle('#A1A1AB')]}>
             {line}
