@@ -10,7 +10,11 @@ import {
   type SessionState,
   type WingspanState,
 } from '@jamez/core'
+import { Asset } from 'expo-asset'
+import { File } from 'expo-file-system'
+import * as ImageManipulator from 'expo-image-manipulator'
 import type { LiveActivity } from 'expo-widgets'
+import { widgetsDirectory } from 'expo-widgets'
 import { Platform } from 'react-native'
 import SessionLiveActivity, { type SessionLiveProps } from '@/widgets/SessionLiveActivity'
 import type { SessionRole } from './session-store'
@@ -18,6 +22,14 @@ import type { SessionRole } from './session-store'
 let activity: LiveActivity<SessionLiveProps> | null = null
 let activeCode: string | null = null
 let lastKey = ''
+/** Cached `file://` URI in the shared widgets directory; `undefined` until first resolve. */
+let cachedIconUri: string | null | undefined
+let iconResolve: Promise<string | null> | null = null
+/** Bumps when a newer sync supersedes an in-flight async start/update. */
+let syncGeneration = 0
+
+/** Live Activities silently gray-box images larger than the presentation. */
+const LIVE_ACTIVITY_ICON_PX = 108
 
 function phaseLabel(phase: SessionPhase): string {
   if (phase === 'lobby') return 'Lobby'
@@ -93,7 +105,62 @@ function trailingText(state: SessionState): string {
   return state.code
 }
 
-export function buildSessionLiveProps(state: SessionState, role: SessionRole): SessionLiveProps {
+/**
+ * Copy a Live-Activity-sized app icon into the App Group so the extension can
+ * read it. The bundled icon is 1024² — ActivityKit gray-boxes oversized images
+ * even when `resizable()` is applied, so we downscale first.
+ */
+async function ensureLiveActivityIconUri(): Promise<string | null> {
+  if (cachedIconUri !== undefined) return cachedIconUri
+  if (iconResolve) return iconResolve
+
+  iconResolve = (async () => {
+    try {
+      const dir = widgetsDirectory
+      if (!dir) {
+        cachedIconUri = null
+        return null
+      }
+
+      const asset = Asset.fromModule(require('../../assets/images/icon.png'))
+      await asset.downloadAsync()
+      const sourceUri = asset.localUri ?? asset.uri
+      if (!sourceUri) {
+        cachedIconUri = null
+        return null
+      }
+
+      const sized = await ImageManipulator.manipulateAsync(
+        sourceUri,
+        [{ resize: { width: LIVE_ACTIVITY_ICON_PX, height: LIVE_ACTIVITY_ICON_PX } }],
+        { compress: 1, format: ImageManipulator.SaveFormat.PNG },
+      )
+
+      const dest = new File(dir, 'app-icon.png')
+      await new File(sized.uri).copy(dest, { overwrite: true })
+      if (!dest.exists || !(dest.size > 0)) {
+        cachedIconUri = null
+        return null
+      }
+
+      cachedIconUri = dest.uri
+      return cachedIconUri
+    } catch {
+      cachedIconUri = null
+      return null
+    } finally {
+      iconResolve = null
+    }
+  })()
+
+  return iconResolve
+}
+
+export function buildSessionLiveProps(
+  state: SessionState,
+  role: SessionRole,
+  iconUri = '',
+): SessionLiveProps {
   const game = getGameEngine(state.gameId)
   return {
     gameName: game?.name ?? state.gameId,
@@ -104,6 +171,7 @@ export function buildSessionLiveProps(state: SessionState, role: SessionRole): S
     trailing: trailingText(state),
     lines: standingsLines(state),
     accentColor: game?.accentColor ?? '#fbbf24',
+    iconUri,
   }
 }
 
@@ -148,38 +216,47 @@ export function syncSessionLiveActivity(opts: {
     return
   }
 
-  // Guests can be attached before the first host state arrives.
-  const props: SessionLiveProps = state
-    ? buildSessionLiveProps(state, role)
-    : {
-        gameName: 'Jamez',
-        code,
-        phase: 'lobby',
-        role,
-        statusLine: role === 'host' ? 'Starting session…' : 'Connecting…',
-        trailing: code,
-        lines: [],
-        accentColor: '#fbbf24',
-      }
+  const generation = ++syncGeneration
 
-  const key = `${code}:${props.phase}:${props.statusLine}:${props.lines.join('|')}:${props.trailing}`
-  if (key === lastKey && activity && activeCode === code) return
+  void (async () => {
+    const iconUri = (await ensureLiveActivityIconUri()) ?? ''
+    if (generation !== syncGeneration) return
 
-  try {
-    applyLiveActivity(props, code)
-    lastKey = key
-  } catch {
-    // Live Activities need iOS 16.2+ and the user to have them enabled.
-    activity = null
-    activeCode = null
-    lastKey = ''
-  }
+    // Guests can be attached before the first host state arrives.
+    const props: SessionLiveProps = state
+      ? buildSessionLiveProps(state, role, iconUri)
+      : {
+          gameName: 'Jamez',
+          code,
+          phase: 'lobby',
+          role,
+          statusLine: role === 'host' ? 'Starting session…' : 'Connecting…',
+          trailing: code,
+          lines: [],
+          accentColor: '#fbbf24',
+          iconUri,
+        }
+
+    const key = `${code}:${props.phase}:${props.statusLine}:${props.lines.join('|')}:${props.trailing}:${iconUri}`
+    if (key === lastKey && activity && activeCode === code) return
+
+    try {
+      applyLiveActivity(props, code)
+      lastKey = key
+    } catch {
+      // Live Activities need iOS 16.2+ and the user to have them enabled.
+      activity = null
+      activeCode = null
+      lastKey = ''
+    }
+  })()
 }
 
 export async function endSessionLiveActivity(
   policy: 'immediate' | 'default' = 'immediate',
 ): Promise<void> {
   if (Platform.OS !== 'ios') return
+  syncGeneration += 1
   const current = activity
   activity = null
   activeCode = null
