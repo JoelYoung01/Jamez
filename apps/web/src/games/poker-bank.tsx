@@ -1,4 +1,5 @@
 import {
+  buildCashOverdrawConfirm,
   buildCashTransferSummary,
   chipBreakdown,
   formatPokerAmount,
@@ -449,7 +450,7 @@ function CashDialog({
     setChipDrafts({})
   }, [open, game.config.currencyMode])
 
-  const submit = () => {
+  const commit = () => {
     if (!(points > 0)) return
     // Host acts as host (isHost); guests always act as themselves via the store.
     const error = send({
@@ -462,6 +463,20 @@ function CashDialog({
     setAmount('')
     setChipDrafts({})
     setOpen(false)
+  }
+
+  const submit = () => {
+    if (!(points > 0)) return
+    if (mode === 'withdraw' && points > balance) {
+      const { title, message } = buildCashOverdrawConfirm({
+        playerName: player.name,
+        balance,
+        points,
+        config: game.config,
+      })
+      if (!window.confirm(`${title}\n\n${message}`)) return
+    }
+    commit()
   }
 
   const bumpChip = (chipId: string, delta: number) => {
@@ -597,7 +612,7 @@ function CashDialog({
           )}
         </div>
         <DialogFooter>
-          <Button onClick={submit} disabled={!(points > 0) || (mode === 'withdraw' && points > balance)}>
+          <Button onClick={submit} disabled={!(points > 0)}>
             Confirm
           </Button>
         </DialogFooter>
