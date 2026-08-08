@@ -1,14 +1,18 @@
 import {
+  formatPokerAmount,
   getGameEngine,
   ginTotals,
+  isPlayerActive,
   wingspanRanking,
   type GinState,
+  type PokerBankState,
   type SessionPhase,
   type SessionState,
   type WingspanState,
 } from '@jamez/core'
 import { Asset } from 'expo-asset'
 import { File } from 'expo-file-system'
+import * as ImageManipulator from 'expo-image-manipulator'
 import type { LiveActivity } from 'expo-widgets'
 import { widgetsDirectory } from 'expo-widgets'
 import { Platform } from 'react-native'
@@ -23,6 +27,9 @@ let cachedIconUri: string | null | undefined
 let iconResolve: Promise<string | null> | null = null
 /** Bumps when a newer sync supersedes an in-flight async start/update. */
 let syncGeneration = 0
+
+/** Live Activities silently gray-box images larger than the presentation. */
+const LIVE_ACTIVITY_ICON_PX = 108
 
 function phaseLabel(phase: SessionPhase): string {
   if (phase === 'lobby') return 'Lobby'
@@ -48,6 +55,7 @@ function standingsLines(state: SessionState): string[] {
     if (state.gameId === 'gin-rummy') {
       const totals = ginTotals(state.game as GinState)
       return state.players
+        .filter(isPlayerActive)
         .map((p) => ({ p, score: totals[p.id] ?? 0 }))
         .sort((a, b) => b.score - a.score)
         .slice(0, 4)
@@ -62,19 +70,34 @@ function standingsLines(state: SessionState): string[] {
           return `${row.rank}. ${player?.emoji ?? ''} ${name} · ${row.score}`.trim()
         })
     }
+    if (state.gameId === 'poker-bank') {
+      const game = state.game as PokerBankState
+      return state.players
+        .filter(isPlayerActive)
+        .map((p) => ({ p, balance: game.banks[p.id]?.balance ?? 0 }))
+        .sort((a, b) => b.balance - a.balance)
+        .slice(0, 4)
+        .map(
+          ({ p, balance }, i) =>
+            `${i + 1}. ${p.emoji} ${p.name} · ${formatPokerAmount(balance, game.config)}`,
+        )
+    }
   }
 
-  return state.players.slice(0, 4).map((p) => `${p.emoji} ${p.name}`)
+  return state.players
+    .filter((p) => state.phase !== 'playing' || isPlayerActive(p))
+    .slice(0, 4)
+    .map((p) => `${p.emoji} ${p.name}`)
 }
 
 function statusLine(state: SessionState): string {
   if (state.phase === 'finished' && state.summary?.headline) return state.summary.headline
   if (state.phase === 'lobby') {
-    const n = state.players.length
+    const n = state.players.filter(isPlayerActive).length || state.players.length
     return `Lobby · ${n} ${n === 1 ? 'player' : 'players'}`
   }
   const lines = standingsLines(state)
-  return lines[0] ?? 'Game in progress'
+  return lines[0] ?? `${phaseLabel(state.phase)} · in progress`
 }
 
 /** Compact Dynamic Island trailing — always the join code (short + useful). */
@@ -83,8 +106,9 @@ function trailingText(state: SessionState): string {
 }
 
 /**
- * Copy the bundled app icon into the App Group so the Live Activity can read it.
- * Widgets cannot access the main app sandbox — only `widgetsDirectory`.
+ * Copy a Live-Activity-sized app icon into the App Group so the extension can
+ * read it. The bundled icon is 1024² — ActivityKit gray-boxes oversized images
+ * even when `resizable()` is applied, so we downscale first.
  */
 async function ensureLiveActivityIconUri(): Promise<string | null> {
   if (cachedIconUri !== undefined) return cachedIconUri
@@ -97,14 +121,28 @@ async function ensureLiveActivityIconUri(): Promise<string | null> {
         cachedIconUri = null
         return null
       }
-      const [asset] = await Asset.loadAsync(require('../../assets/images/icon.png'))
-      const localUri = asset.localUri
-      if (!localUri) {
+
+      const asset = Asset.fromModule(require('../../assets/images/icon.png'))
+      await asset.downloadAsync()
+      const sourceUri = asset.localUri ?? asset.uri
+      if (!sourceUri) {
         cachedIconUri = null
         return null
       }
+
+      const sized = await ImageManipulator.manipulateAsync(
+        sourceUri,
+        [{ resize: { width: LIVE_ACTIVITY_ICON_PX, height: LIVE_ACTIVITY_ICON_PX } }],
+        { compress: 1, format: ImageManipulator.SaveFormat.PNG },
+      )
+
       const dest = new File(dir, 'app-icon.png')
-      await new File(localUri).copy(dest, { overwrite: true })
+      await new File(sized.uri).copy(dest, { overwrite: true })
+      if (!dest.exists || !(dest.size > 0)) {
+        cachedIconUri = null
+        return null
+      }
+
       cachedIconUri = dest.uri
       return cachedIconUri
     } catch {
