@@ -17,6 +17,7 @@ Jamez is a **pnpm monorepo** (Node ≥20, pnpm 10.33.3). There is **no database 
 - **`pnpm dev` cold-start race:** on first run Vite may print `Failed to run dependency scan ... @jamez/core ... could not be resolved` because Vite's pre-bundle scan can race the initial `@jamez/core` build. It self-resolves once `packages/core/dist` is written; a browser refresh clears it. It is not a real failure.
 - **`.npmrc` sets `node-linker=hoisted`:** required so Metro (Expo) works in this pnpm monorepo. Don't switch to isolated/symlinked node_modules.
 - **`pnpm install` warns "Ignored build scripts: esbuild":** harmless; tsup/Vite builds work fine without running esbuild's postinstall.
+- **Pin Expo native modules to the SDK set (exact or `expo install`):** a newer patch of a single module (e.g. `expo-image-manipulator@57.0.8` while `expo` is still `~57.0.9` / `expo-modules-core@57.0.8`) can ship a prebuilt `.framework` that references symbols not yet in the bundled `ExpoModulesCore`, and iOS then dies at launch with `DYLD … Symbol missing` (`BaseModule.willDestroy` was the concrete case). Prefer `pnpm exec expo install <pkg>` over hand-picking `^` versions for anything with native code.
 
 ## E2E tests (Playwright)
 
