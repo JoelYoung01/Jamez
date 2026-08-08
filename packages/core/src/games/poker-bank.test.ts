@@ -316,4 +316,49 @@ describe('poker bank engine', () => {
       tone: 'muted',
     })
   })
+
+  it('formats cash-transfer impact lines in the selected display unit', () => {
+    const dollarsBank = { currencyMode: 'dollars' as const, pointsPerDollar: 1 }
+    // Points / chips tab on a dollars-display bank → still show points.
+    expect(
+      buildCashTransferSummary({
+        mode: 'deposit',
+        points: 50,
+        balance: 500,
+        config: dollarsBank,
+        displayUnit: 'points',
+      }),
+    ).toEqual({
+      primary: '= 50 pts',
+      secondary: 'Bank will be 550 pts',
+      tone: 'muted',
+    })
+    // Dollars tab → Holding / Bank will be in dollars.
+    expect(
+      buildCashTransferSummary({
+        mode: 'deposit',
+        points: 50,
+        balance: 500,
+        config: dollarsBank,
+        displayUnit: 'dollars',
+      }),
+    ).toEqual({
+      primary: '= 50 pts · $50',
+      secondary: 'Bank will be $550',
+      tone: 'muted',
+    })
+    expect(
+      buildCashTransferSummary({
+        mode: 'withdraw',
+        points: 200,
+        balance: 500,
+        config: { currencyMode: 'points', pointsPerDollar: 2 },
+        displayUnit: 'dollars',
+      }),
+    ).toEqual({
+      primary: '= 200 pts · $100',
+      secondary: '$150 left in bank',
+      tone: 'muted',
+    })
+  })
 })

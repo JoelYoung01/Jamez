@@ -437,6 +437,8 @@ function CashDialog({
     points,
     balance,
     config: game.config,
+    // Chips tab is point-denominated; match Holding / Bank will be to the split.
+    displayUnit: unit === 'dollars' ? 'dollars' : 'points',
     includeDollarEquiv: unit === 'dollars',
   })
 
