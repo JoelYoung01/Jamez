@@ -1,4 +1,5 @@
 import {
+  buildCashOverdrawConfirm,
   buildCashTransferSummary,
   chipBreakdown,
   formatPokerAmount,
@@ -22,7 +23,7 @@ import {
   Settings2Icon,
 } from 'lucide-react-native'
 import * as React from 'react'
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
+import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
 import { ColorPicker } from '@/components/color-picker'
 import { EmojiGrid } from '@/components/emoji-grid'
@@ -396,8 +397,8 @@ function CashSheet({
   })
   useSuppressAndroidKeyboardHost()
 
-  const confirm = React.useCallback(() => {
-    if (!(points > 0) || (mode === 'withdraw' && points > balance)) return
+  const commit = React.useCallback(() => {
+    if (!(points > 0)) return
     const error = send({
       type: mode,
       playerId: player.id,
@@ -405,7 +406,25 @@ function CashSheet({
       unit: unit === 'chips' ? 'points' : unit,
     })
     if (!error) onClose()
-  }, [balance, mode, numeric, onClose, player.id, points, send, unit])
+  }, [mode, numeric, onClose, player.id, points, send, unit])
+
+  const confirm = React.useCallback(() => {
+    if (!(points > 0)) return
+    if (mode === 'withdraw' && points > balance) {
+      const { title, message } = buildCashOverdrawConfirm({
+        playerName: player.name,
+        balance,
+        points,
+        config: game.config,
+      })
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Withdraw anyway', style: 'destructive', onPress: commit },
+      ])
+      return
+    }
+    commit()
+  }, [balance, commit, game.config, mode, player.name, points])
 
   const bumpChip = (chipId: string, delta: number) => {
     setChipDrafts((prev) => {
@@ -548,7 +567,7 @@ function CashSheet({
               <AppButton
                 title="Confirm"
                 className="flex-1"
-                disabled={!(points > 0) || (mode === 'withdraw' && points > balance)}
+                disabled={!(points > 0)}
                 onPress={confirm}
               />
             </View>
