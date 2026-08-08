@@ -198,6 +198,9 @@ export interface CashTransferSummary {
 /**
  * Build the cash-sheet total + account-impact lines.
  * Always returns both lines so UIs can reserve height and avoid layout jump.
+ *
+ * Pass `displayUnit` from the Points / Dollars / Chips control so Holding /
+ * Bank will be / leftover match the selected unit (chips → points).
  */
 export function buildCashTransferSummary(input: {
   mode: 'deposit' | 'withdraw'
@@ -205,20 +208,25 @@ export function buildCashTransferSummary(input: {
   points: number
   balance: number
   config: Pick<PokerBankConfig, 'currencyMode' | 'pointsPerDollar'>
+  /**
+   * Unit for Holding / Bank will be / leftover lines.
+   * Defaults to config.currencyMode. Use `points` when the chips tab is active.
+   */
+  displayUnit?: PokerCurrencyMode
   /** Also show dollar form on the primary line (e.g. dollars input mode). */
   includeDollarEquiv?: boolean
 }): CashTransferSummary {
   const { mode, points, balance, config, includeDollarEquiv = false } = input
-  const amt = (p: number) => formatPokerAmount(p, config)
+  const displayUnit = input.displayUnit ?? config.currencyMode
+  const amt = (p: number) =>
+    formatPokerAmount(p, { currencyMode: displayUnit, pointsPerDollar: config.pointsPerDollar })
   const pts = (p: number) =>
     formatPokerAmount(p, { currencyMode: 'points', pointsPerDollar: 1 })
 
   let primary: string
   if (points > 0) {
     primary = `= ${pts(points)}`
-    if (config.currencyMode === 'dollars') {
-      primary += ` · ${amt(points)}`
-    } else if (includeDollarEquiv) {
+    if (displayUnit === 'dollars' || includeDollarEquiv) {
       primary += ` · ${formatPokerAmount(points, {
         currencyMode: 'dollars',
         pointsPerDollar: config.pointsPerDollar,
