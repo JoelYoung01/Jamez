@@ -1014,13 +1014,19 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
           <CardTitle>Recent activity</CardTitle>
           {recent.map((entry) => {
             const who = state.players.find((p) => p.id === entry.playerId)?.name ?? 'Player'
-            const sign = entry.points >= 0 ? '+' : ''
+            const sign = entry.points > 0 ? '+' : entry.points < 0 ? '-' : ''
+            const amountTone =
+              entry.kind === 'deposit'
+                ? 'text-emerald-400'
+                : entry.kind === 'withdraw'
+                  ? 'text-rose-400'
+                  : 'text-muted-foreground'
             return (
               <View key={entry.id} className="flex-row items-center justify-between gap-2">
                 <Text className="min-w-0 flex-1 text-xs text-muted-foreground" numberOfLines={1}>
                   <Text className="font-medium text-zinc-300">{who}</Text> {entry.kind}
                 </Text>
-                <Text className="font-mono text-xs text-muted-foreground">
+                <Text className={`font-mono text-xs ${amountTone}`}>
                   {sign}
                   {formatPokerAmount(Math.abs(entry.points), game.config)}
                 </Text>
