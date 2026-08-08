@@ -1051,7 +1051,13 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
           <CardContent className="grid gap-1.5">
             {recent.map((entry) => {
               const who = state.players.find((p) => p.id === entry.playerId)?.name ?? 'Player'
-              const sign = entry.points >= 0 ? '+' : ''
+              const sign = entry.points > 0 ? '+' : entry.points < 0 ? '-' : ''
+              const amountTone =
+                entry.kind === 'deposit'
+                  ? 'text-emerald-400'
+                  : entry.kind === 'withdraw'
+                    ? 'text-rose-400'
+                    : 'text-muted-foreground'
               return (
                 <div
                   key={entry.id}
@@ -1061,7 +1067,7 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                     <span className="font-medium text-foreground/80">{who}</span> {entry.kind}
                     {entry.note ? ` · ${entry.note}` : ''}
                   </span>
-                  <span className="font-mono tabular-nums">
+                  <span className={cn('font-mono tabular-nums', amountTone)}>
                     {sign}
                     {formatPokerAmount(Math.abs(entry.points), game.config)}
                   </span>
