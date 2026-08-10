@@ -2,23 +2,41 @@ import { clsx } from 'clsx'
 import * as React from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { keyboardScrollPadding, useKeyboardHeight } from '@/lib/keyboard'
+import {
+  keyboardScrollPadding,
+  ScreenScrollContext,
+  scrollInputAboveKeyboard,
+  useKeyboardHeight,
+  type ScreenScrollApi,
+} from '@/lib/keyboard'
 
 /** Scrollable page container with bottom safe-area + keyboard padding. */
 export function Screen({ children, padded = true }: { children: React.ReactNode; padded?: boolean }) {
   const insets = useSafeAreaInsets()
   const keyboardHeight = useKeyboardHeight()
   const bottomPad = insets.bottom + 32 + keyboardScrollPadding(keyboardHeight)
+  const scrollRef = React.useRef<ScrollView>(null)
+  const scrollApi = React.useMemo<ScreenScrollApi>(
+    () => ({
+      scrollInputAboveKeyboard(input, additionalOffset) {
+        scrollInputAboveKeyboard(scrollRef.current, input, additionalOffset)
+      },
+    }),
+    [],
+  )
 
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      contentContainerStyle={{ paddingBottom: bottomPad, flexGrow: 1 }}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="interactive"
-    >
-      <View className={clsx('w-full max-w-xl self-center', padded && 'px-4 pt-4')}>{children}</View>
-    </ScrollView>
+    <ScreenScrollContext.Provider value={scrollApi}>
+      <ScrollView
+        ref={scrollRef}
+        className="flex-1 bg-background"
+        contentContainerStyle={{ paddingBottom: bottomPad, flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
+        <View className={clsx('w-full max-w-xl self-center', padded && 'px-4 pt-4')}>{children}</View>
+      </ScrollView>
+    </ScreenScrollContext.Provider>
   )
 }
 
