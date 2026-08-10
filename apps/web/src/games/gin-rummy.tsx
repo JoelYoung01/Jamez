@@ -71,7 +71,15 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
   const game = session.game as GinState
   const [p1, p2] = game.playerIds
   const playerOf = (id: string) => session.players.find((p) => p.id === id)
-  const [knockerId, setKnockerId] = React.useState(me && game.playerIds.includes(me.id) ? me.id : p1)
+  // Prefer the current user as knocker; keep null until they explicitly pick so a
+  // late-arriving `me` still wins over the p1 fallback.
+  const [knockerOverride, setKnockerOverride] = React.useState<string | null>(null)
+  const knockerId =
+    knockerOverride && game.playerIds.includes(knockerOverride)
+      ? knockerOverride
+      : me && game.playerIds.includes(me.id)
+        ? me.id
+        : p1
   const [outcome, setOutcome] = React.useState<GinOutcome>('knock')
   const [knockerDeadwood, setKnockerDeadwood] = React.useState('')
   const [defenderDeadwood, setDefenderDeadwood] = React.useState('')
@@ -116,7 +124,7 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
           <Label className="text-xs text-muted-foreground">Who knocked?</Label>
           <Segmented
             value={knockerId}
-            onChange={setKnockerId}
+            onChange={setKnockerOverride}
             options={game.playerIds.map((id) => ({
               value: id,
               label: (
