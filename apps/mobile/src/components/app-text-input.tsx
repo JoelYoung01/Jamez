@@ -6,6 +6,7 @@ import {
   setFocusedKeyboardField,
   useKeyboardFormGroup,
 } from '@/components/keyboard-dismiss'
+import { useScrollInputAboveKeyboard } from '@/lib/keyboard'
 
 let accessorySeq = 0
 
@@ -30,6 +31,8 @@ function callSubmit(handler: TextInputProps['onSubmitEditing']) {
  *
  * Pass `inputAccessoryViewID` yourself to opt into a custom accessory (and
  * skip the default bar). Pass `keyboardAccessory={false}` to attach none.
+ *
+ * When rendered inside Screen, focus also scrolls the field above the keyboard.
  */
 export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(
   function AppTextInput(
@@ -47,6 +50,7 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(
   ) {
     const autoId = React.useRef(`jamez-kbd-${++accessorySeq}`).current
     const group = useKeyboardFormGroup()
+    const scrollInputAboveKeyboard = useScrollInputAboveKeyboard()
     const useDefault =
       Platform.OS === 'ios' && keyboardAccessory && inputAccessoryViewID == null
     const accessoryId = inputAccessoryViewID ?? (useDefault ? autoId : undefined)
@@ -121,6 +125,7 @@ export const AppTextInput = React.forwardRef<TextInput, AppTextInputProps>(
           onSubmitEditing={onSubmitEditing}
           onFocus={(e) => {
             setFocusedKeyboardField(autoId)
+            scrollInputAboveKeyboard?.(innerRef.current)
             onFocus?.(e)
           }}
           onBlur={(e) => {
