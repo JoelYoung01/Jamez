@@ -1,6 +1,6 @@
 import { getGameEngine, sessionDisplayName } from '@jamez/core'
 import { router, useFocusEffect } from 'expo-router'
-import { MoonIcon, SearchIcon } from 'lucide-react-native'
+import { MoonIcon } from 'lucide-react-native'
 import * as React from 'react'
 import {
   ActionSheetIOS,
@@ -14,14 +14,13 @@ import {
   View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { AppTextInput } from '@/components/app-text-input'
+import { FloatingSearch } from '@/components/floating-search'
 import { PageHeader } from '@/components/page-header'
 import { QrCard } from '@/components/qr-card'
 import { AppButton, Card, CardTitle, Chip, Muted } from '@/components/ui'
 import { getGameIcon } from '@/games/registry'
 import { formatDate } from '@/lib/format'
 import { useHistory } from '@/lib/history'
-import { useKeyboardHeight } from '@/lib/keyboard'
 import { listLongTermSessions, type LongTermRoom } from '@/lib/long-term-sessions'
 import {
   archiveParkedSession,
@@ -49,7 +48,6 @@ function roomMatchesFilter(room: LongTermRoom, query: string): boolean {
 
 export default function ContinueScreen() {
   const insets = useSafeAreaInsets()
-  const keyboardHeight = useKeyboardHeight()
   const history = useHistory()
   const activeCode = useSession((s) => s.code)
   const state = useSession((s) => s.state)
@@ -59,6 +57,7 @@ export default function ContinueScreen() {
   const [filter, setFilter] = React.useState('')
   const [showEnded, setShowEnded] = React.useState(false)
   const [inviteRoom, setInviteRoom] = React.useState<LongTermRoom | null>(null)
+  const [listBottomPad, setListBottomPad] = React.useState(84)
 
   const refreshVault = React.useCallback(() => {
     let alive = true
@@ -184,13 +183,7 @@ export default function ContinueScreen() {
     ])
   }
 
-  const filterBarHeight = 56
-  const keyboardOpen = keyboardHeight > 0
-  const filterOffset = Platform.OS === 'ios' && keyboardOpen ? keyboardHeight : 0
-  const listBottomPad =
-    (!empty || showEnded ? filterBarHeight + 20 : 32) +
-    (Platform.OS === 'ios' && keyboardOpen ? keyboardHeight : Math.max(insets.bottom, 8))
-
+  const searchVisible = !empty || showEnded
   const inviteTitle = inviteRoom
     ? sessionDisplayName({
         nickname: inviteRoom.nickname,
@@ -205,7 +198,7 @@ export default function ContinueScreen() {
         contentContainerStyle={{
           paddingTop: insets.top + 8,
           paddingHorizontal: 16,
-          paddingBottom: listBottomPad,
+          paddingBottom: searchVisible ? listBottomPad : Math.max(insets.bottom, 24),
           flexGrow: 1,
         }}
         keyboardShouldPersistTaps="handled"
@@ -325,30 +318,14 @@ export default function ContinueScreen() {
         </View>
       </ScrollView>
 
-      {!empty || showEnded ? (
-        <View
-          className="absolute inset-x-0 border-t border-line bg-background/95 px-4 pt-2"
-          style={{
-            bottom: filterOffset,
-            paddingBottom: keyboardOpen ? 8 : Math.max(insets.bottom, 8),
-          }}
-        >
-          <View className="flex-row items-center gap-2 rounded-xl border border-line bg-card px-3">
-            <SearchIcon size={16} color="#a1a1ab" />
-            <AppTextInput
-              value={filter}
-              onChangeText={setFilter}
-              placeholder="Filter by name or code"
-              placeholderTextColor="rgba(255,255,255,0.25)"
-              autoCorrect={false}
-              autoCapitalize="none"
-              clearButtonMode="while-editing"
-              returnKeyType="search"
-              className="h-11 flex-1 text-base text-zinc-100"
-            />
-          </View>
-        </View>
-      ) : null}
+      <FloatingSearch
+        value={filter}
+        onChange={setFilter}
+        placeholder="Filter by name or code"
+        searchLabel="Search games"
+        visible={searchVisible}
+        onBottomPadChange={setListBottomPad}
+      />
 
       <Modal
         visible={inviteRoom != null}

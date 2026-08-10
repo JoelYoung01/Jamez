@@ -9,16 +9,44 @@ import {
 import { ArrowLeftIcon, DicesIcon, Trash2Icon } from 'lucide-react'
 import * as React from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { FloatingSearch } from '@/components/floating-search'
 import { getGameIcon } from '@/games/registry'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { historyStore, useHistory, useStats } from '@/lib/history'
 import { useProfile } from '@/lib/profile'
 import { listHostSnapshots } from '@/lib/session-store'
 import { formatDate } from '@/lib/utils'
+
+function activityMatchesFilter(item: ActivityItem, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  if (item.kind === 'parked') {
+    const game = getGameEngine(item.gameId)
+    const title = sessionDisplayName({ nickname: item.nickname, gameId: item.gameId })
+    return (
+      title.toLowerCase().includes(q) ||
+      item.code.toLowerCase().includes(q) ||
+      (game?.name.toLowerCase().includes(q) ?? false) ||
+      (item.nickname?.toLowerCase().includes(q) ?? false) ||
+      item.players.some((p) => p.name.toLowerCase().includes(q))
+    )
+  }
+  const { record } = item
+  const game = getGameEngine(record.gameId)
+  const title = record.nickname
+    ? sessionDisplayName({ nickname: record.nickname, gameId: record.gameId })
+    : record.summary.headline
+  return (
+    title.toLowerCase().includes(q) ||
+    record.summary.headline.toLowerCase().includes(q) ||
+    record.code.toLowerCase().includes(q) ||
+    (game?.name.toLowerCase().includes(q) ?? false) ||
+    (record.nickname?.toLowerCase().includes(q) ?? false) ||
+    record.players.some((p) => p.name.toLowerCase().includes(q))
+  )
+}
 
 export function HistoryPage() {
   const records = useHistory()
@@ -26,15 +54,15 @@ export function HistoryPage() {
   const myId = useProfile((s) => s.playerId)
   const navigate = useNavigate()
   const vault = listHostSnapshots()
-  const [showEnded, setShowEnded] = React.useState(true)
+  const [filter, setFilter] = React.useState('')
   const feed = buildActivityFeed({
     history: records,
     vault,
-    includeEndedLongTerm: showEnded,
   })
+  const filteredFeed = feed.filter((item) => activityMatchesFilter(item, filter))
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-4 pb-24">
       <div className="flex items-center gap-2">
         <Button asChild variant="ghost" size="icon-sm">
           <Link to="/">
@@ -42,13 +70,6 @@ export function HistoryPage() {
           </Link>
         </Button>
         <h1 className="text-lg font-semibold">History & stats</h1>
-      </div>
-
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/40 px-3 py-2.5">
-        <Label htmlFor="show-ended-history" className="text-sm font-normal text-muted-foreground">
-          Show ended banks
-        </Label>
-        <Switch id="show-ended-history" checked={showEnded} onCheckedChange={setShowEnded} />
       </div>
 
       <div className="grid grid-cols-3 gap-2">
@@ -104,15 +125,23 @@ export function HistoryPage() {
       ) : (
         <div className="grid gap-2">
           <h2 className="mt-2 text-sm font-semibold text-muted-foreground">All games</h2>
-          {feed.map((item) => (
-            <HistoryActivityRow
-              key={item.key}
-              item={item}
-              myId={myId}
-              onOpen={(code) => navigate(`/session/${code}`)}
-              onHistory={(id) => navigate(`/history/${id}`)}
-            />
-          ))}
+          {filteredFeed.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                No games match “{filter.trim()}”.
+              </CardContent>
+            </Card>
+          ) : (
+            filteredFeed.map((item) => (
+              <HistoryActivityRow
+                key={item.key}
+                item={item}
+                myId={myId}
+                onOpen={(code) => navigate(`/session/${code}`)}
+                onHistory={(id) => navigate(`/history/${id}`)}
+              />
+            ))
+          )}
           {records.length > 0 && (
             <Button
               variant="ghost"
@@ -125,6 +154,15 @@ export function HistoryPage() {
           )}
         </div>
       )}
+
+      <FloatingSearch
+        value={filter}
+        onChange={setFilter}
+        placeholder="Filter games"
+        searchLabel="Search history"
+        inputLabel="Filter games"
+        visible={feed.length > 0}
+      />
     </div>
   )
 }
