@@ -8,15 +8,45 @@ import {
 import { router, useFocusEffect } from 'expo-router'
 import { DicesIcon, Trash2Icon } from 'lucide-react-native'
 import * as React from 'react'
-import { Pressable, Switch, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { FloatingSearch } from '@/components/floating-search'
 import { PageHeader } from '@/components/page-header'
-import { AppButton, Card, CardTitle, Chip, Muted, Screen } from '@/components/ui'
+import { AppButton, Card, CardTitle, Chip, Muted } from '@/components/ui'
 import { getGameIcon } from '@/games/registry'
 import { formatDate } from '@/lib/format'
 import { historyStore, useHistory, useStats } from '@/lib/history'
 import { useProfile } from '@/lib/profile'
 import { listHostSnapshots, type HostSnapshot } from '@/lib/session-store'
+
+function activityMatchesFilter(item: ActivityItem, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  if (item.kind === 'parked') {
+    const game = getGameEngine(item.gameId)
+    const title = sessionDisplayName({ nickname: item.nickname, gameId: item.gameId })
+    return (
+      title.toLowerCase().includes(q) ||
+      item.code.toLowerCase().includes(q) ||
+      (game?.name.toLowerCase().includes(q) ?? false) ||
+      (item.nickname?.toLowerCase().includes(q) ?? false) ||
+      item.players.some((p) => p.name.toLowerCase().includes(q))
+    )
+  }
+  const { record } = item
+  const game = getGameEngine(record.gameId)
+  const title = record.nickname
+    ? sessionDisplayName({ nickname: record.nickname, gameId: record.gameId })
+    : record.summary.headline
+  return (
+    title.toLowerCase().includes(q) ||
+    record.summary.headline.toLowerCase().includes(q) ||
+    record.code.toLowerCase().includes(q) ||
+    (game?.name.toLowerCase().includes(q) ?? false) ||
+    (record.nickname?.toLowerCase().includes(q) ?? false) ||
+    record.players.some((p) => p.name.toLowerCase().includes(q))
+  )
+}
 
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets()
@@ -24,7 +54,8 @@ export default function HistoryScreen() {
   const stats = useStats()
   const myId = useProfile((s) => s.playerId)
   const [vault, setVault] = React.useState<HostSnapshot[]>([])
-  const [showEnded, setShowEnded] = React.useState(true)
+  const [filter, setFilter] = React.useState('')
+  const [listBottomPad, setListBottomPad] = React.useState(84)
 
   useFocusEffect(
     React.useCallback(() => {
@@ -41,81 +72,104 @@ export default function HistoryScreen() {
   const feed = buildActivityFeed({
     history: records,
     vault,
-    includeEndedLongTerm: showEnded,
   })
+  const filteredFeed = feed.filter((item) => activityMatchesFilter(item, filter))
 
   return (
-    <Screen>
-      <View style={{ paddingTop: insets.top + 8 }}>
-        <PageHeader title="History & stats" />
+    <View className="flex-1 bg-background">
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          paddingTop: insets.top + 8,
+          paddingHorizontal: 16,
+          paddingBottom: feed.length > 0 ? listBottomPad : Math.max(insets.bottom, 24),
+          flexGrow: 1,
+        }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
+        <View className="w-full max-w-xl gap-3 self-center">
+          <PageHeader title="History & stats" />
 
-        <Card className="mb-3 flex-row items-center justify-between px-3.5 py-3">
-          <Muted className="flex-1 pr-3">Show ended banks</Muted>
-          <Switch
-            value={showEnded}
-            onValueChange={setShowEnded}
-            trackColor={{ false: '#232329', true: '#fbbf24' }}
-            thumbColor="#ffffff"
-          />
-        </Card>
+          <View className="flex-row gap-2">
+            <StatTile label="Games" value={stats.gamesPlayed} />
+            <StatTile label="Wins" value={stats.wins} />
+            <StatTile
+              label="Win rate"
+              value={
+                stats.gamesPlayed > 0
+                  ? `${Math.round((stats.wins / stats.gamesPlayed) * 100)}%`
+                  : '—'
+              }
+            />
+          </View>
 
-        <View className="flex-row gap-2">
-          <StatTile label="Games" value={stats.gamesPlayed} />
-          <StatTile label="Wins" value={stats.wins} />
-          <StatTile
-            label="Win rate"
-            value={stats.gamesPlayed > 0 ? `${Math.round((stats.wins / stats.gamesPlayed) * 100)}%` : '—'}
-          />
-        </View>
+          {Object.keys(stats.byGame).length > 0 && (
+            <View className="gap-2">
+              {Object.entries(stats.byGame).map(([gameId, gameStats]) => {
+                const game = getGameEngine(gameId)
+                const Icon = getGameIcon(gameId)
+                return (
+                  <Card key={gameId} className="flex-row items-center gap-3 p-3.5">
+                    <Icon size={22} color={game?.accentColor ?? '#a1a1ab'} />
+                    <View className="min-w-0 flex-1">
+                      <Text className="text-sm font-medium text-zinc-100">
+                        {game?.name ?? gameId}
+                      </Text>
+                      <Muted>
+                        {gameStats.played} played · {gameStats.wins} won
+                      </Muted>
+                    </View>
+                    {gameStats.bestScore !== null && <Chip>best {gameStats.bestScore}</Chip>}
+                  </Card>
+                )
+              })}
+            </View>
+          )}
 
-        {Object.keys(stats.byGame).length > 0 && (
-          <View className="mt-3 gap-2">
-            {Object.entries(stats.byGame).map(([gameId, gameStats]) => {
-              const game = getGameEngine(gameId)
-              const Icon = getGameIcon(gameId)
-              return (
-                <Card key={gameId} className="flex-row items-center gap-3 p-3.5">
-                  <Icon size={22} color={game?.accentColor ?? '#a1a1ab'} />
-                  <View className="min-w-0 flex-1">
-                    <Text className="text-sm font-medium text-zinc-100">{game?.name ?? gameId}</Text>
-                    <Muted>
-                      {gameStats.played} played · {gameStats.wins} won
-                    </Muted>
-                  </View>
-                  {gameStats.bestScore !== null && <Chip>best {gameStats.bestScore}</Chip>}
+          {feed.length === 0 ? (
+            <Card className="items-center gap-1.5 px-6 py-10">
+              <DicesIcon size={32} color="#a1a1ab" />
+              <CardTitle>No games yet</CardTitle>
+              <Muted className="text-center">
+                Finish a session and it lands here. Parked and ended banks show up too. Stored on
+                this phone only.
+              </Muted>
+            </Card>
+          ) : (
+            <View className="gap-2">
+              <Text className="text-sm font-semibold text-muted-foreground">All games</Text>
+              {filteredFeed.length === 0 ? (
+                <Card className="items-center px-6 py-8">
+                  <Muted className="text-center">No games match “{filter.trim()}”.</Muted>
                 </Card>
-              )
-            })}
-          </View>
-        )}
+              ) : (
+                filteredFeed.map((item) => (
+                  <HistoryActivityRow key={item.key} item={item} myId={myId} />
+                ))
+              )}
+              {records.length > 0 && (
+                <AppButton
+                  variant="ghost"
+                  size="sm"
+                  title="Clear finished history"
+                  onPress={() => void historyStore.clear()}
+                />
+              )}
+            </View>
+          )}
+        </View>
+      </ScrollView>
 
-        {feed.length === 0 ? (
-          <Card className="mt-3 items-center gap-1.5 px-6 py-10">
-            <DicesIcon size={32} color="#a1a1ab" />
-            <CardTitle>No games yet</CardTitle>
-            <Muted className="text-center">
-              Finish a session and it lands here. Parked and ended banks show up too. Stored on
-              this phone only.
-            </Muted>
-          </Card>
-        ) : (
-          <View className="mt-4 gap-2">
-            <Text className="text-sm font-semibold text-muted-foreground">All games</Text>
-            {feed.map((item) => (
-              <HistoryActivityRow key={item.key} item={item} myId={myId} />
-            ))}
-            {records.length > 0 && (
-              <AppButton
-                variant="ghost"
-                size="sm"
-                title="Clear finished history"
-                onPress={() => void historyStore.clear()}
-              />
-            )}
-          </View>
-        )}
-      </View>
-    </Screen>
+      <FloatingSearch
+        value={filter}
+        onChange={setFilter}
+        placeholder="Filter games"
+        searchLabel="Search history"
+        visible={feed.length > 0}
+        onBottomPadChange={setListBottomPad}
+      />
+    </View>
   )
 }
 
@@ -132,9 +186,7 @@ function HistoryActivityRow({ item, myId }: { item: ActivityItem; myId: string }
             <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
               {title}
             </Text>
-            <Muted>
-              Parked · {item.players.map((p) => p.name).join(', ')}
-            </Muted>
+            <Muted>Parked · {item.players.map((p) => p.name).join(', ')}</Muted>
           </View>
           <Chip tone="outline">Open</Chip>
         </Card>

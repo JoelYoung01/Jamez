@@ -1,7 +1,8 @@
 import { getGameEngine, sessionDisplayName } from '@jamez/core'
-import { ArrowLeftIcon, MoreHorizontalIcon, MoonIcon, SearchIcon } from 'lucide-react'
+import { ArrowLeftIcon, MoreHorizontalIcon, MoonIcon } from 'lucide-react'
 import * as React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { FloatingSearch } from '@/components/floating-search'
 import { getGameIcon } from '@/games/registry'
 import { QrCard } from '@/components/qr-card'
 import { Badge } from '@/components/ui/badge'
@@ -13,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useHistory } from '@/lib/history'
@@ -139,7 +139,7 @@ export function ContinuePage() {
   const empty = openCount === 0 && !showEnded
 
   return (
-    <div className="grid gap-4 pb-20">
+    <div className="grid gap-4 pb-24">
       <div className="flex items-center gap-2">
         <Button asChild variant="ghost" size="icon-sm">
           <Link to="/">
@@ -288,22 +288,14 @@ export function ContinuePage() {
         </div>
       )}
 
-      {!empty || showEnded ? (
-        <div className="fixed inset-x-0 bottom-0 z-40">
-          <div className="mx-auto w-full max-w-xl px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2">
-            <div className="relative rounded-xl border border-border bg-card/95 shadow-lg backdrop-blur">
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filter by name or code"
-                aria-label="Filter games"
-                className="h-11 border-0 bg-transparent pl-9 shadow-none focus-visible:ring-0"
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <FloatingSearch
+        value={filter}
+        onChange={setFilter}
+        placeholder="Filter by name or code"
+        searchLabel="Search games"
+        inputLabel="Filter games"
+        visible={!empty || showEnded}
+      />
 
       <Dialog open={inviteRoom != null} onOpenChange={(open) => !open && setInviteRoom(null)}>
         <DialogContent>
