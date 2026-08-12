@@ -353,30 +353,41 @@ function GinPlay(props: GamePlayProps) {
           const player = playerOf(id)
           const total = totals[id] ?? 0
           const progress = Math.min(1, total / game.config.targetScore)
+          const isDealer = game.dealerId === id
           if (!player) return null
           return (
-            <Card
+            <Pressable
               key={id}
-              className={clsx('flex-1 items-center gap-1 p-4', game.dealerId === id && 'border-primary/40')}
+              disabled={!isHost || isDealer}
+              accessibilityRole={isHost ? 'button' : undefined}
+              accessibilityState={isHost ? { selected: isDealer } : undefined}
+              accessibilityLabel={isHost ? `Set ${player.name} as dealer` : undefined}
+              onPress={isHost && !isDealer ? () => send({ type: 'setDealer', playerId: id }) : undefined}
+              className="flex-1 active:opacity-80"
             >
-              <PlayerAvatar player={player} showPresence />
-              <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
-                {player.name}
-              </Text>
-              <Text className="font-mono text-4xl font-bold text-zinc-100">{total}</Text>
-              <Text className="text-xs text-muted-foreground">
-                {boxes[id] ?? 0} {(boxes[id] ?? 0) === 1 ? 'hand' : 'hands'} won
-                {game.dealerId === id ? ' · dealing' : ''}
-              </Text>
-              <View className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                <View className="h-full rounded-full bg-primary" style={{ width: `${progress * 100}%` }} />
-              </View>
-            </Card>
+              <Card
+                className={clsx('items-center gap-1 p-4', isDealer && 'border-primary/40')}
+              >
+                <PlayerAvatar player={player} showPresence />
+                <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
+                  {player.name}
+                </Text>
+                <Text className="font-mono text-4xl font-bold text-zinc-100">{total}</Text>
+                <Text className="text-xs text-muted-foreground">
+                  {boxes[id] ?? 0} {(boxes[id] ?? 0) === 1 ? 'hand' : 'hands'} won
+                  {isDealer ? ' · dealing' : ''}
+                </Text>
+                <View className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <View className="h-full rounded-full bg-primary" style={{ width: `${progress * 100}%` }} />
+                </View>
+              </Card>
+            </Pressable>
           )
         })}
       </View>
       <Text className="text-center text-xs text-muted-foreground">
         First to {game.config.targetScore} wins the match
+        {isHost ? ' · tap a player to set dealer' : ''}
       </Text>
 
       <RecordHandForm {...props} />

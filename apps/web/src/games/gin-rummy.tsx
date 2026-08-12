@@ -220,16 +220,40 @@ function GinPlay(props: GamePlayProps) {
           const player = playerOf(id)
           const total = totals[id] ?? 0
           const progress = Math.min(1, total / game.config.targetScore)
+          const isDealer = game.dealerId === id
           if (!player) return null
           return (
-            <Card key={id} className={cn(game.dealerId === id && 'ring-1 ring-primary/40')}>
+            <Card
+              key={id}
+              role={isHost ? 'button' : undefined}
+              tabIndex={isHost ? 0 : undefined}
+              aria-pressed={isHost ? isDealer : undefined}
+              aria-label={isHost ? `Set ${player.name} as dealer` : undefined}
+              onClick={
+                isHost && !isDealer ? () => send({ type: 'setDealer', playerId: id }) : undefined
+              }
+              onKeyDown={
+                isHost && !isDealer
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        send({ type: 'setDealer', playerId: id })
+                      }
+                    }
+                  : undefined
+              }
+              className={cn(
+                isDealer && 'ring-1 ring-primary/40',
+                isHost && !isDealer && 'cursor-pointer transition-colors hover:bg-muted/40',
+              )}
+            >
               <CardContent className="flex flex-col items-center gap-1.5 p-4">
                 <PlayerAvatar player={player} showPresence />
                 <div className="max-w-full truncate text-sm font-medium">{player.name}</div>
                 <div className="font-mono text-4xl font-bold tabular-nums">{total}</div>
                 <div className="text-xs text-muted-foreground">
                   {boxes[id] ?? 0} {(boxes[id] ?? 0) === 1 ? 'hand' : 'hands'} won
-                  {game.dealerId === id && <span className="ml-1 text-primary">· dealing</span>}
+                  {isDealer && <span className="ml-1 text-primary">· dealing</span>}
                 </div>
                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                   <div
@@ -245,6 +269,7 @@ function GinPlay(props: GamePlayProps) {
       <p className="text-center text-xs text-muted-foreground">
         First to <span className="font-semibold text-foreground">{game.config.targetScore}</span> wins
         the match
+        {isHost && <span className="text-muted-foreground/70"> · tap a player to set dealer</span>}
       </p>
 
       <RecordHandForm {...props} />
