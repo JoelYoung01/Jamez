@@ -585,11 +585,9 @@ function HostSessionControls() {
   if (mode === 'idle') {
     return (
       <div className="grid gap-2">
-        {ongoing && (
-          <Button onClick={() => setMode('park')}>
-            <MoonIcon /> Close for now
-          </Button>
-        )}
+        <Button onClick={() => setMode('park')}>
+          <MoonIcon /> Close for now
+        </Button>
         <Button variant="destructive" onClick={() => setMode('end')}>
           <LogOutIcon /> {ongoing ? 'End & save standings' : 'End session for everyone'}
         </Button>

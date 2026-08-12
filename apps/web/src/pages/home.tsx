@@ -30,7 +30,7 @@ export function HomePage() {
   const state = useSession((s) => s.state)
   const navigate = useNavigate()
   const vault = listHostSnapshots()
-  // History list: finished games (parked long-term rooms live under Return to game).
+  // History list: finished games (open rooms live under Return to game).
   const recent = buildActivityFeed({ history, vault })
     .filter((item) => item.kind === 'history')
     .slice(0, 5)
@@ -65,8 +65,8 @@ export function HomePage() {
           to="/continue"
           icon={<MoonIcon className="size-5" />}
           title="Return to game"
-          description="Parked banks and long-term rooms."
-          cta={longTermCount > 0 ? `${longTermCount} open` : 'None parked'}
+          description="Draft, parked, and live rooms."
+          cta={longTermCount > 0 ? `${longTermCount} open` : 'None open'}
           badge={longTermCount > 0 ? String(longTermCount) : undefined}
         />
         <HomeTile

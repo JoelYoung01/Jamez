@@ -200,7 +200,12 @@ function applyLiveActivity(props: SessionLiveProps, code: string): void {
 }
 
 /**
- * Keep a single Live Activity in sync with the active host/guest session.
+ * Keep a single Live Activity in sync with the in-memory host/guest session.
+ *
+ * Contract: Live Activity tracks the device's `active` room (transport up).
+ * Parking / ending / leaving clears it via `endSessionLiveActivity`. Host vault
+ * rows marked `active` are rehydrated on launch so this can come back up.
+ *
  * No-ops on non-iOS, when Live Activities are disabled, or when unavailable.
  */
 export function syncSessionLiveActivity(opts: {

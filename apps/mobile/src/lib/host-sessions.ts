@@ -2,9 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import {
   HOST_SESSION_LEGACY_KEY,
   HOST_SESSIONS_VAULT_KEY,
-  getGameEngine,
   hostSessionEntryKey,
-  isOngoingGame,
+  isOpenRoomStatus,
+  normalizeRoomStatus,
+  parkStatusForPhase,
+  type RoomStatus,
   type SessionState,
 } from '@jamez/core'
 
@@ -12,10 +14,14 @@ import {
  * Host session vault (AsyncStorage).
  *
  * Values are plain JSON under `jamez.host-sessions.v1`, keyed by
- * `${gameId}:${CODE}`. On iOS, AsyncStorage lives in the app sandbox and is
- * included in standard device/iCloud backups — good enough to restore a lost
- * phone from backup. Dedicated CloudKit sync is intentionally deferred; keep
- * this shape JSON-serializable so that migration stays easy.
+ * `${gameId}:${CODE}`. Each entry carries host-local `RoomStatus`
+ * (`draft` | `active` | `inactive` | `complete`); `active` means this
+ * device should keep transport (and Live Activity) up.
+ *
+ * On iOS, AsyncStorage lives in the app sandbox and is included in standard
+ * device/iCloud backups — good enough to restore a lost phone from backup.
+ * Dedicated CloudKit sync is intentionally deferred; keep this shape
+ * JSON-serializable so that migration stays easy.
  *
  * All vault mutations are serialized through a promise chain so concurrent
  * read-modify-write calls (nickname edit racing a cash-in, etc.) cannot
@@ -26,6 +32,8 @@ export interface HostSnapshot {
   state: SessionState
   passAndPlay: boolean
   savedAt: number
+  /** Host-local lifecycle; omitted on legacy vault rows. */
+  status?: RoomStatus
 }
 
 type Vault = Record<string, HostSnapshot>
@@ -64,7 +72,10 @@ async function migrateLegacy(): Promise<Vault> {
     const snap = JSON.parse(raw) as HostSnapshot
     if (!snap?.state?.code || !snap.state.gameId) return {}
     const vault: Vault = {
-      [hostSessionEntryKey(snap.state.gameId, snap.state.code)]: snap,
+      [hostSessionEntryKey(snap.state.gameId, snap.state.code)]: {
+        ...snap,
+        status: normalizeRoomStatus(snap.status, snap.state.phase),
+      },
     }
     await AsyncStorage.setItem(HOST_SESSIONS_VAULT_KEY, JSON.stringify(vault))
     await AsyncStorage.removeItem(HOST_SESSION_LEGACY_KEY)
@@ -82,10 +93,36 @@ async function writeVault(vault: Vault): Promise<void> {
   }
 }
 
-export function persistHostSnapshot(state: SessionState, passAndPlay: boolean): void {
-  const snapshot: HostSnapshot = { state, passAndPlay, savedAt: Date.now() }
+function demoteOtherActives(vault: Vault, keepKey: string): void {
+  for (const [key, snap] of Object.entries(vault)) {
+    if (key === keepKey) continue
+    const status = normalizeRoomStatus(snap.status, snap.state.phase)
+    if (status !== 'active') continue
+    vault[key] = {
+      ...snap,
+      status: parkStatusForPhase(snap.state.phase),
+      savedAt: Date.now(),
+    }
+  }
+}
+
+function withNormalizedStatus(snap: HostSnapshot): HostSnapshot {
+  return {
+    ...snap,
+    status: normalizeRoomStatus(snap.status, snap.state.phase),
+  }
+}
+
+export function persistHostSnapshot(
+  state: SessionState,
+  passAndPlay: boolean,
+  status: RoomStatus = 'active',
+): void {
+  const snapshot: HostSnapshot = { state, passAndPlay, savedAt: Date.now(), status }
   void enqueueVaultOp((vault) => {
-    vault[hostSessionEntryKey(state.gameId, state.code)] = snapshot
+    const key = hostSessionEntryKey(state.gameId, state.code)
+    if (status === 'active') demoteOtherActives(vault, key)
+    vault[key] = snapshot
   })
 }
 
@@ -93,10 +130,13 @@ export function persistHostSnapshot(state: SessionState, passAndPlay: boolean): 
 export function persistHostSnapshotAsync(
   state: SessionState,
   passAndPlay: boolean,
+  status: RoomStatus = 'active',
 ): Promise<void> {
-  const snapshot: HostSnapshot = { state, passAndPlay, savedAt: Date.now() }
+  const snapshot: HostSnapshot = { state, passAndPlay, savedAt: Date.now(), status }
   return enqueueVaultOp((vault) => {
-    vault[hostSessionEntryKey(state.gameId, state.code)] = snapshot
+    const key = hostSessionEntryKey(state.gameId, state.code)
+    if (status === 'active') demoteOtherActives(vault, key)
+    vault[key] = snapshot
   }).catch(() => {})
 }
 
@@ -107,30 +147,35 @@ export async function readHostSnapshot(code?: string): Promise<HostSnapshot | nu
   if (code) {
     const upper = code.toUpperCase()
     for (const snap of Object.values(vault)) {
-      if (snap.state.code === upper) return snap
+      if (snap.state.code === upper) return withNormalizedStatus(snap)
     }
     return null
   }
-  const snaps = Object.values(vault)
+  const snaps = Object.values(vault).map(withNormalizedStatus)
   if (snaps.length === 0) return null
-  const playing = snaps.find((s) => s.state.phase !== 'finished')
-  return (playing ?? snaps.sort((a, b) => b.savedAt - a.savedAt)[0]) ?? null
+  const active = snaps.find((s) => s.status === 'active')
+  if (active) return active
+  const open = snaps.find((s) => isOpenRoomStatus(normalizeRoomStatus(s.status, s.state.phase)))
+  return (open ?? snaps.sort((a, b) => b.savedAt - a.savedAt)[0]) ?? null
 }
 
 export async function listHostSnapshots(): Promise<HostSnapshot[]> {
   await vaultQueue.catch(() => {})
   const vault = await readVaultRaw()
-  return Object.values(vault).sort((a, b) => b.savedAt - a.savedAt)
+  return Object.values(vault).map(withNormalizedStatus).sort((a, b) => b.savedAt - a.savedAt)
 }
 
 export async function listResumableHostSnapshots(): Promise<HostSnapshot[]> {
   const snaps = await listHostSnapshots()
-  return snaps.filter((snap) => {
-    const engine = getGameEngine(snap.state.gameId)
-    if (!engine) return snap.state.phase !== 'finished'
-    if (isOngoingGame(engine)) return snap.state.phase !== 'finished'
-    return snap.state.phase !== 'finished'
-  })
+  return snaps.filter((snap) =>
+    isOpenRoomStatus(normalizeRoomStatus(snap.status, snap.state.phase)),
+  )
+}
+
+/** Vault rows that should rehydrate transport on launch. */
+export async function listActiveHostSnapshots(): Promise<HostSnapshot[]> {
+  const snaps = await listHostSnapshots()
+  return snaps.filter((snap) => snap.status === 'active')
 }
 
 export function clearHostSnapshot(state: Pick<SessionState, 'gameId' | 'code'>): void {

@@ -8,6 +8,10 @@
  *   vault root  →  `jamez.host-sessions.v1`
  *   entry key   →  `${gameId}:${CODE}`
  *
+ * Each entry carries a host-local `RoomStatus` (`draft` | `active` |
+ * `inactive` | `complete`). `active` is the contract for “relay should be
+ * up on this device”; park/resume/end transition that field.
+ *
  * On iOS, AsyncStorage lives in the app sandbox and is included in standard
  * iCloud/device backups by default. Prefer keeping values JSON-serializable
  * plain objects here so a later CloudKit sync layer can lift them without a
@@ -18,6 +22,14 @@ export const HOST_SESSIONS_VAULT_KEY = 'jamez.host-sessions.v1'
 
 /** Legacy single-snapshot key used before the multi-session vault. */
 export const HOST_SESSION_LEGACY_KEY = 'jamez.host-session.v1'
+
+export {
+  isOpenRoomStatus,
+  normalizeRoomStatus,
+  parkStatusForPhase,
+  roomStatusLabel,
+  type RoomStatus,
+} from './room-status'
 
 /** Stable map key for one hosted session inside the vault. */
 export function hostSessionEntryKey(gameId: string, code: string): string {

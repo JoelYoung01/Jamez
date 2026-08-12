@@ -21,11 +21,12 @@ export interface GameSummary {
 }
 
 /**
- * How a game uses the host session lifecycle.
+ * Engine capability hint for presentation (rematch, archive-on-end, table
+ * presence). Park / resume / Live Activity use host-local `RoomStatus`
+ * (`draft` | `active` | `inactive` | `complete`) for every game.
  *
  * - `match` (default): finite game night with finish / rematch / history.
- * - `ongoing`: long-lived room (banks, leagues, seasons). Host may park and
- *   resume across days; game state is persisted under a game-scoped key.
+ * - `ongoing`: long-lived room (banks, leagues, seasons); end archives standings.
  */
 export type GameSessionMode = 'match' | 'ongoing'
 

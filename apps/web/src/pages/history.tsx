@@ -117,7 +117,7 @@ export function HistoryPage() {
             <DicesIcon className="size-8 text-muted-foreground" />
             <CardTitle>No games yet</CardTitle>
             <CardDescription>
-              Finish a session and it lands here. Parked and ended banks show up too. Stored on
+              Finish a session and it lands here. Open (draft / parked) rooms show up too. Stored on
               this device only.
             </CardDescription>
           </CardHeader>
@@ -313,7 +313,7 @@ function HistoryActivityRow({
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">{title}</div>
               <div className="truncate text-xs text-muted-foreground">
-                Parked · {item.players.map((p) => p.name).join(', ')}
+                {item.statusLabel} · {item.players.map((p) => p.name).join(', ')}
               </div>
             </div>
             <Badge variant="outline">Open</Badge>

@@ -1,5 +1,10 @@
 import { getGameEngine } from '../games/registry'
 import {
+  normalizeRoomStatus,
+  roomStatusLabel,
+  type RoomStatus,
+} from '../persistence/room-status'
+import {
   normalizeNickname,
   type SessionPhase,
   type SessionState,
@@ -28,6 +33,8 @@ export type ActivityItem =
       nickname?: string
       at: number
       phase: SessionPhase
+      status: RoomStatus
+      statusLabel: string
       players: { name: string; emoji: string }[]
     }
   | {
@@ -40,17 +47,17 @@ export type ActivityItem =
     }
 
 /**
- * Merge parked host vault sessions with finished history into one feed,
- * newest first. Parked sessions that already have a history row (unusual)
+ * Merge open host vault sessions with finished history into one feed,
+ * newest first. Vault rows that already have a history row (unusual)
  * are omitted so they don't double-list.
  *
  * Set `includeEndedLongTerm: false` to hide archived ongoing rooms (Poker Bank
- * standings) while keeping parked banks and match history.
+ * standings) while keeping open rooms and match history.
  */
 export function buildActivityFeed(opts: {
   history: HistoryRecord[]
-  /** Host vault snapshots (any phase). */
-  vault: Array<{ state: SessionState; savedAt: number }>
+  /** Host vault snapshots (any phase / status). */
+  vault: Array<{ state: SessionState; savedAt: number; status?: RoomStatus }>
   /** Default true — show ended long-term games from history. */
   includeEndedLongTerm?: boolean
 }): ActivityItem[] {
@@ -64,8 +71,17 @@ export function buildActivityFeed(opts: {
   )
 
   for (const snap of opts.vault) {
-    if (snap.state.phase === 'finished') continue
+    const status = normalizeRoomStatus(snap.status, snap.state.phase)
+    if (status === 'complete' || snap.state.phase === 'finished') continue
     if (historyIds.has(snap.state.sessionId)) continue
+    // Feed is for resumable rooms sitting in the vault — never advertise a
+    // stale `active` here (Continue / live session owns that).
+    const shown: RoomStatus =
+      status === 'active'
+        ? snap.state.phase === 'lobby'
+          ? 'draft'
+          : 'inactive'
+        : status
     items.push({
       kind: 'parked',
       key: `parked:${snap.state.gameId}:${snap.state.code}`,
@@ -75,6 +91,8 @@ export function buildActivityFeed(opts: {
       nickname: snap.state.nickname,
       at: snap.savedAt,
       phase: snap.state.phase,
+      status: shown,
+      statusLabel: roomStatusLabel(shown),
       players: snap.state.players.map((p) => ({ name: p.name, emoji: p.emoji })),
     })
   }

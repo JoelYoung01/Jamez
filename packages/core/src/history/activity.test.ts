@@ -27,7 +27,7 @@ describe('sessionDisplayName', () => {
 })
 
 describe('buildActivityFeed', () => {
-  it('lists parked sessions and history, newest first', () => {
+  it('lists open vault sessions and history, newest first', () => {
     const history: HistoryRecord[] = [
       {
         id: 's1',
@@ -50,6 +50,7 @@ describe('buildActivityFeed', () => {
           phase: 'playing',
         }),
         savedAt: 200,
+        status: 'inactive' as const,
       },
       {
         state: session({
@@ -59,13 +60,49 @@ describe('buildActivityFeed', () => {
           phase: 'finished',
         }),
         savedAt: 150,
+        status: 'complete' as const,
       },
     ]
 
     const feed = buildActivityFeed({ history, vault })
     expect(feed.map((i) => i.kind)).toEqual(['parked', 'history'])
-    expect(feed[0]).toMatchObject({ kind: 'parked', code: 'BBBBBB', nickname: 'Cabin trip' })
+    expect(feed[0]).toMatchObject({
+      kind: 'parked',
+      code: 'BBBBBB',
+      nickname: 'Cabin trip',
+      status: 'inactive',
+      statusLabel: 'Parked',
+    })
     expect(feed[1]).toMatchObject({ kind: 'history', canOpen: true })
+  })
+
+  it('includes parked gin matches alongside banks', () => {
+    const vault = [
+      {
+        state: session({
+          sessionId: 'gin-park',
+          code: 'GINGIN',
+          gameId: 'gin-rummy',
+          phase: 'playing',
+        }),
+        savedAt: 50,
+        status: 'inactive' as const,
+      },
+      {
+        state: session({
+          sessionId: 'lobby-park',
+          code: 'LOBBY1',
+          gameId: 'wingspan',
+          phase: 'lobby',
+        }),
+        savedAt: 40,
+        status: 'draft' as const,
+      },
+    ]
+    const feed = buildActivityFeed({ history: [], vault })
+    expect(feed).toHaveLength(2)
+    expect(feed[0]).toMatchObject({ code: 'GINGIN', status: 'inactive', statusLabel: 'Parked' })
+    expect(feed[1]).toMatchObject({ code: 'LOBBY1', status: 'draft', statusLabel: 'Draft' })
   })
 
   it('can hide ended long-term history rows', () => {
@@ -103,6 +140,55 @@ describe('buildActivityFeed', () => {
 })
 
 describe('listLongTermSessions', () => {
+  it('lists open rooms for every game type', () => {
+    const vault = [
+      {
+        state: session({
+          sessionId: 'gin-park',
+          code: 'GINGIN',
+          gameId: 'gin-rummy',
+          phase: 'playing',
+        }),
+        savedAt: 120,
+        status: 'inactive' as const,
+      },
+      {
+        state: session({
+          sessionId: 'bank-park',
+          code: 'PARKED',
+          gameId: 'poker-bank',
+          phase: 'playing',
+        }),
+        savedAt: 100,
+        status: 'inactive' as const,
+      },
+    ]
+    const open = listLongTermSessions(vault, null)
+    expect(open.map((r) => r.code)).toEqual(['GINGIN', 'PARKED'])
+    expect(open[0]).toMatchObject({ status: 'inactive', live: false })
+  })
+
+  it('marks the in-memory session active for any game', () => {
+    const vault = [
+      {
+        state: session({
+          sessionId: 'gin-live',
+          code: 'LIVE01',
+          gameId: 'gin-rummy',
+          phase: 'playing',
+        }),
+        savedAt: 100,
+        status: 'active' as const,
+      },
+    ]
+    const rooms = listLongTermSessions(vault, {
+      code: 'LIVE01',
+      gameId: 'gin-rummy',
+    })
+    expect(rooms).toHaveLength(1)
+    expect(rooms[0]).toMatchObject({ status: 'active', live: true, code: 'LIVE01' })
+  })
+
   it('includes ended banks only when requested', () => {
     const vault = [
       {
@@ -113,6 +199,7 @@ describe('listLongTermSessions', () => {
           phase: 'playing',
         }),
         savedAt: 100,
+        status: 'inactive' as const,
       },
     ]
     const history: HistoryRecord[] = [
@@ -131,6 +218,6 @@ describe('listLongTermSessions', () => {
     expect(openOnly.map((r) => r.code)).toEqual(['PARKED'])
     const withEnded = listLongTermSessions(vault, null, { includeEnded: true, history })
     expect(withEnded.map((r) => r.code)).toEqual(['ENDED1', 'PARKED'])
-    expect(withEnded[0]).toMatchObject({ ended: true, historyId: 'ended-1' })
+    expect(withEnded[0]).toMatchObject({ ended: true, status: 'complete', historyId: 'ended-1' })
   })
 })

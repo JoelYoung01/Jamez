@@ -8,6 +8,7 @@ import {
   historyRecordFromOngoingArchive,
   historyRecordFromState,
   isOngoingGame,
+  parkStatusForPhase,
   type GuestSession,
   type GuestStatus,
   type HostSession,
@@ -21,6 +22,7 @@ import { historyStore } from './history'
 import {
   clearHostSnapshot,
   clearHostSnapshotAsync,
+  listActiveHostSnapshots,
   listHostSnapshots,
   listResumableHostSnapshots,
   persistHostSnapshot,
@@ -33,6 +35,7 @@ import { activeRelays } from './settings'
 export type { HostSnapshot }
 export {
   clearHostSnapshotAsync,
+  listActiveHostSnapshots,
   listHostSnapshots,
   listResumableHostSnapshots,
   readHostSnapshot,
@@ -56,6 +59,8 @@ interface SessionStoreState {
   }) => string | null
   joinGame: (code: string) => void
   resumeHost: (code?: string) => boolean
+  /** Rehydrate transport for a vault row marked `active` (app launch). */
+  restoreActiveHost: () => boolean
   startGame: () => void
   finishGame: () => void
   rematch: () => void
@@ -71,7 +76,7 @@ interface SessionStoreState {
     action: { type: string } & Record<string, unknown>,
     actorId?: string,
   ) => string | null
-  /** Stop broadcasting but keep the snapshot (ongoing banks / resume later). */
+  /** Stop broadcasting; vault status → draft (lobby) or inactive (in play). */
   parkSession: () => void
   /**
    * End for everyone. Ongoing banks archive standings to history first, then
@@ -98,6 +103,13 @@ function cleanupRefs(): void {
   guest = null
 }
 
+/** Park the current host before switching rooms so vault status stays honest. */
+function demoteLiveHostToParked(passAndPlay: boolean): void {
+  if (!host) return
+  const state = host.current
+  if (state) persistHostSnapshot(state, passAndPlay, parkStatusForPhase(state.phase))
+}
+
 function saveHistoryIfFinished(state: SessionState, myPlayerId: string): void {
   const record = historyRecordFromState(state, myPlayerId)
   if (record) void historyStore.save(record)
@@ -120,7 +132,7 @@ function resetSessionFields() {
   }
 }
 
-export const useSession = create<SessionStoreState>()((set) => {
+export const useSession = create<SessionStoreState>()((set, get) => {
   function wireHost(h: HostSession, passAndPlay: boolean): void {
     const profile = currentProfile()
     unsubs.push(
@@ -149,6 +161,7 @@ export const useSession = create<SessionStoreState>()((set) => {
         toast.error(`Unknown game: ${gameId}`)
         return null
       }
+      demoteLiveHostToParked(get().passAndPlay)
       cleanupRefs()
       const code = generateJoinCode()
       const profile = currentProfile()
@@ -158,7 +171,7 @@ export const useSession = create<SessionStoreState>()((set) => {
         gameConfig: config,
         hostProfile: profile,
         transport: makeTransport(code, passAndPlay),
-        onSnapshot: (state) => persistHostSnapshot(state, passAndPlay),
+        onSnapshot: (state) => persistHostSnapshot(state, passAndPlay, 'active'),
         nickname,
       })
       wireHost(host, passAndPlay)
@@ -167,6 +180,7 @@ export const useSession = create<SessionStoreState>()((set) => {
     },
 
     joinGame(code) {
+      demoteLiveHostToParked(get().passAndPlay)
       cleanupRefs()
       const normalized = code.toUpperCase()
       const profile = currentProfile()
@@ -201,19 +215,30 @@ export const useSession = create<SessionStoreState>()((set) => {
       if (code && snapshot.state.code !== code.toUpperCase()) return false
       const game = getGameEngine(snapshot.state.gameId)
       if (!game) return false
+      demoteLiveHostToParked(get().passAndPlay)
       cleanupRefs()
       const profile = currentProfile()
+      const passAndPlay = snapshot.passAndPlay
       host = createHostSession({
         code: snapshot.state.code,
         game,
         hostProfile: profile,
-        transport: makeTransport(snapshot.state.code, snapshot.passAndPlay),
-        onSnapshot: (state) => persistHostSnapshot(state, snapshot.passAndPlay),
+        transport: makeTransport(snapshot.state.code, passAndPlay),
+        onSnapshot: (state) => persistHostSnapshot(state, passAndPlay, 'active'),
         resumeFrom: snapshot.state,
       })
-      wireHost(host, snapshot.passAndPlay)
+      // Promote to active immediately so relaunches keep transport up.
+      persistHostSnapshot(snapshot.state, passAndPlay, 'active')
+      wireHost(host, passAndPlay)
       host.start()
       return true
+    },
+
+    restoreActiveHost() {
+      if (host || guest) return false
+      const active = listActiveHostSnapshots()[0]
+      if (!active) return false
+      return get().resumeHost(active.state.code)
     },
 
     startGame() {
@@ -284,8 +309,8 @@ export const useSession = create<SessionStoreState>()((set) => {
     parkSession() {
       const state = host?.current
       const passAndPlay = useSession.getState().passAndPlay
-      if (state) persistHostSnapshot(state, passAndPlay)
-      // Quiet stop — don't tell guests the bank is dissolved.
+      if (state) persistHostSnapshot(state, passAndPlay, parkStatusForPhase(state.phase))
+      // Quiet stop — don't tell guests the room is dissolved.
       host?.stop()
       cleanupRefs()
       set(resetSessionFields())
