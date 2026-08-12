@@ -25,22 +25,24 @@ import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
 // Unique IDs per field: RN iOS drops a shared InputAccessoryView on the 2nd+
 // TextInput (facebook/react-native#47865).
-const KNOCKER_DEADWOOD_ACCESSORY_ID = 'gin-deadwood-knocker'
-const DEFENDER_DEADWOOD_ACCESSORY_ID = 'gin-deadwood-defender'
+const LEFT_DEADWOOD_ACCESSORY_ID = 'gin-deadwood-left'
+const RIGHT_DEADWOOD_ACCESSORY_ID = 'gin-deadwood-right'
 
 function DeadwoodNav({
-  canFocusKnocker,
+  canFocusLeft,
+  canFocusRight,
   focused,
-  onFocusKnocker,
-  onFocusDefender,
+  onFocusLeft,
+  onFocusRight,
 }: {
-  canFocusKnocker: boolean
-  focused: 'knocker' | 'defender' | null
-  onFocusKnocker: () => void
-  onFocusDefender: () => void
+  canFocusLeft: boolean
+  canFocusRight: boolean
+  focused: 'left' | 'right' | null
+  onFocusLeft: () => void
+  onFocusRight: () => void
 }) {
-  const prevDisabled = !canFocusKnocker || focused === 'knocker'
-  const nextDisabled = focused === 'defender'
+  const prevDisabled = !canFocusLeft || focused === 'left'
+  const nextDisabled = !canFocusRight || focused === 'right'
 
   return (
     <>
@@ -48,7 +50,7 @@ function DeadwoodNav({
         accessibilityLabel="Previous player"
         disabled={prevDisabled}
         hitSlop={6}
-        onPress={onFocusKnocker}
+        onPress={onFocusLeft}
         className="h-10 w-10 items-center justify-center rounded-lg active:opacity-70"
       >
         <ChevronLeftIcon size={22} color={prevDisabled ? '#52525b' : '#f4f4f5'} />
@@ -57,7 +59,7 @@ function DeadwoodNav({
         accessibilityLabel="Next player"
         disabled={nextDisabled}
         hitSlop={6}
-        onPress={onFocusDefender}
+        onPress={onFocusRight}
         className="h-10 w-10 items-center justify-center rounded-lg active:opacity-70"
       >
         <ChevronRightIcon size={22} color={nextDisabled ? '#52525b' : '#f4f4f5'} />
@@ -67,24 +69,25 @@ function DeadwoodNav({
 }
 
 function DeadwoodKeyboardAccessory({
-  canFocusKnocker,
+  canFocusLeft,
+  canFocusRight,
   focused,
-  onFocusKnocker,
-  onFocusDefender,
+  onFocusLeft,
+  onFocusRight,
 }: {
-  canFocusKnocker: boolean
-  focused: 'knocker' | 'defender' | null
-  onFocusKnocker: () => void
-  onFocusDefender: () => void
+  canFocusLeft: boolean
+  canFocusRight: boolean
+  focused: 'left' | 'right' | null
+  onFocusLeft: () => void
+  onFocusRight: () => void
 }) {
-  const nav = (
-    <DeadwoodNav
-      canFocusKnocker={canFocusKnocker}
-      focused={focused}
-      onFocusKnocker={onFocusKnocker}
-      onFocusDefender={onFocusDefender}
-    />
-  )
+  const navProps = {
+    canFocusLeft,
+    canFocusRight,
+    focused,
+    onFocusLeft,
+    onFocusRight,
+  }
 
   // iOS: one native bar per TextInput (shared IDs break on the second field).
   // Android has no InputAccessoryView, so show prev/next under the fields while
@@ -93,26 +96,12 @@ function DeadwoodKeyboardAccessory({
     return (
       <>
         <KeyboardDismissAccessory
-          nativeID={KNOCKER_DEADWOOD_ACCESSORY_ID}
-          leading={
-            <DeadwoodNav
-              canFocusKnocker={canFocusKnocker}
-              focused={focused}
-              onFocusKnocker={onFocusKnocker}
-              onFocusDefender={onFocusDefender}
-            />
-          }
+          nativeID={LEFT_DEADWOOD_ACCESSORY_ID}
+          leading={<DeadwoodNav {...navProps} />}
         />
         <KeyboardDismissAccessory
-          nativeID={DEFENDER_DEADWOOD_ACCESSORY_ID}
-          leading={
-            <DeadwoodNav
-              canFocusKnocker={canFocusKnocker}
-              focused={focused}
-              onFocusKnocker={onFocusKnocker}
-              onFocusDefender={onFocusDefender}
-            />
-          }
+          nativeID={RIGHT_DEADWOOD_ACCESSORY_ID}
+          leading={<DeadwoodNav {...navProps} />}
         />
       </>
     )
@@ -121,7 +110,7 @@ function DeadwoodKeyboardAccessory({
   if (!focused) return null
   return (
     <View className="flex-row items-center gap-0.5 rounded-lg border border-line bg-card px-2 py-1.5">
-      {nav}
+      <DeadwoodNav {...navProps} />
     </View>
   )
 }
@@ -194,25 +183,36 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
         ? me.id
         : p1
   const [outcome, setOutcome] = React.useState<GinOutcome>('knock')
-  const [knockerDeadwood, setKnockerDeadwood] = React.useState('')
-  const [defenderDeadwood, setDefenderDeadwood] = React.useState('')
-  const [focusedField, setFocusedField] = React.useState<'knocker' | 'defender' | null>(null)
-  const knockerInputRef = React.useRef<TextInput>(null)
-  const defenderInputRef = React.useRef<TextInput>(null)
+  // Per-player deadwood so fields stay in seat order when the knocker changes.
+  const [deadwoodByPlayer, setDeadwoodByPlayer] = React.useState<Record<string, string>>({})
+  const [focusedField, setFocusedField] = React.useState<'left' | 'right' | null>(null)
+  const leftInputRef = React.useRef<TextInput>(null)
+  const rightInputRef = React.useRef<TextInput>(null)
 
   const defenderId = knockerId === p1 ? p2 : p1
   const knockerEditable = outcome === 'knock'
+  const knockerDeadwood = deadwoodByPlayer[knockerId] ?? ''
+  const defenderDeadwood = deadwoodByPlayer[defenderId] ?? ''
   const kd = knockerEditable ? Number.parseInt(knockerDeadwood || 'NaN', 10) : 0
   const dd = Number.parseInt(defenderDeadwood || 'NaN', 10)
   const valid =
     !Number.isNaN(dd) && dd >= 0 && (!knockerEditable || (!Number.isNaN(kd) && kd >= 1 && kd <= 10))
-  const knockerAccessoryId = Platform.OS === 'ios' ? KNOCKER_DEADWOOD_ACCESSORY_ID : undefined
-  const defenderAccessoryId = Platform.OS === 'ios' ? DEFENDER_DEADWOOD_ACCESSORY_ID : undefined
+  const leftEditable = p1 !== knockerId || knockerEditable
+  const rightEditable = p2 !== knockerId || knockerEditable
+  const leftAccessoryId = Platform.OS === 'ios' ? LEFT_DEADWOOD_ACCESSORY_ID : undefined
+  const rightAccessoryId = Platform.OS === 'ios' ? RIGHT_DEADWOOD_ACCESSORY_ID : undefined
 
   React.useEffect(() => {
     const sub = Keyboard.addListener('keyboardDidHide', () => setFocusedField(null))
     return () => sub.remove()
   }, [])
+
+  const setPlayerDeadwood = (playerId: string, value: string) => {
+    setDeadwoodByPlayer((prev) => ({
+      ...prev,
+      [playerId]: value.replace(/[^0-9]/g, '').slice(0, 2),
+    }))
+  }
 
   const preview = valid
     ? scoreGinHand(game.config, {
@@ -228,17 +228,17 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
     if (!valid) return
     dismissKeyboard()
     send({ type: 'recordHand', knockerId, outcome, knockerDeadwood: kd, defenderDeadwood: dd })
-    setKnockerDeadwood('')
-    setDefenderDeadwood('')
+    setDeadwoodByPlayer({})
     setOutcome('knock')
   }
 
   const deadwoodAccessory = (
     <DeadwoodKeyboardAccessory
-      canFocusKnocker={knockerEditable}
+      canFocusLeft={leftEditable}
+      canFocusRight={rightEditable}
       focused={focusedField}
-      onFocusKnocker={() => knockerInputRef.current?.focus()}
-      onFocusDefender={() => defenderInputRef.current?.focus()}
+      onFocusLeft={() => leftInputRef.current?.focus()}
+      onFocusRight={() => rightInputRef.current?.focus()}
     />
   )
 
@@ -273,38 +273,35 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
             />
           </View>
           <View className="flex-row gap-3">
-            <View className="flex-1 gap-1.5">
-              <SectionLabel>{playerOf(knockerId)?.name}'s deadwood</SectionLabel>
-              <AppTextInput
-                ref={knockerInputRef}
-                editable={knockerEditable}
-                value={knockerEditable ? knockerDeadwood : '0'}
-                onChangeText={(t) => setKnockerDeadwood(t.replace(/[^0-9]/g, '').slice(0, 2))}
-                onFocus={() => setFocusedField('knocker')}
-                keyboardType="number-pad"
-                inputAccessoryViewID={knockerAccessoryId}
-                placeholder={knockerEditable ? '1–10' : '0 (gin!)'}
-                placeholderTextColor="rgba(255,255,255,0.2)"
-                className={clsx(
-                  'h-12 rounded-lg border border-line bg-field text-center font-mono text-lg text-zinc-100',
-                  !knockerEditable && 'opacity-50',
-                )}
-              />
-            </View>
-            <View className="flex-1 gap-1.5">
-              <SectionLabel>{playerOf(defenderId)?.name}'s deadwood</SectionLabel>
-              <AppTextInput
-                ref={defenderInputRef}
-                value={defenderDeadwood}
-                onChangeText={(t) => setDefenderDeadwood(t.replace(/[^0-9]/g, '').slice(0, 2))}
-                onFocus={() => setFocusedField('defender')}
-                keyboardType="number-pad"
-                inputAccessoryViewID={defenderAccessoryId}
-                placeholder="after layoffs"
-                placeholderTextColor="rgba(255,255,255,0.2)"
-                className="h-12 rounded-lg border border-line bg-field text-center font-mono text-lg text-zinc-100"
-              />
-            </View>
+            {game.playerIds.map((id, index) => {
+              const isKnocker = id === knockerId
+              const editable = !isKnocker || knockerEditable
+              const seat = index === 0 ? 'left' : 'right'
+              const ref = seat === 'left' ? leftInputRef : rightInputRef
+              const accessoryId = seat === 'left' ? leftAccessoryId : rightAccessoryId
+              return (
+                <View key={id} className="flex-1 gap-1.5">
+                  <SectionLabel>{playerOf(id)?.name}'s deadwood</SectionLabel>
+                  <AppTextInput
+                    ref={ref}
+                    editable={editable}
+                    value={editable ? (deadwoodByPlayer[id] ?? '') : '0'}
+                    onChangeText={(t) => setPlayerDeadwood(id, t)}
+                    onFocus={() => setFocusedField(seat)}
+                    keyboardType="number-pad"
+                    inputAccessoryViewID={accessoryId}
+                    placeholder={
+                      isKnocker ? (knockerEditable ? '1–10' : '0 (gin!)') : 'after layoffs'
+                    }
+                    placeholderTextColor="rgba(255,255,255,0.2)"
+                    className={clsx(
+                      'h-12 rounded-lg border border-line bg-field text-center font-mono text-lg text-zinc-100',
+                      !editable && 'opacity-50',
+                    )}
+                  />
+                </View>
+              )
+            })}
           </View>
           {/* Android: prev/next sit under the fields while focused. */}
           {Platform.OS !== 'ios' ? deadwoodAccessory : null}

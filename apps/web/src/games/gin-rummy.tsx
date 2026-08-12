@@ -81,14 +81,24 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
         ? me.id
         : p1
   const [outcome, setOutcome] = React.useState<GinOutcome>('knock')
-  const [knockerDeadwood, setKnockerDeadwood] = React.useState('')
-  const [defenderDeadwood, setDefenderDeadwood] = React.useState('')
+  // Per-player deadwood so fields stay in seat order when the knocker changes.
+  const [deadwoodByPlayer, setDeadwoodByPlayer] = React.useState<Record<string, string>>({})
 
   const defenderId = knockerId === p1 ? p2 : p1
-  const kd = outcome === 'knock' ? Number.parseInt(knockerDeadwood || 'NaN', 10) : 0
+  const knockerEditable = outcome === 'knock'
+  const knockerDeadwood = deadwoodByPlayer[knockerId] ?? ''
+  const defenderDeadwood = deadwoodByPlayer[defenderId] ?? ''
+  const kd = knockerEditable ? Number.parseInt(knockerDeadwood || 'NaN', 10) : 0
   const dd = Number.parseInt(defenderDeadwood || 'NaN', 10)
   const valid =
-    !Number.isNaN(dd) && dd >= 0 && (outcome !== 'knock' || (!Number.isNaN(kd) && kd >= 1 && kd <= 10))
+    !Number.isNaN(dd) && dd >= 0 && (!knockerEditable || (!Number.isNaN(kd) && kd >= 1 && kd <= 10))
+
+  const setPlayerDeadwood = (playerId: string, value: string) => {
+    setDeadwoodByPlayer((prev) => ({
+      ...prev,
+      [playerId]: value.replace(/[^0-9]/g, '').slice(0, 2),
+    }))
+  }
 
   const preview = valid
     ? scoreGinHand(game.config, {
@@ -109,8 +119,7 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
       knockerDeadwood: kd,
       defenderDeadwood: dd,
     })
-    setKnockerDeadwood('')
-    setDefenderDeadwood('')
+    setDeadwoodByPlayer({})
     setOutcome('knock')
   }
 
@@ -149,33 +158,28 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="grid gap-1.5">
-            <Label htmlFor="kd" className="text-xs text-muted-foreground">
-              {playerOf(knockerId)?.name}'s deadwood
-            </Label>
-            <Input
-              id="kd"
-              inputMode="numeric"
-              placeholder={outcome === 'knock' ? '1–10' : '0 (gin!)'}
-              disabled={outcome !== 'knock'}
-              value={outcome === 'knock' ? knockerDeadwood : '0'}
-              onChange={(e) => setKnockerDeadwood(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
-              className="h-11 text-center font-mono text-lg tabular-nums"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="dd" className="text-xs text-muted-foreground">
-              {playerOf(defenderId)?.name}'s deadwood
-            </Label>
-            <Input
-              id="dd"
-              inputMode="numeric"
-              placeholder="after layoffs"
-              value={defenderDeadwood}
-              onChange={(e) => setDefenderDeadwood(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
-              className="h-11 text-center font-mono text-lg tabular-nums"
-            />
-          </div>
+          {game.playerIds.map((id) => {
+            const isKnocker = id === knockerId
+            const editable = !isKnocker || knockerEditable
+            return (
+              <div key={id} className="grid gap-1.5">
+                <Label htmlFor={`dw-${id}`} className="text-xs text-muted-foreground">
+                  {playerOf(id)?.name}'s deadwood
+                </Label>
+                <Input
+                  id={`dw-${id}`}
+                  inputMode="numeric"
+                  placeholder={
+                    isKnocker ? (knockerEditable ? '1–10' : '0 (gin!)') : 'after layoffs'
+                  }
+                  disabled={!editable}
+                  value={editable ? (deadwoodByPlayer[id] ?? '') : '0'}
+                  onChange={(e) => setPlayerDeadwood(id, e.target.value)}
+                  className="h-11 text-center font-mono text-lg tabular-nums"
+                />
+              </div>
+            )
+          })}
         </div>
         {preview && (
           <div
