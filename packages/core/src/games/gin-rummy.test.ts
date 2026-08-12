@@ -123,13 +123,17 @@ describe('gin rummy engine', () => {
     let state = freshState()
     state = record(state, { knockerId: 'a', outcome: 'knock', knockerDeadwood: 2, defenderDeadwood: 20 })
     expect(state.dealerId).toBe('b')
+    // Host overrides rotation so Alice deals again.
     state = ginRummyEngine.applyAction(state, { type: 'setDealer', playerId: 'a' }, ctxHost)
     expect(state.dealerId).toBe('a')
     state = record(state, { knockerId: 'b', outcome: 'gin', knockerDeadwood: 0, defenderDeadwood: 10 })
     expect(state.hands[1]?.dealerId).toBe('a')
-    expect(state.dealerId).toBe('b')
+    // Bob won; classic rotation would deal to Alice next either way.
+    expect(state.dealerId).toBe('a')
     state = ginRummyEngine.applyAction(state, { type: 'undoHand' }, ctxHost)
     expect(state.hands).toHaveLength(1)
+    // Without a dealer snapshot, undo would fall back to loser-of-hand-1 → Bob.
+    // Snapshot keeps the host override.
     expect(state.dealerId).toBe('a')
   })
 
