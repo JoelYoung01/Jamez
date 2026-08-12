@@ -108,13 +108,29 @@ describe('gin rummy engine', () => {
     ).toMatch(/zero deadwood/)
   })
 
-  it('rotates the deal to the loser of each hand', () => {
+  it('rotates the deal to the loser of each hand and snapshots dealer on the hand', () => {
     let state = freshState()
     expect(state.dealerId).toBe('a')
     state = record(state, { knockerId: 'a', outcome: 'knock', knockerDeadwood: 2, defenderDeadwood: 20 })
+    expect(state.hands[0]?.dealerId).toBe('a')
     expect(state.dealerId).toBe('b') // Bob lost, Bob deals
     state = record(state, { knockerId: 'b', outcome: 'knock', knockerDeadwood: 5, defenderDeadwood: 4 })
+    expect(state.hands[1]?.dealerId).toBe('b')
     expect(state.dealerId).toBe('b') // Bob got undercut, Bob deals again
+  })
+
+  it('restores a host setDealer override when undoing the following hand', () => {
+    let state = freshState()
+    state = record(state, { knockerId: 'a', outcome: 'knock', knockerDeadwood: 2, defenderDeadwood: 20 })
+    expect(state.dealerId).toBe('b')
+    state = ginRummyEngine.applyAction(state, { type: 'setDealer', playerId: 'a' }, ctxHost)
+    expect(state.dealerId).toBe('a')
+    state = record(state, { knockerId: 'b', outcome: 'gin', knockerDeadwood: 0, defenderDeadwood: 10 })
+    expect(state.hands[1]?.dealerId).toBe('a')
+    expect(state.dealerId).toBe('b')
+    state = ginRummyEngine.applyAction(state, { type: 'undoHand' }, ctxHost)
+    expect(state.hands).toHaveLength(1)
+    expect(state.dealerId).toBe('a')
   })
 
   it('tracks running totals and boxes, and finishes at the target', () => {

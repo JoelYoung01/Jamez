@@ -29,6 +29,12 @@ export type GinOutcome = 'knock' | 'gin' | 'bigGin'
 
 export interface GinHand {
   n: number
+  /**
+   * Who dealt this hand. Snapshotted at record time so later analysis (and
+   * undo after a host `setDealer`) does not depend on reconstructing rotation.
+   * Omitted on legacy vault / history rows written before this field existed.
+   */
+  dealerId?: string | null
   knockerId: string
   outcome: GinOutcome
   knockerDeadwood: number
@@ -221,14 +227,18 @@ export const ginRummyEngine: GameEngine<GinConfig, GinState, GinAction> = {
 
   applyAction(state, action, ctx) {
     if (action.type === 'undoHand') {
+      const removed = state.hands[state.hands.length - 1]
       const hands = state.hands.slice(0, -1)
       const lastHand = hands[hands.length - 1]
-      return {
-        ...state,
-        hands,
-        // Restore dealer to "loser of the (new) last hand deals next".
-        dealerId: lastHand ? loserOf(state, lastHand) : state.dealerId,
-      }
+      // Prefer the removed hand's dealer snapshot (honors setDealer). Legacy
+      // hands without dealerId fall back to "loser of remaining last hand".
+      const dealerId =
+        removed && removed.dealerId !== undefined
+          ? removed.dealerId
+          : lastHand
+            ? loserOf(state, lastHand)
+            : state.dealerId
+      return { ...state, hands, dealerId }
     }
     if (action.type === 'setDealer') {
       return { ...state, dealerId: action.playerId }
@@ -243,6 +253,7 @@ export const ginRummyEngine: GameEngine<GinConfig, GinState, GinAction> = {
     })
     const hand: GinHand = {
       n: state.hands.length + 1,
+      dealerId: state.dealerId,
       knockerId: action.knockerId,
       outcome: action.outcome,
       knockerDeadwood: action.knockerDeadwood,

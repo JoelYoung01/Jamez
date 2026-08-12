@@ -1,3 +1,4 @@
+import type { GinHand } from '../games/gin-rummy'
 import type { GameSummary } from '../games/types'
 import type { SessionState } from '../protocol/session-state'
 
@@ -19,6 +20,17 @@ export interface HistoryRecord {
   myPlayerId: string
   /** Optional host-set nickname, copied from the session when it finished. */
   nickname?: string
+  /**
+   * Optional game-specific archive. Wingspan stays summary-only; gin keeps the
+   * hand log (dealer, knock/gin, deadwood) for later analysis.
+   */
+  detail?: HistoryGameDetail
+}
+
+/** Discriminated payload for games that archive more than a summary. */
+export type HistoryGameDetail = {
+  type: 'gin-rummy'
+  hands: GinHand[]
 }
 
 export interface HistoryStore {
@@ -33,6 +45,7 @@ export function historyRecordFromState(
   myPlayerId: string,
 ): HistoryRecord | null {
   if (state.phase !== 'finished' || !state.summary || !state.finishedAt) return null
+  const detail = historyDetailFromState(state)
   return {
     id: state.sessionId,
     gameId: state.gameId,
@@ -48,7 +61,26 @@ export function historyRecordFromState(
     summary: state.summary,
     myPlayerId,
     ...(state.nickname ? { nickname: state.nickname } : {}),
+    ...(detail ? { detail } : {}),
   }
+}
+
+/** Extract a persistable game detail blob from a finished session, if any. */
+export function historyDetailFromState(state: SessionState): HistoryGameDetail | undefined {
+  if (state.gameId !== 'gin-rummy' || !state.game) return undefined
+  const hands = (state.game as { hands?: GinHand[] }).hands
+  if (!Array.isArray(hands) || hands.length === 0) return undefined
+  // Deep-enough clone so later mutations of live session state cannot rewrite history.
+  return {
+    type: 'gin-rummy',
+    hands: hands.map((h) => ({ ...h })),
+  }
+}
+
+/** Typed accessor for archived gin hands (empty for older summary-only records). */
+export function ginHandsFromHistory(record: HistoryRecord): GinHand[] {
+  if (record.detail?.type === 'gin-rummy') return record.detail.hands
+  return []
 }
 
 export interface GameStats {
