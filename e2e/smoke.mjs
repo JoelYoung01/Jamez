@@ -153,7 +153,8 @@ try {
 
   // Hand 1: guest (Gale) goes gin catching 30 -> +55.
   // Deadwood inputs are fixed per player (not knocker/defender slots).
-  await guest.getByRole('button', { name: 'Gale' }).click()
+  // Knocker picker buttons include the emoji; avoid matching "Set X as dealer" cards.
+  await guest.getByRole('button', { name: '🦆 Gale' }).click()
   await guest.getByRole('button', { name: 'Gin', exact: true }).click()
   await guest.getByLabel("Hana's deadwood").fill('30')
   await guest.getByText('Gale scores +55').waitFor()
@@ -161,7 +162,7 @@ try {
 
   // Hand 2: host (Hana) knocks with 4 vs 21 -> +17, recorded on host device.
   await host.getByText('55').first().waitFor({ timeout: 15000 })
-  await host.getByRole('button', { name: 'Hana' }).click()
+  await host.getByRole('button', { name: '🦉 Hana' }).click()
   await host.getByRole('button', { name: 'Knock', exact: true }).click()
   await host.getByLabel("Hana's deadwood").fill('4')
   await host.getByLabel("Gale's deadwood").fill('21')
@@ -171,7 +172,7 @@ try {
   await shot(guest, '07-gin-play')
 
   // Hand 3: guest gins again catching 20 -> +45, crossing 100 -> auto-finish.
-  await guest.getByRole('button', { name: 'Gale' }).click()
+  await guest.getByRole('button', { name: '🦆 Gale' }).click()
   await guest.getByRole('button', { name: 'Gin', exact: true }).click()
   await guest.getByLabel("Hana's deadwood").fill('20')
   await guest.getByRole('button', { name: 'Add hand' }).click()
