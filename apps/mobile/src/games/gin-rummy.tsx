@@ -144,6 +144,17 @@ function GinSetup({ config, onChange }: GameSetupProps<GinConfig>) {
   const patch = (p: Partial<GinConfig>) => onChange({ ...config, ...p })
   return (
     <View className="gap-3">
+      <View className="gap-1.5">
+        <Text className="text-xs text-muted-foreground">Dealer rotation</Text>
+        <Segmented
+          value={config.dealerRotation === 'loser' ? 'loser' : 'alternate'}
+          onChange={(dealerRotation) => patch({ dealerRotation })}
+          options={[
+            { value: 'alternate', label: 'Alternate' },
+            { value: 'loser', label: 'Loser deals' },
+          ]}
+        />
+      </View>
       <View className="flex-row gap-3">
         <NumberField label="Play to" value={config.targetScore} onChange={(v) => patch({ targetScore: v })} />
         <NumberField label="Line / box bonus" value={config.lineBonus} onChange={(v) => patch({ lineBonus: v })} />
@@ -479,6 +490,11 @@ export const ginRummyUI: GameUIModule = {
   ResultsDetail: GinResults,
   configSummary: (config) => {
     const c = config as GinConfig
-    return [`First to ${c.targetScore}`, `Gin +${c.ginBonus}`, `Boxes ${c.lineBonus}`]
+    return [
+      `First to ${c.targetScore}`,
+      `Gin +${c.ginBonus}`,
+      `Boxes ${c.lineBonus}`,
+      c.dealerRotation === 'loser' ? 'Loser deals' : 'Alternate deal',
+    ]
   },
 }

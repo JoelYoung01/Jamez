@@ -15,6 +15,9 @@ import { namesList, type ActionContext, type GameEngine, type GameSummary } from
  *   adds the line/box bonus (default 25) per hand won.
  */
 
+/** Who deals the next hand after one is scored. Host can still override via `setDealer`. */
+export type GinDealerRotation = 'alternate' | 'loser'
+
 export interface GinConfig {
   targetScore: number
   ginBonus: number
@@ -23,6 +26,11 @@ export interface GinConfig {
   lineBonus: number
   gameBonus: number
   shutoutDoublesGameBonus: boolean
+  /**
+   * How the deal rotates after each hand. Defaults to alternating seats;
+   * `'loser'` keeps the classic table rule (loser of the hand deals next).
+   */
+  dealerRotation: GinDealerRotation
 }
 
 export type GinOutcome = 'knock' | 'gin' | 'bigGin'
@@ -183,6 +191,7 @@ export const ginRummyEngine: GameEngine<GinConfig, GinState, GinAction> = {
       lineBonus: 25,
       gameBonus: 100,
       shutoutDoublesGameBonus: true,
+      dealerRotation: 'alternate',
     }
   },
 
@@ -267,8 +276,7 @@ export const ginRummyEngine: GameEngine<GinConfig, GinState, GinAction> = {
     return {
       ...state,
       hands: [...state.hands, hand],
-      // Classic table rule: the loser of a hand deals the next one.
-      dealerId: score.winnerId === action.knockerId ? defenderId : action.knockerId,
+      dealerId: nextDealerId(state, score.winnerId),
     }
   },
 
@@ -313,4 +321,17 @@ export const ginRummyEngine: GameEngine<GinConfig, GinState, GinAction> = {
 
 function loserOf(state: GinState, hand: GinHand): string {
   return state.playerIds.find((id) => id !== hand.winnerId) ?? hand.winnerId
+}
+
+/** Treat missing/unknown values as alternate (new default; older configs omit the field). */
+function dealerRotationOf(config: GinConfig): GinDealerRotation {
+  return config.dealerRotation === 'loser' ? 'loser' : 'alternate'
+}
+
+function nextDealerId(state: GinState, winnerId: string): string {
+  if (dealerRotationOf(state.config) === 'loser') {
+    return state.playerIds.find((id) => id !== winnerId) ?? winnerId
+  }
+  const other = state.playerIds.find((id) => id !== state.dealerId)
+  return other ?? state.playerIds[0]!
 }
