@@ -8,6 +8,7 @@ import {
   historyRecordFromOngoingArchive,
   historyRecordFromState,
   isOngoingGame,
+  parkStatusForPhase,
   type GuestSession,
   type GuestStatus,
   type HostSession,
@@ -20,6 +21,7 @@ import { historyStore } from './history'
 import {
   clearHostSnapshot,
   clearHostSnapshotAsync,
+  listActiveHostSnapshots,
   listHostSnapshots,
   listResumableHostSnapshots,
   persistHostSnapshot,
@@ -34,6 +36,7 @@ import { toast } from './toast'
 export type { HostSnapshot }
 export {
   clearHostSnapshotAsync,
+  listActiveHostSnapshots,
   listHostSnapshots,
   listResumableHostSnapshots,
   readHostSnapshot,
@@ -57,6 +60,8 @@ interface SessionStoreState {
   }) => string | null
   joinGame: (code: string) => void
   resumeHost: (code?: string) => Promise<boolean>
+  /** Rehydrate transport for a vault row marked `active` (app launch). */
+  restoreActiveHost: () => Promise<boolean>
   startGame: () => void
   finishGame: () => void
   rematch: () => void
@@ -90,6 +95,13 @@ function cleanupRefs(): void {
   guest?.stop()
   host = null
   guest = null
+}
+
+/** Park the current host before switching rooms so vault status stays honest. */
+function demoteLiveHostToParked(passAndPlay: boolean): void {
+  if (!host) return
+  const state = host.current
+  if (state) persistHostSnapshot(state, passAndPlay, parkStatusForPhase(state.phase))
 }
 
 function saveHistoryIfFinished(state: SessionState, myPlayerId: string): void {
@@ -145,6 +157,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
         toast.error(`Unknown game: ${gameId}`)
         return null
       }
+      demoteLiveHostToParked(get().passAndPlay)
       cleanupRefs()
       const code = generateJoinCode()
       host = createHostSession({
@@ -153,7 +166,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
         gameConfig: config,
         hostProfile: currentProfile(),
         transport: makeTransport(code, passAndPlay),
-        onSnapshot: (state) => persistHostSnapshot(state, passAndPlay),
+        onSnapshot: (state) => persistHostSnapshot(state, passAndPlay, 'active'),
         nickname,
       })
       wireHost(host, passAndPlay)
@@ -164,6 +177,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
     joinGame(code) {
       const normalized = code.toUpperCase()
       if (get().role === 'guest' && get().code === normalized) return
+      demoteLiveHostToParked(get().passAndPlay)
       cleanupRefs()
       const profile = currentProfile()
       guest = createGuestSession({
@@ -204,18 +218,28 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       if (code && snapshot.state.code !== code.toUpperCase()) return false
       const game = getGameEngine(snapshot.state.gameId)
       if (!game) return false
+      demoteLiveHostToParked(get().passAndPlay)
       cleanupRefs()
+      const passAndPlay = snapshot.passAndPlay
       host = createHostSession({
         code: snapshot.state.code,
         game,
         hostProfile: currentProfile(),
-        transport: makeTransport(snapshot.state.code, snapshot.passAndPlay),
-        onSnapshot: (state) => persistHostSnapshot(state, snapshot.passAndPlay),
+        transport: makeTransport(snapshot.state.code, passAndPlay),
+        onSnapshot: (state) => persistHostSnapshot(state, passAndPlay, 'active'),
         resumeFrom: snapshot.state,
       })
-      wireHost(host, snapshot.passAndPlay)
+      persistHostSnapshot(snapshot.state, passAndPlay, 'active')
+      wireHost(host, passAndPlay)
       host.start()
       return true
+    },
+
+    async restoreActiveHost() {
+      if (host || guest) return false
+      const active = (await listActiveHostSnapshots())[0]
+      if (!active) return false
+      return get().resumeHost(active.state.code)
     },
 
     startGame() {
@@ -286,7 +310,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
     parkSession() {
       const state = host?.current
       const passAndPlay = get().passAndPlay
-      if (state) persistHostSnapshot(state, passAndPlay)
+      if (state) persistHostSnapshot(state, passAndPlay, parkStatusForPhase(state.phase))
       // Drop listeners before stop so a final transport blip can't re-sync the
       // Live Activity after we've decided the session is no longer active here.
       cleanupRefs()

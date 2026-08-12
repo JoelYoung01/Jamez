@@ -9,16 +9,24 @@ import { View } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AndroidKeyboardDismissHost } from '@/components/keyboard-dismiss'
 import { useProfileHydrated } from '@/lib/profile'
+import { useSession } from '@/lib/session-store'
 import { ToastHost } from '@/lib/toast'
 
 SplashScreen.preventAutoHideAsync().catch(() => {})
 
 export default function RootLayout() {
   const hydrated = useProfileHydrated()
+  const restoreActiveHost = useSession((s) => s.restoreActiveHost)
 
   React.useEffect(() => {
     if (hydrated) SplashScreen.hideAsync().catch(() => {})
   }, [hydrated])
+
+  // Vault rows marked `active` should keep transport (+ Live Activity) up.
+  React.useEffect(() => {
+    if (!hydrated) return
+    void restoreActiveHost()
+  }, [hydrated, restoreActiveHost])
 
   return (
     <SafeAreaProvider>

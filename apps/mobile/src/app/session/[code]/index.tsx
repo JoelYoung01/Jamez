@@ -662,13 +662,11 @@ function HostSessionControls() {
   if (mode === 'idle') {
     return (
       <View className="gap-2">
-        {ongoing && (
-          <AppButton
-            title="Close for now"
-            icon={<MoonIcon size={16} color="#251a02" />}
-            onPress={() => setMode('park')}
-          />
-        )}
+        <AppButton
+          title="Close for now"
+          icon={<MoonIcon size={16} color="#251a02" />}
+          onPress={() => setMode('park')}
+        />
         <AppButton
           variant="destructive"
           title={ongoing ? 'End & save standings' : 'End session for everyone'}

@@ -1,4 +1,4 @@
-import { getGameEngine, sessionDisplayName } from '@jamez/core'
+import { getGameEngine, roomStatusLabel, sessionDisplayName } from '@jamez/core'
 import { router, useFocusEffect } from 'expo-router'
 import { MoonIcon } from 'lucide-react-native'
 import * as React from 'react'
@@ -220,14 +220,15 @@ export default function ContinueScreen() {
           {empty ? (
             <Card className="items-center gap-2 px-6 py-10">
               <MoonIcon size={32} color="#a1a1ab" />
-              <CardTitle>No long-term games</CardTitle>
+              <CardTitle>No open games</CardTitle>
               <Muted className="text-center">
-                Parked banks and other ongoing rooms show up here. Host a Poker Bank to start one.
+                Close a session for now and it lands here — gin, Wingspan, Poker Bank, and anything
+                else you host. Resume anytime.
               </Muted>
               <AppButton
                 className="mt-2"
-                title="Host Poker Bank"
-                onPress={() => router.push('/host/poker-bank')}
+                title="Host a game"
+                onPress={() => router.push('/host')}
               />
             </Card>
           ) : (
@@ -248,11 +249,11 @@ export default function ContinueScreen() {
                     nickname: room.nickname,
                     gameId: room.gameId,
                   })
-                  const status = room.live
-                    ? 'Live now'
-                    : room.ended
-                      ? `Ended · ${formatDate(room.at)}`
-                      : `Parked · ${formatDate(room.at)}`
+                  const status = room.ended
+                    ? `Ended · ${formatDate(room.at)}`
+                    : room.live || room.status === 'active'
+                      ? 'Live now'
+                      : `${roomStatusLabel(room.status)} · ${formatDate(room.at)}`
                   return (
                     <Card
                       key={room.key}

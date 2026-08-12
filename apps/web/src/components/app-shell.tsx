@@ -1,4 +1,5 @@
 import { Dices, HistoryIcon } from 'lucide-react'
+import * as React from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { ProfileDialog } from '@/components/profile-dialog'
@@ -12,8 +13,14 @@ import { Badge } from '@/components/ui/badge'
 export function AppShell() {
   const { name, emoji, photo } = useProfile()
   const activeCode = useSession((s) => s.code)
+  const restoreActiveHost = useSession((s) => s.restoreActiveHost)
   const location = useLocation()
   const inSession = activeCode && location.pathname.startsWith('/session/')
+
+  // Vault rows marked `active` should keep transport up across reloads.
+  React.useEffect(() => {
+    restoreActiveHost()
+  }, [restoreActiveHost])
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-xl flex-col px-4 pb-10 pt-4">

@@ -132,7 +132,7 @@ export default function HistoryScreen() {
               <DicesIcon size={32} color="#a1a1ab" />
               <CardTitle>No games yet</CardTitle>
               <Muted className="text-center">
-                Finish a session and it lands here. Parked and ended banks show up too. Stored on
+                Finish a session and it lands here. Open (draft / parked) rooms show up too. Stored on
                 this phone only.
               </Muted>
             </Card>
@@ -186,7 +186,9 @@ function HistoryActivityRow({ item, myId }: { item: ActivityItem; myId: string }
             <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
               {title}
             </Text>
-            <Muted>Parked · {item.players.map((p) => p.name).join(', ')}</Muted>
+            <Muted>
+              {item.statusLabel} · {item.players.map((p) => p.name).join(', ')}
+            </Muted>
           </View>
           <Chip tone="outline">Open</Chip>
         </Card>

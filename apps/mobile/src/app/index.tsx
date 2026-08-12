@@ -118,8 +118,8 @@ export default function HomeScreen() {
             <HomeTile
               icon={<MoonIcon size={20} color="#fbbf24" />}
               title="Return to game"
-              description="Parked banks and long-term rooms."
-              cta={longTermCount > 0 ? `${longTermCount} open` : 'None parked'}
+              description="Draft, parked, and live rooms."
+              cta={longTermCount > 0 ? `${longTermCount} open` : 'None open'}
               badge={longTermCount > 0 ? String(longTermCount) : undefined}
               onPress={() => router.push('/continue')}
             />

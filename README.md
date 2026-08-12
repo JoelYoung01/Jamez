@@ -99,7 +99,7 @@ Triggers on `main` pushes that touch `apps/mobile/**` or `packages/core/**`, or 
 
 Games are plug-ins in three parts. The whole of Wingspan is ~200 lines of engine + one UI file per app:
 
-1. **Engine** (`packages/core/src/games/<game>.ts`): implement `GameEngine`: a pure, serializable state machine (`defaultConfig / init / validateAction / applyAction / isFinished / summary`). Optional: `sessionMode: 'ongoing'` for long-lived rooms, plus `claimSeat` / `mergePlayers` when seats can transfer. The host runs it; guests never need game logic to submit actions. Register it in `games/registry.ts` and add a test file next to it. Host snapshots are vaulted under `${gameId}:${CODE}` so plugins stay isolated.
+1. **Engine** (`packages/core/src/games/<game>.ts`): implement `GameEngine`: a pure, serializable state machine (`defaultConfig / init / validateAction / applyAction / isFinished / summary`). Optional: `sessionMode: 'ongoing'` for banks/leagues (archive-on-end, no rematch, table presence), plus `claimSeat` / `mergePlayers` when seats can transfer. Every hosted room uses host-local `RoomStatus` (`draft` | `active` | `inactive` | `complete`) — `active` means transport (and iOS Live Activity) should be up; park/resume works for all games. Register in `games/registry.ts` and add a test file next to it. Host snapshots are vaulted under `${gameId}:${CODE}` so plugins stay isolated.
 2. **Web UI** (`apps/web/src/games/<game>.tsx`): a `GameUIModule` with a `SetupForm` (host options), `PlayView` (score entry + live standings) and optional `ResultsDetail`. Register in `apps/web/src/games/registry.ts`.
 3. **Mobile UI** (`apps/mobile/src/games/<game>.tsx`): same module shape in React Native. Register in `apps/mobile/src/games/registry.ts`.
 
@@ -109,7 +109,7 @@ Design rule of thumb: guests may edit **their own** scores (`validateAction` enf
 
 - **🐦 Wingspan:** full end-game score sheet (birds, bonus cards, end-of-round goals, eggs, cached food, tucked cards + optional Oceania nectar), live standings, official tie-breaker (unused food).
 - **🃏 Gin Rummy:** hand-by-hand recorder (knock / gin / big gin / undercut with configurable bonuses), running totals to a target score, boxes, and the official final tally with line bonuses.
-- **🪙 Poker Bank:** long-running chip bank (`sessionMode: 'ongoing'`). Starting stacks, deposit/withdraw with chip breakdowns, host-configured chip colors, guest seats that real devices can claim, and account merges. Host can park & resume across nights; state is stored in a game-scoped host vault.
+- **🪙 Poker Bank:** long-running chip bank (`sessionMode: 'ongoing'`). Starting stacks, deposit/withdraw with chip breakdowns, host-configured chip colors, guest seats that real devices can claim, and account merges. Same park/resume vault as match games; ending archives standings to history.
 
 ## Roadmap ideas
 

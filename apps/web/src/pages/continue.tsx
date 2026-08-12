@@ -1,4 +1,4 @@
-import { getGameEngine, sessionDisplayName } from '@jamez/core'
+import { getGameEngine, roomStatusLabel, sessionDisplayName } from '@jamez/core'
 import { ArrowLeftIcon, MoreHorizontalIcon, MoonIcon } from 'lucide-react'
 import * as React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -160,14 +160,15 @@ export function ContinuePage() {
         <Card>
           <CardHeader className="items-center pb-5 text-center">
             <MoonIcon className="size-8 text-muted-foreground" />
-            <CardTitle>No long-term games</CardTitle>
+            <CardTitle>No open games</CardTitle>
             <CardDescription>
-              Parked banks and other ongoing rooms show up here. Host a Poker Bank to start one.
+              Close a session for now and it lands here — gin, Wingspan, Poker Bank, and anything
+              else you host. Resume anytime.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center pb-6">
             <Button asChild>
-              <Link to="/host/poker-bank">Host Poker Bank</Link>
+              <Link to="/host">Host a game</Link>
             </Button>
           </CardContent>
         </Card>
@@ -190,11 +191,11 @@ export function ContinuePage() {
                 gameId: room.gameId,
               })
               const menuOpen = menuKey === room.key
-              const status = room.live
-                ? 'Live now'
-                : room.ended
-                  ? `Ended · ${formatDate(room.at)}`
-                  : `Parked · ${formatDate(room.at)}`
+              const status = room.ended
+                ? `Ended · ${formatDate(room.at)}`
+                : room.live || room.status === 'active'
+                  ? 'Live now'
+                  : `${roomStatusLabel(room.status)} · ${formatDate(room.at)}`
               return (
                 <div
                   key={room.key}

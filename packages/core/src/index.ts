@@ -141,12 +141,17 @@ export {
   type PokerBalanceSeries,
 } from './games/poker-reports'
 
-// persistence helpers (host vault keying)
+// persistence helpers (host vault keying + room lifecycle)
 export {
   HOST_SESSION_LEGACY_KEY,
   HOST_SESSIONS_VAULT_KEY,
   hostSessionEntryKey,
+  isOpenRoomStatus,
+  normalizeRoomStatus,
+  parkStatusForPhase,
   parseHostSessionEntryKey,
+  roomStatusLabel,
+  type RoomStatus,
 } from './persistence/host-sessions'
 
 // history
@@ -168,4 +173,5 @@ export {
   isEndedLongTermRecord,
   listLongTermSessions,
   type LongTermRoom,
+  type VaultRoomSnapshot,
 } from './history/long-term'
