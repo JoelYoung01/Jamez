@@ -387,7 +387,6 @@ function GinPlay(props: GamePlayProps) {
       </View>
       <Text className="text-center text-xs text-muted-foreground">
         First to {game.config.targetScore} wins the match
-        {isHost ? ' · tap a player to set dealer' : ''}
       </Text>
 
       <RecordHandForm {...props} />

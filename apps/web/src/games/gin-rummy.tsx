@@ -269,7 +269,6 @@ function GinPlay(props: GamePlayProps) {
       <p className="text-center text-xs text-muted-foreground">
         First to <span className="font-semibold text-foreground">{game.config.targetScore}</span> wins
         the match
-        {isHost && <span className="text-muted-foreground/70"> · tap a player to set dealer</span>}
       </p>
 
       <RecordHandForm {...props} />
