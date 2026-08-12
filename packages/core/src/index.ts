@@ -157,8 +157,11 @@ export {
 // history
 export {
   computeStats,
+  ginHandsFromHistory,
+  historyDetailFromState,
   historyRecordFromState,
   type GameStats,
+  type HistoryGameDetail,
   type HistoryRecord,
   type HistoryStore,
   type Stats,
