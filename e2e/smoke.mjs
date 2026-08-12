@@ -152,9 +152,10 @@ try {
   await guest.getByText('Record a hand').waitFor({ timeout: 15000 })
 
   // Hand 1: guest (Gale) goes gin catching 30 -> +55.
+  // Deadwood inputs are fixed per player (not knocker/defender slots).
   await guest.getByRole('button', { name: 'Gale' }).click()
   await guest.getByRole('button', { name: 'Gin', exact: true }).click()
-  await guest.locator('#dd').fill('30')
+  await guest.getByLabel("Hana's deadwood").fill('30')
   await guest.getByText('Gale scores +55').waitFor()
   await guest.getByRole('button', { name: 'Add hand' }).click()
 
@@ -162,8 +163,8 @@ try {
   await host.getByText('55').first().waitFor({ timeout: 15000 })
   await host.getByRole('button', { name: 'Hana' }).click()
   await host.getByRole('button', { name: 'Knock', exact: true }).click()
-  await host.locator('#kd').fill('4')
-  await host.locator('#dd').fill('21')
+  await host.getByLabel("Hana's deadwood").fill('4')
+  await host.getByLabel("Gale's deadwood").fill('21')
   await host.getByText('Hana scores +17').waitFor()
   await host.getByRole('button', { name: 'Add hand' }).click()
   await guest.getByText('Hana knocked with 4 vs 21').waitFor({ timeout: 15000 })
@@ -172,7 +173,7 @@ try {
   // Hand 3: guest gins again catching 20 -> +45, crossing 100 -> auto-finish.
   await guest.getByRole('button', { name: 'Gale' }).click()
   await guest.getByRole('button', { name: 'Gin', exact: true }).click()
-  await guest.locator('#dd').fill('20')
+  await guest.getByLabel("Hana's deadwood").fill('20')
   await guest.getByRole('button', { name: 'Add hand' }).click()
 
   await host.getByText('Gale wins the match').waitFor({ timeout: 15000 })
