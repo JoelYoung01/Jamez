@@ -81,14 +81,24 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
         ? me.id
         : p1
   const [outcome, setOutcome] = React.useState<GinOutcome>('knock')
-  const [knockerDeadwood, setKnockerDeadwood] = React.useState('')
-  const [defenderDeadwood, setDefenderDeadwood] = React.useState('')
+  // Per-player deadwood so fields stay in seat order when the knocker changes.
+  const [deadwoodByPlayer, setDeadwoodByPlayer] = React.useState<Record<string, string>>({})
 
   const defenderId = knockerId === p1 ? p2 : p1
-  const kd = outcome === 'knock' ? Number.parseInt(knockerDeadwood || 'NaN', 10) : 0
+  const knockerEditable = outcome === 'knock'
+  const knockerDeadwood = deadwoodByPlayer[knockerId] ?? ''
+  const defenderDeadwood = deadwoodByPlayer[defenderId] ?? ''
+  const kd = knockerEditable ? Number.parseInt(knockerDeadwood || 'NaN', 10) : 0
   const dd = Number.parseInt(defenderDeadwood || 'NaN', 10)
   const valid =
-    !Number.isNaN(dd) && dd >= 0 && (outcome !== 'knock' || (!Number.isNaN(kd) && kd >= 1 && kd <= 10))
+    !Number.isNaN(dd) && dd >= 0 && (!knockerEditable || (!Number.isNaN(kd) && kd >= 1 && kd <= 10))
+
+  const setPlayerDeadwood = (playerId: string, value: string) => {
+    setDeadwoodByPlayer((prev) => ({
+      ...prev,
+      [playerId]: value.replace(/[^0-9]/g, '').slice(0, 2),
+    }))
+  }
 
   const preview = valid
     ? scoreGinHand(game.config, {
@@ -109,8 +119,7 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
       knockerDeadwood: kd,
       defenderDeadwood: dd,
     })
-    setKnockerDeadwood('')
-    setDefenderDeadwood('')
+    setDeadwoodByPlayer({})
     setOutcome('knock')
   }
 
@@ -149,33 +158,28 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="grid gap-1.5">
-            <Label htmlFor="kd" className="text-xs text-muted-foreground">
-              {playerOf(knockerId)?.name}'s deadwood
-            </Label>
-            <Input
-              id="kd"
-              inputMode="numeric"
-              placeholder={outcome === 'knock' ? '1–10' : '0 (gin!)'}
-              disabled={outcome !== 'knock'}
-              value={outcome === 'knock' ? knockerDeadwood : '0'}
-              onChange={(e) => setKnockerDeadwood(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
-              className="h-11 text-center font-mono text-lg tabular-nums"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="dd" className="text-xs text-muted-foreground">
-              {playerOf(defenderId)?.name}'s deadwood
-            </Label>
-            <Input
-              id="dd"
-              inputMode="numeric"
-              placeholder="after layoffs"
-              value={defenderDeadwood}
-              onChange={(e) => setDefenderDeadwood(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
-              className="h-11 text-center font-mono text-lg tabular-nums"
-            />
-          </div>
+          {game.playerIds.map((id) => {
+            const isKnocker = id === knockerId
+            const editable = !isKnocker || knockerEditable
+            return (
+              <div key={id} className="grid gap-1.5">
+                <Label htmlFor={`dw-${id}`} className="text-xs text-muted-foreground">
+                  {playerOf(id)?.name}'s deadwood
+                </Label>
+                <Input
+                  id={`dw-${id}`}
+                  inputMode="numeric"
+                  placeholder={
+                    isKnocker ? (knockerEditable ? '1–10' : '0 (gin!)') : 'after layoffs'
+                  }
+                  disabled={!editable}
+                  value={editable ? (deadwoodByPlayer[id] ?? '') : '0'}
+                  onChange={(e) => setPlayerDeadwood(id, e.target.value)}
+                  className="h-11 text-center font-mono text-lg tabular-nums"
+                />
+              </div>
+            )
+          })}
         </div>
         {preview && (
           <div
@@ -220,16 +224,40 @@ function GinPlay(props: GamePlayProps) {
           const player = playerOf(id)
           const total = totals[id] ?? 0
           const progress = Math.min(1, total / game.config.targetScore)
+          const isDealer = game.dealerId === id
           if (!player) return null
           return (
-            <Card key={id} className={cn(game.dealerId === id && 'ring-1 ring-primary/40')}>
+            <Card
+              key={id}
+              role={isHost ? 'button' : undefined}
+              tabIndex={isHost ? 0 : undefined}
+              aria-pressed={isHost ? isDealer : undefined}
+              aria-label={isHost ? `Set ${player.name} as dealer` : undefined}
+              onClick={
+                isHost && !isDealer ? () => send({ type: 'setDealer', playerId: id }) : undefined
+              }
+              onKeyDown={
+                isHost && !isDealer
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        send({ type: 'setDealer', playerId: id })
+                      }
+                    }
+                  : undefined
+              }
+              className={cn(
+                isDealer && 'ring-1 ring-primary/40',
+                isHost && !isDealer && 'cursor-pointer transition-colors hover:bg-muted/40',
+              )}
+            >
               <CardContent className="flex flex-col items-center gap-1.5 p-4">
                 <PlayerAvatar player={player} showPresence />
                 <div className="max-w-full truncate text-sm font-medium">{player.name}</div>
                 <div className="font-mono text-4xl font-bold tabular-nums">{total}</div>
                 <div className="text-xs text-muted-foreground">
                   {boxes[id] ?? 0} {(boxes[id] ?? 0) === 1 ? 'hand' : 'hands'} won
-                  {game.dealerId === id && <span className="ml-1 text-primary">· dealing</span>}
+                  {isDealer && <span className="ml-1 text-primary">· dealing</span>}
                 </div>
                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                   <div
