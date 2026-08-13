@@ -20,8 +20,12 @@ import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
+type GinNumberKey = {
+  [K in keyof GinConfig]: GinConfig[K] extends number ? K : never
+}[keyof GinConfig]
+
 function GinSetup({ config, onChange }: GameSetupProps<GinConfig>) {
-  const numberField = (key: keyof GinConfig, label: string) => (
+  const numberField = (key: GinNumberKey, label: string) => (
     <div className="grid gap-1.5">
       <Label htmlFor={`gin-${key}`} className="text-xs text-muted-foreground">
         {label}
@@ -41,6 +45,17 @@ function GinSetup({ config, onChange }: GameSetupProps<GinConfig>) {
 
   return (
     <div className="grid gap-3">
+      <div className="grid gap-1.5">
+        <Label className="text-xs text-muted-foreground">Dealer rotation</Label>
+        <Segmented
+          value={config.dealerRotation === 'loser' ? 'loser' : 'alternate'}
+          onChange={(dealerRotation) => onChange({ ...config, dealerRotation })}
+          options={[
+            { value: 'alternate', label: 'Alternate' },
+            { value: 'loser', label: 'Loser deals' },
+          ]}
+        />
+      </div>
       <div className="grid grid-cols-2 gap-3">
         {numberField('targetScore', 'Play to')}
         {numberField('lineBonus', 'Line / box bonus')}
@@ -371,6 +386,11 @@ export const ginRummyUI: GameUIModule = {
   ResultsDetail: GinResults,
   configSummary: (config) => {
     const c = config as GinConfig
-    return [`First to ${c.targetScore}`, `Gin +${c.ginBonus}`, `Boxes ${c.lineBonus}`]
+    return [
+      `First to ${c.targetScore}`,
+      `Gin +${c.ginBonus}`,
+      `Boxes ${c.lineBonus}`,
+      c.dealerRotation === 'loser' ? 'Loser deals' : 'Alternate deal',
+    ]
   },
 }

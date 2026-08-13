@@ -99,6 +99,7 @@ export {
   scoreGinHand,
   type GinAction,
   type GinConfig,
+  type GinDealerRotation,
   type GinFinalLine,
   type GinHand,
   type GinHandScore,

@@ -108,14 +108,27 @@ describe('gin rummy engine', () => {
     ).toMatch(/zero deadwood/)
   })
 
-  it('rotates the deal to the loser of each hand and snapshots dealer on the hand', () => {
+  it('defaults to alternating the deal each hand and snapshots dealer on the hand', () => {
+    expect(config.dealerRotation).toBe('alternate')
     let state = freshState()
     expect(state.dealerId).toBe('a')
     state = record(state, { knockerId: 'a', outcome: 'knock', knockerDeadwood: 2, defenderDeadwood: 20 })
     expect(state.hands[0]?.dealerId).toBe('a')
-    expect(state.dealerId).toBe('b') // Bob lost, Bob deals
+    expect(state.dealerId).toBe('b') // alternate → Bob
     state = record(state, { knockerId: 'b', outcome: 'knock', knockerDeadwood: 5, defenderDeadwood: 4 })
     expect(state.hands[1]?.dealerId).toBe('b')
+    // Bob was undercut (same seat would deal again under loser mode); alternate still flips.
+    expect(state.dealerId).toBe('a')
+  })
+
+  it('can rotate the deal to the loser when configured', () => {
+    let state = ginRummyEngine.init(
+      { ...config, dealerRotation: 'loser' },
+      [player('a', 'Alice', true), player('b', 'Bob')],
+    )
+    state = record(state, { knockerId: 'a', outcome: 'knock', knockerDeadwood: 2, defenderDeadwood: 20 })
+    expect(state.dealerId).toBe('b') // Bob lost, Bob deals
+    state = record(state, { knockerId: 'b', outcome: 'knock', knockerDeadwood: 5, defenderDeadwood: 4 })
     expect(state.dealerId).toBe('b') // Bob got undercut, Bob deals again
   })
 
@@ -128,8 +141,8 @@ describe('gin rummy engine', () => {
     expect(state.dealerId).toBe('a')
     state = record(state, { knockerId: 'b', outcome: 'gin', knockerDeadwood: 0, defenderDeadwood: 10 })
     expect(state.hands[1]?.dealerId).toBe('a')
-    // Bob won; classic rotation would deal to Alice next either way.
-    expect(state.dealerId).toBe('a')
+    // Alice dealt; alternate flips to Bob next (loser mode would keep Alice).
+    expect(state.dealerId).toBe('b')
     state = ginRummyEngine.applyAction(state, { type: 'undoHand' }, ctxHost)
     expect(state.hands).toHaveLength(1)
     // Without a dealer snapshot, undo would fall back to loser-of-hand-1 → Bob.
