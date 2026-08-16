@@ -3,8 +3,10 @@ import type { SessionPlayer } from '../protocol/session-state'
 import {
   buildCashOverdrawConfirm,
   buildCashTransferSummary,
+  CHIP_COLOR_PRESETS,
   chipBreakdown,
   clonePokerBankConfig,
+  DEFAULT_POKER_CHIPS,
   formatPokerAmount,
   pointsFromChipCounts,
   pokerBankConfigFromSession,
@@ -225,15 +227,15 @@ describe('poker bank engine', () => {
       ['white', 1],
       ['red', 5],
       ['green', 25],
-      ['blue', 100],
-      ['black', 500],
-      ['purple', 1000],
+      ['black', 100],
+      ['purple', 500],
+      ['blue', 1000],
     ])
-    // Not a single black — five blues you can actually bet with.
-    expect(chipBreakdown(500, chips).map((p) => [p.chip.id, p.count])).toEqual([['blue', 5]])
+    // Not a single purple — five blacks you can actually bet with.
+    expect(chipBreakdown(500, chips).map((p) => [p.chip.id, p.count])).toEqual([['black', 5]])
     // Small exact amounts may still use the matching bottom-tier chip.
     expect(chipBreakdown(5, chips).map((p) => [p.chip.id, p.count])).toEqual([['red', 1]])
-    // Mid amounts prefer a mix under the per-color cap (no lone blue brick).
+    // Mid amounts prefer a mix under the per-color cap (no lone black brick).
     expect(chipBreakdown(137, chips).map((p) => [p.chip.id, p.count])).toEqual([
       ['green', 5],
       ['red', 2],
@@ -241,16 +243,24 @@ describe('poker bank engine', () => {
     ])
     // Larger cash-outs raise the ceiling only after capping lower colors.
     expect(chipBreakdown(2000, chips).map((p) => [p.chip.id, p.count])).toEqual([
-      ['black', 2],
-      ['blue', 10],
+      ['purple', 2],
+      ['black', 10],
     ])
+  })
+
+  it('offers a doubled color palette that includes every default chip', () => {
+    expect(CHIP_COLOR_PRESETS).toHaveLength(32)
+    expect(new Set(CHIP_COLOR_PRESETS).size).toBe(32)
+    for (const chip of DEFAULT_POKER_CHIPS) {
+      expect(CHIP_COLOR_PRESETS).toContain(chip.color)
+    }
   })
 
   it('sums chip counts into points', () => {
     const chips = pokerBankEngine.defaultConfig().chips
     expect(
       pointsFromChipCounts(
-        { white: 2, red: 2, green: 1, blue: 1, black: 0, purple: 0 },
+        { white: 2, red: 2, green: 1, black: 1, purple: 0, blue: 0 },
         chips,
       ),
     ).toBe(137)

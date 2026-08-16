@@ -43,7 +43,7 @@ export function ColorPicker({ value, onChange, className }: ColorPickerProps) {
     const gap = 6
     const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8)
     const below = rect.bottom + gap
-    const estimatedHeight = 180
+    const estimatedHeight = 260
     const top =
       below + estimatedHeight > window.innerHeight - 8
         ? Math.max(8, rect.top - gap - estimatedHeight)
