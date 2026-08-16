@@ -81,12 +81,12 @@ export type PokerBankAction =
     }
 
 export const DEFAULT_POKER_CHIPS: PokerChipDenom[] = [
-  { id: 'white', label: 'White', value: 1, color: '#f4f4f5' },
+  { id: 'white', label: 'White', value: 1, color: '#faf7f0' },
   { id: 'red', label: 'Red', value: 5, color: '#ef4444' },
   { id: 'green', label: 'Green', value: 25, color: '#22c55e' },
-  { id: 'blue', label: 'Blue', value: 100, color: '#3b82f6' },
-  { id: 'black', label: 'Black', value: 500, color: '#18181b' },
-  { id: 'purple', label: 'Purple', value: 1000, color: '#a855f7' },
+  { id: 'black', label: 'Black', value: 100, color: '#3f3f46' },
+  { id: 'purple', label: 'Purple', value: 500, color: '#a855f7' },
+  { id: 'blue', label: 'Blue', value: 1000, color: '#3b82f6' },
 ]
 
 /** Deep-clone a poker bank config (chips included). */
@@ -118,22 +118,42 @@ export function pokerBankConfigFromSession(state: {
 
 /** Common chip colors offered by the config color picker (hex, 6-digit). */
 export const CHIP_COLOR_PRESETS: readonly string[] = [
+  // Neutrals — cream/white through charcoal/black (physical set + extras)
+  '#faf7f0',
   '#f4f4f5',
+  '#d4d4d8',
   '#a1a1aa',
+  '#71717a',
+  '#52525b',
+  '#3f3f46',
   '#18181b',
+  // Warm
   '#ef4444',
+  '#f43f5e',
   '#f97316',
-  '#eab308',
-  '#22c55e',
-  '#14b8a6',
-  '#3b82f6',
-  '#6366f1',
-  '#a855f7',
-  '#ec4899',
   '#f59e0b',
+  '#eab308',
   '#84cc16',
+  '#22c55e',
+  '#15803d',
+  // Cool
+  '#14b8a6',
+  '#06b6d4',
   '#0ea5e9',
+  '#3b82f6',
+  '#2563eb',
+  '#6366f1',
+  '#8b5cf6',
+  '#a855f7',
+  // Extra hues for custom sets
+  '#7c3aed',
+  '#c026d3',
+  '#ec4899',
+  '#be185d',
   '#78716c',
+  '#a16207',
+  '#0f766e',
+  '#1e3a8a',
 ]
 
 export function defaultPokerBankConfig(): PokerBankConfig {
@@ -287,14 +307,14 @@ export function buildCashOverdrawConfirm(input: {
 const CHIP_BREAKDOWN_MAX_PER_DENOM = 10
 /**
  * Aim for at least this many chips by leading with a denomination at or below
- * `amount / MIN` (e.g. 500 → five blues, not one black).
+ * `amount / MIN` (e.g. 500 → five blacks, not one purple).
  */
 const CHIP_BREAKDOWN_MIN_STACK = 5
 
 /**
  * Break an amount into a playable chip stack.
  *
- * Unlike pure greedy (which turns 500 into a single black), this:
+ * Unlike pure greedy (which turns 500 into a single purple), this:
  * 1. Leads with a denomination small enough for a ~5+ chip stack
  * 2. Caps each color at 10
  * 3. Raises to the next larger color only after that cap (never dumps the
