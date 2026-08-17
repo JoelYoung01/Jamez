@@ -592,11 +592,17 @@ function ClaimMergePanel() {
   const guests = state.players.filter((p) => !p.remote && !p.isHost)
   const remotes = state.players.filter((p) => p.remote && isPlayerActive(p))
   const inactive = state.players.filter((p) => !isPlayerActive(p))
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = React.useState(inactive.length > 0)
   const [claimerId, setClaimerId] = React.useState(remotes[0]?.id ?? '')
   const [seatId, setSeatId] = React.useState(guests[0]?.id ?? '')
   const [fromId, setFromId] = React.useState('')
   const [toId, setToId] = React.useState('')
+  const prevInactiveCount = React.useRef(inactive.length)
+
+  React.useEffect(() => {
+    if (inactive.length > prevInactiveCount.current) setOpen(true)
+    prevInactiveCount.current = inactive.length
+  }, [inactive.length])
 
   return (
     <Card className="overflow-hidden">
@@ -982,7 +988,7 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                   />
                 </View>
               ) : null}
-              {isHost && !player.isHost && !isGuest ? (
+              {isHost && !player.isHost ? (
                 <AppButton
                   size="sm"
                   variant="secondary"

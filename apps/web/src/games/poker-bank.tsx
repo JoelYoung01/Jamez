@@ -767,16 +767,22 @@ function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
   const guests = state.players.filter((p) => !p.remote && !p.isHost)
   const remotes = state.players.filter((p) => p.remote && isPlayerActive(p))
   const inactive = state.players.filter((p) => !isPlayerActive(p))
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = React.useState(inactive.length > 0)
   const [claimerId, setClaimerId] = React.useState(remotes[0]?.id ?? '')
   const [seatId, setSeatId] = React.useState(guests[0]?.id ?? '')
   const [fromId, setFromId] = React.useState('')
   const [toId, setToId] = React.useState('')
+  const prevInactiveCount = React.useRef(inactive.length)
 
   React.useEffect(() => {
     if (!remotes.find((p) => p.id === claimerId)) setClaimerId(remotes[0]?.id ?? '')
     if (!guests.find((p) => p.id === seatId)) setSeatId(guests[0]?.id ?? '')
   }, [remotes, guests, claimerId, seatId])
+
+  React.useEffect(() => {
+    if (inactive.length > prevInactiveCount.current) setOpen(true)
+    prevInactiveCount.current = inactive.length
+  }, [inactive.length])
 
   if (!engine?.claimSeat && !engine?.mergePlayers) return null
 
@@ -1022,7 +1028,7 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                       <CashDialog mode="withdraw" player={player} game={game} send={send} />
                     </>
                   )}
-                  {isHost && !player.isHost && !isGuest ? (
+                  {isHost && !player.isHost ? (
                     <Button
                       type="button"
                       size="sm"
