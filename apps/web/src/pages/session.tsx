@@ -580,14 +580,17 @@ function HostSessionControls() {
   const store = useSession()
   const navigate = useNavigate()
   const ongoing = sessionIsOngoing(store.state)
+  const hidePark = store.state?.phase === 'finished'
   const [mode, setMode] = React.useState<'idle' | 'park' | 'end'>('idle')
 
   if (mode === 'idle') {
     return (
       <div className="grid gap-2">
-        <Button onClick={() => setMode('park')}>
-          <MoonIcon /> Close for now
-        </Button>
+        {!hidePark && (
+          <Button onClick={() => setMode('park')}>
+            <MoonIcon /> Close for now
+          </Button>
+        )}
         <Button variant="destructive" onClick={() => setMode('end')}>
           <LogOutIcon /> {ongoing ? 'End & save standings' : 'End session for everyone'}
         </Button>

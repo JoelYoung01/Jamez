@@ -657,16 +657,19 @@ function FinishedView() {
 function HostSessionControls() {
   const store = useSession()
   const ongoing = sessionIsOngoing(store.state)
+  const hidePark = store.state?.phase === 'finished'
   const [mode, setMode] = React.useState<'idle' | 'park' | 'end'>('idle')
 
   if (mode === 'idle') {
     return (
       <View className="gap-2">
-        <AppButton
-          title="Close for now"
-          icon={<MoonIcon size={16} color="#251a02" />}
-          onPress={() => setMode('park')}
-        />
+        {!hidePark && (
+          <AppButton
+            title="Close for now"
+            icon={<MoonIcon size={16} color="#251a02" />}
+            onPress={() => setMode('park')}
+          />
+        )}
         <AppButton
           variant="destructive"
           title={ongoing ? 'End & save standings' : 'End session for everyone'}
