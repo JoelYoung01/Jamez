@@ -178,6 +178,9 @@ try {
   await guest.getByRole('button', { name: 'Add hand' }).click()
 
   await host.getByText('Gale wins the match').waitFor({ timeout: 15000 })
+  await host.getByRole('button', { name: 'Rematch' }).waitFor()
+  await host.getByRole('button', { name: 'End session for everyone' }).waitFor()
+  await host.getByRole('button', { name: 'Close for now' }).waitFor({ state: 'hidden' })
   await shot(host, '08-gin-results')
   console.log('  auto-finish at 100 ✅')
 
