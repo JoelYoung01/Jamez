@@ -14,7 +14,6 @@ import {
   HandIcon,
   Loader2Icon,
   LogOutIcon,
-  MedalIcon,
   MoonIcon,
   PencilIcon,
   PlayIcon,
@@ -502,17 +501,26 @@ function FinishedView() {
   const summary = state.summary
   if (!summary) return null
 
-  const medal = (rank: number) =>
-    rank <= 3 ? (
-      <MedalIcon
+  const rankBadge = (rank: number) => {
+    if (rank > 3) return `#${rank}`
+    const styles =
+      rank === 1
+        ? { bg: 'bg-yellow-400', text: 'text-zinc-900' }
+        : rank === 2
+          ? { bg: 'bg-zinc-300', text: 'text-zinc-900' }
+          : { bg: 'bg-amber-600', text: 'text-white' }
+    return (
+      <span
         className={cn(
-          'mx-auto size-5',
-          rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-zinc-300' : 'text-amber-600',
+          'inline-flex size-6 items-center justify-center rounded-full text-xs font-bold tabular-nums',
+          styles.bg,
+          styles.text,
         )}
-      />
-    ) : (
-      `#${rank}`
+      >
+        {rank}
+      </span>
     )
+  }
 
   return (
     <div className="grid gap-4">
@@ -538,7 +546,7 @@ function FinishedView() {
                   winner ? 'border-primary/50 bg-primary/10' : 'border-border/50 bg-background/40',
                 )}
               >
-                <span className="w-8 text-center text-lg">{medal(entry.rank)}</span>
+                <span className="w-8 text-center">{rankBadge(entry.rank)}</span>
                 <PlayerAvatar player={player} size="sm" />
                 <span className="min-w-0 flex-1 truncate font-medium">{player.name}</span>
                 <span className="font-mono text-sm font-semibold tabular-nums text-muted-foreground">

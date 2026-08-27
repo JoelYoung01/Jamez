@@ -14,7 +14,6 @@ import {
   DoorClosedIcon,
   FlagIcon,
   HandIcon,
-  MedalIcon,
   MoonIcon,
   PencilIcon,
   RotateCcwIcon,
@@ -584,12 +583,27 @@ function FinishedView() {
   const summary = state.summary
   if (!summary) return null
 
-  const medal = (rank: number) =>
-    rank <= 3 ? (
-      <MedalIcon size={20} color={rank === 1 ? '#facc15' : rank === 2 ? '#d4d4d8' : '#d97706'} />
-    ) : (
-      <Text className="text-sm font-bold text-muted-foreground">#{rank}</Text>
+  const rankBadge = (rank: number) => {
+    if (rank > 3) {
+      return <Text className="text-sm font-bold text-muted-foreground">#{rank}</Text>
+    }
+    const colors =
+      rank === 1
+        ? { bg: '#facc15', text: '#18181b' }
+        : rank === 2
+          ? { bg: '#d4d4d8', text: '#18181b' }
+          : { bg: '#d97706', text: '#ffffff' }
+    return (
+      <View
+        className="h-6 w-6 items-center justify-center rounded-full"
+        style={{ backgroundColor: colors.bg }}
+      >
+        <Text className="text-xs font-bold" style={{ color: colors.text }}>
+          {rank}
+        </Text>
+      </View>
     )
+  }
 
   return (
     <View className="gap-4">
@@ -613,7 +627,7 @@ function FinishedView() {
                 winner ? 'border-primary/50 bg-primary/10' : 'border-line bg-background/40'
               }`}
             >
-              <View className="w-8 items-center">{medal(entry.rank)}</View>
+              <View className="w-8 items-center">{rankBadge(entry.rank)}</View>
               <PlayerAvatar player={player} size="sm" />
               <Text className="min-w-0 flex-1 font-medium text-zinc-100" numberOfLines={1}>
                 {player.name}
