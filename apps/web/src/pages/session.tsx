@@ -501,19 +501,26 @@ function FinishedView() {
   const summary = state.summary
   if (!summary) return null
 
-  const rankBadge = (rank: number) =>
-    rank <= 3 ? (
+  const rankBadge = (rank: number) => {
+    if (rank > 3) return `#${rank}`
+    const styles =
+      rank === 1
+        ? { bg: 'bg-yellow-400', text: 'text-zinc-900' }
+        : rank === 2
+          ? { bg: 'bg-zinc-300', text: 'text-zinc-900' }
+          : { bg: 'bg-amber-600', text: 'text-white' }
+    return (
       <span
         className={cn(
-          'text-lg font-bold tabular-nums',
-          rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-zinc-300' : 'text-amber-600',
+          'inline-flex size-6 items-center justify-center rounded-full text-xs font-bold tabular-nums',
+          styles.bg,
+          styles.text,
         )}
       >
         {rank}
       </span>
-    ) : (
-      `#${rank}`
     )
+  }
 
   return (
     <div className="grid gap-4">
