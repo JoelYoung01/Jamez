@@ -14,7 +14,6 @@ import {
   DoorClosedIcon,
   FlagIcon,
   HandIcon,
-  MedalIcon,
   MoonIcon,
   PencilIcon,
   RotateCcwIcon,
@@ -584,9 +583,16 @@ function FinishedView() {
   const summary = state.summary
   if (!summary) return null
 
-  const medal = (rank: number) =>
+  const rankBadge = (rank: number) =>
     rank <= 3 ? (
-      <MedalIcon size={20} color={rank === 1 ? '#facc15' : rank === 2 ? '#d4d4d8' : '#d97706'} />
+      <Text
+        className="text-lg font-bold"
+        style={{
+          color: rank === 1 ? '#facc15' : rank === 2 ? '#d4d4d8' : '#d97706',
+        }}
+      >
+        {rank}
+      </Text>
     ) : (
       <Text className="text-sm font-bold text-muted-foreground">#{rank}</Text>
     )
@@ -613,7 +619,7 @@ function FinishedView() {
                 winner ? 'border-primary/50 bg-primary/10' : 'border-line bg-background/40'
               }`}
             >
-              <View className="w-8 items-center">{medal(entry.rank)}</View>
+              <View className="w-8 items-center">{rankBadge(entry.rank)}</View>
               <PlayerAvatar player={player} size="sm" />
               <Text className="min-w-0 flex-1 font-medium text-zinc-100" numberOfLines={1}>
                 {player.name}
