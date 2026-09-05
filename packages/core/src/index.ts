@@ -107,6 +107,20 @@ export {
   type GinState,
 } from './games/gin-rummy'
 export {
+  FLIP7_BONUS,
+  FLIP7_NUMBER_CARDS,
+  FLIP7_PLUS_MODIFIERS,
+  flip7Engine,
+  flip7RoundComplete,
+  flip7Totals,
+  scoreFlip7Round,
+  type Flip7Action,
+  type Flip7Config,
+  type Flip7Round,
+  type Flip7RoundInput,
+  type Flip7State,
+} from './games/flip-7'
+export {
   CHIP_COLOR_PRESETS,
   DEFAULT_POKER_CHIPS,
   buildCashOverdrawConfirm,
@@ -158,6 +172,7 @@ export {
 // history
 export {
   computeStats,
+  flip7RoundsFromHistory,
   ginHandsFromHistory,
   historyDetailFromState,
   historyRecordFromState,
