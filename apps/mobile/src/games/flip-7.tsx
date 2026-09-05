@@ -238,7 +238,11 @@ function Flip7Play({ state: session, me, isHost, send }: GamePlayProps) {
   const [calcFor, setCalcFor] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    setActiveRound((prev) => Math.min(prev, Math.max(0, game.rounds.length - 1)))
+    setActiveRound((prev) => {
+      const latest = Math.max(0, game.rounds.length - 1)
+      if (prev >= latest - 1) return latest
+      return Math.min(prev, latest)
+    })
   }, [game.rounds.length])
 
   const roundIndex = Math.min(activeRound, game.rounds.length - 1)

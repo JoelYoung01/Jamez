@@ -281,7 +281,12 @@ function Flip7Play({ state: session, me, isHost, send }: GamePlayProps) {
   const [calcFor, setCalcFor] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    setActiveRound((prev) => Math.min(prev, Math.max(0, game.rounds.length - 1)))
+    setActiveRound((prev) => {
+      const latest = Math.max(0, game.rounds.length - 1)
+      // Follow newly opened rounds when the viewer was already on the previous latest.
+      if (prev >= latest - 1) return latest
+      return Math.min(prev, latest)
+    })
   }, [game.rounds.length])
 
   const roundIndex = Math.min(activeRound, game.rounds.length - 1)
@@ -371,8 +376,8 @@ function Flip7Play({ state: session, me, isHost, send }: GamePlayProps) {
                 size="sm"
                 disabled={!isLatest || !roundDone}
                 onClick={() => {
-                  send({ type: 'addRound' })
-                  setActiveRound(game.rounds.length)
+                  void send({ type: 'addRound' })
+                  setActiveRound((prev) => prev + 1)
                 }}
               >
                 <LayersIcon /> Next
@@ -395,6 +400,7 @@ function Flip7Play({ state: session, me, isHost, send }: GamePlayProps) {
                       variant="ghost"
                       size="sm"
                       className="ml-auto h-8 px-2 text-xs text-muted-foreground"
+                      aria-label={`Calculate ${player.name}'s round score`}
                       onClick={() => setCalcFor(calcFor === id ? null : id)}
                     >
                       <CalculatorIcon className="size-3.5" />
@@ -427,8 +433,8 @@ function Flip7Play({ state: session, me, isHost, send }: GamePlayProps) {
           {isLatest && roundDone && isHost && (
             <Button
               onClick={() => {
-                send({ type: 'addRound' })
-                setActiveRound(game.rounds.length)
+                void send({ type: 'addRound' })
+                setActiveRound((prev) => prev + 1)
               }}
             >
               Start round {game.rounds.length + 1}
