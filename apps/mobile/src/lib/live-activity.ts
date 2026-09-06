@@ -2,8 +2,10 @@ import {
   formatPokerAmount,
   getGameEngine,
   ginTotals,
+  flip7Totals,
   isPlayerActive,
   wingspanRanking,
+  type Flip7State,
   type GinState,
   type PokerBankState,
   type SessionPhase,
@@ -54,6 +56,15 @@ function standingsLines(state: SessionState): string[] {
   if (state.phase === 'playing' && state.game) {
     if (state.gameId === 'gin-rummy') {
       const totals = ginTotals(state.game as GinState)
+      return state.players
+        .filter(isPlayerActive)
+        .map((p) => ({ p, score: totals[p.id] ?? 0 }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 4)
+        .map(({ p, score }, i) => `${i + 1}. ${p.emoji} ${p.name} · ${score}`)
+    }
+    if (state.gameId === 'flip-7') {
+      const totals = flip7Totals(state.game as Flip7State)
       return state.players
         .filter(isPlayerActive)
         .map((p) => ({ p, score: totals[p.id] ?? 0 }))

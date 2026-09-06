@@ -1,3 +1,4 @@
+import type { Flip7Round } from '../games/flip-7'
 import type { GinHand } from '../games/gin-rummy'
 import type { GameSummary } from '../games/types'
 import type { SessionState } from '../protocol/session-state'
@@ -22,16 +23,22 @@ export interface HistoryRecord {
   nickname?: string
   /**
    * Optional game-specific archive. Wingspan stays summary-only; gin keeps the
-   * hand log (dealer, knock/gin, deadwood) for later analysis.
+   * hand log (dealer, knock/gin, deadwood) for later analysis; Flip 7 keeps
+   * the round scoresheet.
    */
   detail?: HistoryGameDetail
 }
 
 /** Discriminated payload for games that archive more than a summary. */
-export type HistoryGameDetail = {
-  type: 'gin-rummy'
-  hands: GinHand[]
-}
+export type HistoryGameDetail =
+  | {
+      type: 'gin-rummy'
+      hands: GinHand[]
+    }
+  | {
+      type: 'flip-7'
+      rounds: Flip7Round[]
+    }
 
 export interface HistoryStore {
   list(): Promise<HistoryRecord[]>
@@ -67,19 +74,36 @@ export function historyRecordFromState(
 
 /** Extract a persistable game detail blob from a finished session, if any. */
 export function historyDetailFromState(state: SessionState): HistoryGameDetail | undefined {
-  if (state.gameId !== 'gin-rummy' || !state.game) return undefined
-  const hands = (state.game as { hands?: GinHand[] }).hands
-  if (!Array.isArray(hands) || hands.length === 0) return undefined
-  // Deep-enough clone so later mutations of live session state cannot rewrite history.
-  return {
-    type: 'gin-rummy',
-    hands: hands.map((h) => ({ ...h })),
+  if (!state.game) return undefined
+  if (state.gameId === 'gin-rummy') {
+    const hands = (state.game as { hands?: GinHand[] }).hands
+    if (!Array.isArray(hands) || hands.length === 0) return undefined
+    // Deep-enough clone so later mutations of live session state cannot rewrite history.
+    return {
+      type: 'gin-rummy',
+      hands: hands.map((h) => ({ ...h })),
+    }
   }
+  if (state.gameId === 'flip-7') {
+    const rounds = (state.game as { rounds?: Flip7Round[] }).rounds
+    if (!Array.isArray(rounds) || rounds.length === 0) return undefined
+    return {
+      type: 'flip-7',
+      rounds: rounds.map((r) => ({ ...r, scores: { ...r.scores } })),
+    }
+  }
+  return undefined
 }
 
 /** Typed accessor for archived gin hands (empty for older summary-only records). */
 export function ginHandsFromHistory(record: HistoryRecord): GinHand[] {
   if (record.detail?.type === 'gin-rummy') return record.detail.hands
+  return []
+}
+
+/** Typed accessor for archived Flip 7 rounds (empty for older summary-only records). */
+export function flip7RoundsFromHistory(record: HistoryRecord): Flip7Round[] {
+  if (record.detail?.type === 'flip-7') return record.detail.rounds
   return []
 }
 
