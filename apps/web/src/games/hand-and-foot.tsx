@@ -19,6 +19,7 @@ import {
   ChevronRightIcon,
   FootprintsIcon,
   LayersIcon,
+  PencilIcon,
   Undo2Icon,
   XIcon,
 } from 'lucide-react'
@@ -341,6 +342,75 @@ function TeamAvatars({
   )
 }
 
+/** Host-only inline rename; empty name clears back to member names. */
+function TeamNameEditor({
+  team,
+  players,
+  onSave,
+}: {
+  team: HandAndFootTeam
+  players: SessionState['players']
+  onSave: (name: string) => void
+}) {
+  const fallback = teamLabel({ ...team, name: undefined }, players)
+  const [editing, setEditing] = React.useState(false)
+  const [text, setText] = React.useState(team.name ?? '')
+
+  React.useEffect(() => {
+    if (!editing) setText(team.name ?? '')
+  }, [team.name, editing])
+
+  const commit = () => {
+    const next = text.trim().slice(0, 24)
+    const current = (team.name ?? '').trim()
+    if (next !== current) onSave(next)
+    setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex min-w-0 items-center gap-1">
+        <div className="truncate text-sm font-medium">{teamLabel(team, players)}</div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 w-7 shrink-0 px-0 text-muted-foreground"
+          aria-label={`Rename ${teamLabel(team, players)}`}
+          onClick={() => {
+            setText(team.name ?? '')
+            setEditing(true)
+          }}
+        >
+          <PencilIcon className="size-3.5" />
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-1">
+      <Input
+        autoFocus
+        maxLength={24}
+        placeholder={fallback}
+        value={text}
+        onChange={(e) => setText(e.target.value.slice(0, 24))}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.currentTarget.blur()
+          } else if (e.key === 'Escape') {
+            setText(team.name ?? '')
+            setEditing(false)
+          }
+        }}
+        className="h-8 min-w-0 flex-1 text-sm font-medium"
+      />
+    </div>
+  )
+}
+
 function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
   const game = session.game as HandAndFootState
   const totals = handAndFootTotals(game)
@@ -388,7 +458,15 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
               <CardContent className="flex items-center gap-3 p-3">
                 <TeamAvatars team={team} playerOf={playerOf} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{label}</div>
+                  {isHost ? (
+                    <TeamNameEditor
+                      team={team}
+                      players={session.players}
+                      onSave={(name) => send({ type: 'setTeamName', teamId: team.id, name })}
+                    />
+                  ) : (
+                    <div className="truncate text-sm font-medium">{label}</div>
+                  )}
                   <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
                     {team.playerIds
                       .map((id) => playerOf(id)?.name)
@@ -468,7 +546,17 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <TeamAvatars team={team} playerOf={playerOf} />
-                    <span className="truncate text-sm font-medium">{label}</span>
+                    {isHost ? (
+                      <div className="min-w-0 flex-1">
+                        <TeamNameEditor
+                          team={team}
+                          players={session.players}
+                          onSave={(name) => send({ type: 'setTeamName', teamId: team.id, name })}
+                        />
+                      </div>
+                    ) : (
+                      <span className="truncate text-sm font-medium">{label}</span>
+                    )}
                     {editable && (
                       <Button
                         variant="ghost"

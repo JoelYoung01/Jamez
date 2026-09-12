@@ -177,6 +177,42 @@ describe('hand and foot teams engine', () => {
     expect(state.teams[0]?.playerIds.sort()).toEqual(['a', 'b', 'c', 'd'])
   })
 
+  it('lets the host name teams (and clear back to member names)', () => {
+    let state = fourPlayerPartnership()
+    const teamA = state.teams[0]!
+    const players = [
+      player('a', 'Alice'),
+      player('b', 'Bob'),
+      player('c', 'Cara'),
+      player('d', 'Dee'),
+    ]
+    expect(teamLabel(teamA, players)).toBe('Alice & Bob')
+
+    expect(
+      handAndFootEngine.validateAction(
+        state,
+        { type: 'setTeamName', teamId: teamA.id, name: 'Redbirds' },
+        ctxOf('c'),
+      ),
+    ).toMatch(/host/i)
+
+    state = handAndFootEngine.applyAction(
+      state,
+      { type: 'setTeamName', teamId: teamA.id, name: 'Redbirds' },
+      ctxHost,
+    )
+    expect(state.teams[0]?.name).toBe('Redbirds')
+    expect(teamLabel(state.teams[0]!, players)).toBe('Redbirds')
+
+    state = handAndFootEngine.applyAction(
+      state,
+      { type: 'setTeamName', teamId: teamA.id, name: '  ' },
+      ctxHost,
+    )
+    expect(state.teams[0]?.name).toBeUndefined()
+    expect(teamLabel(state.teams[0]!, players)).toBe('Alice & Bob')
+  })
+
   it('adds late joiners as their own team and removes players cleanly', () => {
     let state = fourPlayerPartnership()
     state = handAndFootEngine.addPlayer!(state, player('e', 'Eve'))

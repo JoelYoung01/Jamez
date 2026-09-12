@@ -20,6 +20,7 @@ import {
   ChevronRightIcon,
   FootprintsIcon,
   LayersIcon,
+  PencilIcon,
   Undo2Icon,
   XIcon,
 } from 'lucide-react-native'
@@ -319,6 +320,65 @@ function TeamAvatars({
   )
 }
 
+/** Host-only inline rename; empty name clears back to member names. */
+function TeamNameEditor({
+  team,
+  players,
+  onSave,
+}: {
+  team: HandAndFootTeam
+  players: SessionState['players']
+  onSave: (name: string) => void
+}) {
+  const fallback = teamLabel({ ...team, name: undefined }, players)
+  const [editing, setEditing] = React.useState(false)
+  const [text, setText] = React.useState(team.name ?? '')
+
+  React.useEffect(() => {
+    if (!editing) setText(team.name ?? '')
+  }, [team.name, editing])
+
+  const commit = () => {
+    const next = text.trim().slice(0, 24)
+    const current = (team.name ?? '').trim()
+    if (next !== current) onSave(next)
+    setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <View className="min-w-0 flex-row items-center gap-1">
+        <Text className="min-w-0 flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
+          {teamLabel(team, players)}
+        </Text>
+        <Pressable
+          onPress={() => {
+            setText(team.name ?? '')
+            setEditing(true)
+          }}
+          accessibilityLabel={`Rename ${teamLabel(team, players)}`}
+          className="h-8 w-8 items-center justify-center active:opacity-70"
+        >
+          <PencilIcon size={14} color="#a1a1ab" />
+        </Pressable>
+      </View>
+    )
+  }
+
+  return (
+    <AppTextInput
+      autoFocus
+      maxLength={24}
+      placeholder={fallback}
+      value={text}
+      onChangeText={(raw) => setText(raw.slice(0, 24))}
+      onBlur={commit}
+      onSubmitEditing={commit}
+      className="h-9 rounded-lg border border-line bg-field px-2 text-sm font-medium text-zinc-100"
+    />
+  )
+}
+
 function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
   const game = session.game as HandAndFootState
   const totals = handAndFootTotals(game)
@@ -363,9 +423,17 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
           <Card key={team.id} className="flex-row items-center gap-3 p-3">
             <TeamAvatars team={team} playerOf={playerOf} />
             <View className="min-w-0 flex-1">
-              <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
-                {label}
-              </Text>
+              {isHost ? (
+                <TeamNameEditor
+                  team={team}
+                  players={session.players}
+                  onSave={(name) => send({ type: 'setTeamName', teamId: team.id, name })}
+                />
+              ) : (
+                <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
+                  {label}
+                </Text>
+              )}
               <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>
                 {team.playerIds
                   .map((id) => playerOf(id)?.name)
@@ -439,9 +507,19 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
                 <View className="min-w-0 flex-1 gap-1">
                   <View className="flex-row items-center gap-2">
                     <TeamAvatars team={team} playerOf={playerOf} />
-                    <Text className="flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
-                      {label}
-                    </Text>
+                    {isHost ? (
+                      <View className="min-w-0 flex-1">
+                        <TeamNameEditor
+                          team={team}
+                          players={session.players}
+                          onSave={(name) => send({ type: 'setTeamName', teamId: team.id, name })}
+                        />
+                      </View>
+                    ) : (
+                      <Text className="flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
+                        {label}
+                      </Text>
+                    )}
                     {editable && (
                       <Pressable
                         onPress={() => setCalcFor(calcFor === team.id ? null : team.id)}
