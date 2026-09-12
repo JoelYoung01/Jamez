@@ -156,8 +156,13 @@ function StepperField({
   )
 }
 
-function ScoreCalculator({ onApply }: { onApply: (score: number) => void }) {
-  const [open, setOpen] = React.useState(false)
+function ScoreCalculator({
+  onApply,
+  onClose,
+}: {
+  onApply: (score: number) => void
+  onClose: () => void
+}) {
   const [cleanBooks, setCleanBooks] = React.useState(0)
   const [dirtyBooks, setDirtyBooks] = React.useState(0)
   const [wildBooks, setWildBooks] = React.useState(0)
@@ -186,19 +191,11 @@ function ScoreCalculator({ onApply }: { onApply: (score: number) => void }) {
     setCardsLeft(0)
   }
 
-  if (!open) {
-    return (
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <CalculatorIcon /> Book calculator
-      </Button>
-    )
-  }
-
   return (
     <Card className="border-[#d4524a]/30">
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="text-sm">Round calculator</CardTitle>
-        <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+        <Button variant="ghost" size="sm" onClick={onClose}>
           <XIcon />
         </Button>
       </CardHeader>
@@ -283,7 +280,7 @@ function ScoreCalculator({ onApply }: { onApply: (score: number) => void }) {
             onClick={() => {
               onApply(preview)
               reset()
-              setOpen(false)
+              onClose()
             }}
           >
             Use {preview}
@@ -441,6 +438,7 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
                         setScore(id, score)
                         setCalcFor(null)
                       }}
+                      onClose={() => setCalcFor(null)}
                     />
                   </div>
                 )}
