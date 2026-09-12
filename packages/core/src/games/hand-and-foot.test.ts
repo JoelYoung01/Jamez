@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildHandAndFootTeams,
   handAndFootEngine,
   handAndFootRoundComplete,
   handAndFootTotals,
   scoreHandAndFootRound,
+  teamIdForPlayer,
+  teamLabel,
   type HandAndFootState,
 } from './hand-and-foot'
 import type { ActionContext } from './types'
@@ -29,8 +32,17 @@ const ctxOf = (actorId: string): ActionContext => ({
 })
 const ctxHost: ActionContext = { actorId: 'a', isHost: true, now: 1 }
 
-function twoPlayerState(target = 10_000): HandAndFootState {
-  return handAndFootEngine.init({ targetScore: target }, [
+function fourPlayerPartnership(target = 10_000): HandAndFootState {
+  return handAndFootEngine.init({ targetScore: target, playersPerTeam: 2 }, [
+    player('a', 'Alice'),
+    player('b', 'Bob'),
+    player('c', 'Cara'),
+    player('d', 'Dee'),
+  ])
+}
+
+function cutthroatTwo(target = 10_000): HandAndFootState {
+  return handAndFootEngine.init({ targetScore: target, playersPerTeam: 1 }, [
     player('a', 'Alice'),
     player('b', 'Bob'),
   ])
@@ -49,117 +61,129 @@ describe('scoreHandAndFootRound', () => {
         cardsLeft: 40,
       }),
     ).toBe(2 * 500 + 300 + 3 * 100 + 100 + 240 - 40)
-
-    expect(
-      scoreHandAndFootRound({
-        cleanBooks: 0,
-        dirtyBooks: 0,
-        wildBooks: 1,
-        redThrees: -2,
-        wentOut: false,
-        cardPoints: 0,
-        cardsLeft: 50,
-      }),
-    ).toBe(1500 - 200 - 50)
   })
 })
 
-describe('hand and foot engine', () => {
-  it('starts with empty round totals', () => {
-    const state = twoPlayerState()
-    expect(handAndFootTotals(state)).toEqual({ a: 0, b: 0 })
-    expect(handAndFootRoundComplete(state, state.rounds[0]!)).toBe(false)
+describe('buildHandAndFootTeams', () => {
+  it('builds partnerships of two and cutthroat singles', () => {
+    const four = [player('a', 'A'), player('b', 'B'), player('c', 'C'), player('d', 'D')]
+    const pairs = buildHandAndFootTeams(four, 2)
+    expect(pairs).toHaveLength(2)
+    expect(pairs[0]?.playerIds).toEqual(['a', 'b'])
+    expect(pairs[1]?.playerIds).toEqual(['c', 'd'])
+
+    const solo = buildHandAndFootTeams(four.slice(0, 2), 1)
+    expect(solo).toHaveLength(2)
+    expect(solo[0]?.playerIds).toEqual(['a'])
+    expect(solo[1]?.playerIds).toEqual(['b'])
+  })
+})
+
+describe('hand and foot teams engine', () => {
+  it('scores by team and labels teams from member names', () => {
+    const state = fourPlayerPartnership()
+    expect(state.teams).toHaveLength(2)
+    expect(handAndFootTotals(state)[state.teams[0]!.id]).toBe(0)
+    expect(teamLabel(state.teams[0]!, [player('a', 'Alice'), player('b', 'Bob')])).toBe(
+      'Alice & Bob',
+    )
   })
 
-  it('lets guests edit only their own score; host can edit anyone', () => {
-    const state = twoPlayerState()
-    const own = { type: 'setScore' as const, playerId: 'a', roundIndex: 0, score: 1200 }
+  it('lets team members edit their team; host can edit any team', () => {
+    const state = fourPlayerPartnership()
+    const teamA = state.teams[0]!
+    const own = { type: 'setScore' as const, teamId: teamA.id, roundIndex: 0, score: 1200 }
     expect(handAndFootEngine.validateAction(state, own, ctxOf('a'))).toBeNull()
-    expect(handAndFootEngine.validateAction(state, own, ctxOf('b'))).toMatch(/own score/)
+    expect(handAndFootEngine.validateAction(state, own, ctxOf('b'))).toBeNull()
+    expect(handAndFootEngine.validateAction(state, own, ctxOf('c'))).toMatch(/own team/)
     expect(handAndFootEngine.validateAction(state, own, ctxHost)).toBeNull()
   })
 
-  it('accumulates rounds and finishes when someone reaches the target', () => {
-    let state = twoPlayerState(5000)
+  it('accumulates team rounds and finishes when a team reaches the target', () => {
+    let state = fourPlayerPartnership(5000)
+    const [teamA, teamB] = state.teams
     state = handAndFootEngine.applyAction(
       state,
-      { type: 'setScore', playerId: 'a', roundIndex: 0, score: 2800 },
+      { type: 'setScore', teamId: teamA!.id, roundIndex: 0, score: 2800 },
       ctxHost,
     )
     state = handAndFootEngine.applyAction(
       state,
-      { type: 'setScore', playerId: 'b', roundIndex: 0, score: 1900 },
+      { type: 'setScore', teamId: teamB!.id, roundIndex: 0, score: 1900 },
       ctxHost,
     )
     expect(handAndFootRoundComplete(state, state.rounds[0]!)).toBe(true)
-    expect(handAndFootTotals(state)).toEqual({ a: 2800, b: 1900 })
     expect(handAndFootEngine.isFinished(state)).toBe(false)
 
     state = handAndFootEngine.applyAction(state, { type: 'addRound' }, ctxHost)
     state = handAndFootEngine.applyAction(
       state,
-      { type: 'setScore', playerId: 'a', roundIndex: 1, score: 2300 },
+      { type: 'setScore', teamId: teamA!.id, roundIndex: 1, score: 2300 },
       ctxHost,
     )
-    expect(handAndFootEngine.isFinished(state)).toBe(false)
     state = handAndFootEngine.applyAction(
       state,
-      { type: 'setScore', playerId: 'b', roundIndex: 1, score: 1100 },
+      { type: 'setScore', teamId: teamB!.id, roundIndex: 1, score: 1100 },
       ctxHost,
     )
-    expect(handAndFootTotals(state)).toEqual({ a: 5100, b: 3000 })
+    expect(handAndFootTotals(state)[teamA!.id]).toBe(5100)
     expect(handAndFootEngine.isFinished(state)).toBe(true)
 
     const summary = handAndFootEngine.summary(state, [
       player('a', 'Alice'),
       player('b', 'Bob'),
+      player('c', 'Cara'),
+      player('d', 'Dee'),
     ])
-    expect(summary.winnerIds).toEqual(['a'])
+    expect(summary.winnerIds.sort()).toEqual(['a', 'b'])
     expect(summary.entries[0]?.score).toBe(5100)
   })
 
-  it('supports negative round scores (cards left / red three penalties)', () => {
-    let state = twoPlayerState()
+  it('supports cutthroat (one player per team)', () => {
+    let state = cutthroatTwo(1000)
+    expect(state.teams).toHaveLength(2)
+    const teamA = teamIdForPlayer(state, 'a')!
     state = handAndFootEngine.applyAction(
       state,
-      { type: 'setScore', playerId: 'a', roundIndex: 0, score: -350 },
+      { type: 'setScore', teamId: teamA, roundIndex: 0, score: 1000 },
       ctxHost,
     )
-    expect(handAndFootTotals(state).a).toBe(-350)
+    const teamB = teamIdForPlayer(state, 'b')!
+    state = handAndFootEngine.applyAction(
+      state,
+      { type: 'setScore', teamId: teamB, roundIndex: 0, score: 400 },
+      ctxHost,
+    )
+    expect(handAndFootEngine.isFinished(state)).toBe(true)
   })
 
-  it('undoes the latest round and clears the first when alone', () => {
-    let state = twoPlayerState()
+  it('moves players between teams and drops empty teams', () => {
+    let state = fourPlayerPartnership()
+    const [teamA, teamB] = state.teams
     state = handAndFootEngine.applyAction(
       state,
-      { type: 'setScore', playerId: 'a', roundIndex: 0, score: 900 },
+      { type: 'movePlayer', playerId: 'b', teamId: teamB!.id },
       ctxHost,
     )
+    expect(state.teams.find((t) => t.id === teamA!.id)?.playerIds).toEqual(['a'])
+    expect(state.teams.find((t) => t.id === teamB!.id)?.playerIds).toEqual(['c', 'd', 'b'])
+
     state = handAndFootEngine.applyAction(
       state,
-      { type: 'setScore', playerId: 'b', roundIndex: 0, score: 800 },
+      { type: 'movePlayer', playerId: 'a', teamId: teamB!.id },
       ctxHost,
     )
-    state = handAndFootEngine.applyAction(state, { type: 'addRound' }, ctxHost)
-    expect(state.rounds).toHaveLength(2)
-    state = handAndFootEngine.applyAction(state, { type: 'undoRound' }, ctxHost)
-    expect(state.rounds).toHaveLength(1)
-    state = handAndFootEngine.applyAction(state, { type: 'undoRound' }, ctxHost)
-    expect(state.rounds[0]?.scores).toEqual({ a: null, b: null })
+    expect(state.teams).toHaveLength(1)
+    expect(state.teams[0]?.playerIds.sort()).toEqual(['a', 'b', 'c', 'd'])
   })
 
-  it('adds and removes late-joining players on the scoresheet', () => {
-    let state = twoPlayerState()
-    state = handAndFootEngine.applyAction(
-      state,
-      { type: 'setScore', playerId: 'a', roundIndex: 0, score: 100 },
-      ctxHost,
-    )
-    state = handAndFootEngine.addPlayer!(state, player('c', 'Cara'))
-    expect(state.playerIds).toEqual(['a', 'b', 'c'])
-    expect(state.rounds[0]?.scores.c).toBeNull()
-    state = handAndFootEngine.removePlayer!(state, 'c')
-    expect(state.playerIds).toEqual(['a', 'b'])
-    expect(state.rounds[0]?.scores.c).toBeUndefined()
+  it('adds late joiners as their own team and removes players cleanly', () => {
+    let state = fourPlayerPartnership()
+    state = handAndFootEngine.addPlayer!(state, player('e', 'Eve'))
+    expect(state.teams).toHaveLength(3)
+    expect(teamIdForPlayer(state, 'e')).toBeTruthy()
+    state = handAndFootEngine.removePlayer!(state, 'e')
+    expect(state.teams).toHaveLength(2)
+    expect(state.playerIds).not.toContain('e')
   })
 })

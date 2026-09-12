@@ -7,8 +7,10 @@ import {
   handAndFootRoundComplete,
   handAndFootTotals,
   scoreHandAndFootRound,
+  teamLabel,
   type HandAndFootConfig,
   type HandAndFootState,
+  type HandAndFootTeam,
   type SessionState,
 } from '@jamez/core'
 import { clsx } from 'clsx'
@@ -25,30 +27,53 @@ import * as React from 'react'
 import { Pressable, Switch, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
 import { PlayerAvatar } from '@/components/player-avatar'
+import { Segmented } from '@/components/segmented'
 import { AppButton, Card, CardTitle, Muted, SectionLabel } from '@/components/ui'
 import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
 const ACCENT = '#d4524a'
 const MAX_ABS = 99_999
 
+function playersPerTeamSummary(n: number): string {
+  if (n === 1) return 'Cutthroat'
+  if (n === 3) return 'Trios (3)'
+  return 'Partners (2)'
+}
+
 function HandAndFootSetup({ config, onChange }: GameSetupProps<HandAndFootConfig>) {
+  const playersPerTeam = config.playersPerTeam ?? 2
   return (
-    <View className="gap-1.5">
-      <SectionLabel>Play to</SectionLabel>
-      <AppTextInput
-        keyboardType="number-pad"
-        value={String(config.targetScore)}
-        onChangeText={(raw) => {
-          const value = Number.parseInt(raw.replace(/[^0-9]/g, ''), 10)
-          onChange({
-            ...config,
-            targetScore: Number.isNaN(value) ? 0 : Math.min(99_999, value),
-          })
-        }}
-        className="rounded-xl border border-line bg-field px-3 py-2.5 font-mono text-zinc-100"
-      />
+    <View className="gap-3">
+      <View className="gap-1.5">
+        <SectionLabel>Play to</SectionLabel>
+        <AppTextInput
+          keyboardType="number-pad"
+          value={String(config.targetScore)}
+          onChangeText={(raw) => {
+            const value = Number.parseInt(raw.replace(/[^0-9]/g, ''), 10)
+            onChange({
+              ...config,
+              targetScore: Number.isNaN(value) ? 0 : Math.min(99_999, value),
+            })
+          }}
+          className="rounded-xl border border-line bg-field px-3 py-2.5 font-mono text-zinc-100"
+        />
+      </View>
+      <View className="gap-1.5">
+        <SectionLabel>Players per team</SectionLabel>
+        <Segmented
+          value={String(playersPerTeam) as '1' | '2' | '3'}
+          onChange={(v) => onChange({ ...config, playersPerTeam: Number(v) })}
+          options={[
+            { value: '1', label: 'Cutthroat (1)' },
+            { value: '2', label: 'Partners (2)' },
+            { value: '3', label: 'Trios (3)' },
+          ]}
+        />
+      </View>
       <Muted>
-        Common Hand & Foot races to 10,000. One seat per team (or per player for cutthroat).
+        Common Hand & Foot races to 10,000. People are grouped into teams of{' '}
+        {playersPerTeam} at the start; each score column is a team.
       </Muted>
     </View>
   )
@@ -272,11 +297,34 @@ function ScoreCalculator({
   )
 }
 
+function TeamAvatars({
+  team,
+  playerOf,
+}: {
+  team: HandAndFootTeam
+  playerOf: (id: string) => SessionState['players'][number] | undefined
+}) {
+  return (
+    <View className="flex-row items-center">
+      {team.playerIds.map((id, i) => {
+        const player = playerOf(id)
+        if (!player) return null
+        return (
+          <View key={id} className={i > 0 ? '-ml-2' : undefined}>
+            <PlayerAvatar player={player} size="sm" showPresence />
+          </View>
+        )
+      })}
+    </View>
+  )
+}
+
 function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
   const game = session.game as HandAndFootState
   const totals = handAndFootTotals(game)
   const [activeRound, setActiveRound] = React.useState(Math.max(0, game.rounds.length - 1))
   const [calcFor, setCalcFor] = React.useState<string | null>(null)
+  const [movingPlayerId, setMovingPlayerId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     setActiveRound((prev) => {
@@ -291,30 +339,38 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
   const roundDone = handAndFootRoundComplete(game, round)
   const isLatest = roundIndex === game.rounds.length - 1
   const playerOf = (id: string) => session.players.find((p) => p.id === id)
-  const sortedIds = [...game.playerIds].sort((a, b) => (totals[b] ?? 0) - (totals[a] ?? 0))
-  const canEdit = (playerId: string) => isHost || me?.id === playerId
+  const sortedTeams = [...game.teams].sort(
+    (a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0),
+  )
+  const canEdit = (team: HandAndFootTeam) =>
+    isHost || (!!me && team.playerIds.includes(me.id))
 
-  const setScore = (playerId: string, score: number | null) => {
+  const setScore = (teamId: string, score: number | null) => {
     if (score === null) {
-      send({ type: 'clearScore', playerId, roundIndex })
+      send({ type: 'clearScore', teamId, roundIndex })
       return
     }
-    send({ type: 'setScore', playerId, roundIndex, score })
+    send({ type: 'setScore', teamId, roundIndex, score })
   }
 
   return (
     <View className="gap-3">
-      {sortedIds.map((id) => {
-        const player = playerOf(id)
-        const total = totals[id] ?? 0
+      {sortedTeams.map((team) => {
+        const total = totals[team.id] ?? 0
         const progress = Math.min(1, Math.max(0, total / Math.max(1, game.config.targetScore)))
-        if (!player) return null
+        const label = teamLabel(team, session.players)
         return (
-          <Card key={id} className="flex-row items-center gap-3 p-3">
-            <PlayerAvatar player={player} showPresence />
+          <Card key={team.id} className="flex-row items-center gap-3 p-3">
+            <TeamAvatars team={team} playerOf={playerOf} />
             <View className="min-w-0 flex-1">
               <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
-                {player.name}
+                {label}
+              </Text>
+              <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>
+                {team.playerIds
+                  .map((id) => playerOf(id)?.name)
+                  .filter(Boolean)
+                  .join(' · ')}
               </Text>
               <View className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
                 <View
@@ -374,35 +430,80 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
           )}
         </View>
 
-        {game.playerIds.map((id) => {
-          const player = playerOf(id)
-          const editable = canEdit(id)
-          if (!player) return null
+        {game.teams.map((team) => {
+          const editable = canEdit(team)
+          const label = teamLabel(team, session.players)
           return (
-            <View key={id} className="gap-2">
-              <View className="flex-row items-center gap-2">
-                <Text className="text-lg">{player.emoji}</Text>
-                <Text className="flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
-                  {player.name}
-                </Text>
-                {editable && (
-                  <Pressable
-                    onPress={() => setCalcFor(calcFor === id ? null : id)}
-                    className="h-8 w-8 items-center justify-center active:opacity-70"
-                  >
-                    <CalculatorIcon size={16} color="#a1a1ab" />
-                  </Pressable>
-                )}
+            <View key={team.id} className="gap-2">
+              <View className="flex-row items-start gap-2">
+                <View className="min-w-0 flex-1 gap-1">
+                  <View className="flex-row items-center gap-2">
+                    <TeamAvatars team={team} playerOf={playerOf} />
+                    <Text className="flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
+                      {label}
+                    </Text>
+                    {editable && (
+                      <Pressable
+                        onPress={() => setCalcFor(calcFor === team.id ? null : team.id)}
+                        className="h-8 w-8 items-center justify-center active:opacity-70"
+                      >
+                        <CalculatorIcon size={16} color="#a1a1ab" />
+                      </Pressable>
+                    )}
+                  </View>
+                  {team.playerIds.map((playerId) => {
+                    const player = playerOf(playerId)
+                    if (!player) return null
+                    const isMoving = movingPlayerId === playerId
+                    return (
+                      <View key={playerId} className="gap-1 pl-1">
+                        <Pressable
+                          disabled={!isHost || game.teams.length <= 1}
+                          onPress={() =>
+                            setMovingPlayerId(isMoving ? null : playerId)
+                          }
+                          className="flex-row items-center gap-1.5 active:opacity-70"
+                        >
+                          <Text className="text-sm">{player.emoji}</Text>
+                          <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>
+                            {player.name}
+                            {isHost && game.teams.length > 1 ? ' · move' : ''}
+                          </Text>
+                        </Pressable>
+                        {isMoving && isHost && (
+                          <View className="flex-row flex-wrap gap-1">
+                            {game.teams
+                              .filter((t) => t.id !== team.id)
+                              .map((t) => (
+                                <Pressable
+                                  key={t.id}
+                                  onPress={() => {
+                                    send({ type: 'movePlayer', playerId, teamId: t.id })
+                                    setMovingPlayerId(null)
+                                  }}
+                                  className="rounded-lg border border-line px-2 py-1 active:opacity-70"
+                                >
+                                  <Text className="text-[10px] text-zinc-100" numberOfLines={1}>
+                                    → {teamLabel(t, session.players)}
+                                  </Text>
+                                </Pressable>
+                              ))}
+                          </View>
+                        )}
+                      </View>
+                    )
+                  })}
+                </View>
                 <RoundScoreField
-                  value={round.scores[id] ?? null}
+                  value={round.scores[team.id] ?? null}
                   disabled={!editable}
-                  onCommit={(score) => setScore(id, score)}
+                  onCommit={(score) => setScore(team.id, score)}
                 />
               </View>
-              {calcFor === id && editable && (
+              {calcFor === team.id && editable && (
                 <ScoreCalculator
                   onApply={(score) => {
-                    setScore(id, score)
+                    setScore(team.id, score)
                     setCalcFor(null)
                   }}
                   onClose={() => setCalcFor(null)}
@@ -413,7 +514,9 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
         })}
 
         {!isHost && (
-          <Muted className="text-center">Enter your round total. The host can fix anyone's score.</Muted>
+          <Muted className="text-center">
+            Enter your team's round total. The host can fix any team's score.
+          </Muted>
         )}
         {isLatest && roundDone && isHost && (
           <AppButton
@@ -429,15 +532,29 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
       {game.rounds.length > 1 && (
         <Card className="gap-2 p-4">
           <CardTitle>Scoresheet</CardTitle>
-          {sortedIds.map((id) => {
-            const player = playerOf(id)
+          {sortedTeams.map((team) => {
+            const label = teamLabel(team, session.players)
+            const members = team.playerIds
+              .map((id) => playerOf(id)?.name)
+              .filter(Boolean)
+              .join(', ')
             return (
-              <View key={id} className="flex-row flex-wrap items-center gap-1.5 border-t border-line pt-2">
-                <Text className="mr-1 w-24 text-sm text-zinc-100" numberOfLines={1}>
-                  {player?.emoji} {player?.name}
-                </Text>
+              <View
+                key={team.id}
+                className="flex-row flex-wrap items-center gap-1.5 border-t border-line pt-2"
+              >
+                <View className="mr-1 w-28">
+                  <Text className="text-sm text-zinc-100" numberOfLines={1}>
+                    {label}
+                  </Text>
+                  {members ? (
+                    <Text className="text-[10px] text-muted-foreground" numberOfLines={1}>
+                      {members}
+                    </Text>
+                  ) : null}
+                </View>
                 {game.rounds.map((r, idx) => {
-                  const score = r.scores[id]
+                  const score = r.scores[team.id]
                   return (
                     <Pressable
                       key={r.n}
@@ -459,7 +576,7 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
                   )
                 })}
                 <Text className="ml-auto font-mono text-sm font-semibold text-zinc-100">
-                  {totals[id] ?? 0}
+                  {totals[team.id] ?? 0}
                 </Text>
               </View>
             )
@@ -474,23 +591,38 @@ function HandAndFootResults({ state: session }: { state: SessionState }) {
   const game = session.game as HandAndFootState
   const totals = handAndFootTotals(game)
   const playerOf = (id: string) => session.players.find((p) => p.id === id)
-  const sorted = [...game.playerIds].sort((a, b) => (totals[b] ?? 0) - (totals[a] ?? 0))
+  const sorted = [...game.teams].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0))
 
   return (
     <Card className="gap-3 p-4">
       <CardTitle>Scoresheet</CardTitle>
-      {sorted.map((id) => {
-        const player = playerOf(id)
+      {sorted.map((team) => {
+        const label = teamLabel(team, session.players)
+        const members = team.playerIds
+          .map((id) => {
+            const p = playerOf(id)
+            return p ? `${p.emoji} ${p.name}` : null
+          })
+          .filter(Boolean)
+          .join(' · ')
         return (
-          <View key={id} className="rounded-xl border border-line p-3">
+          <View key={team.id} className="rounded-xl border border-line p-3">
             <View className="flex-row items-center gap-2">
-              <Text>{player?.emoji}</Text>
-              <Text className="flex-1 text-sm font-medium text-zinc-100">{player?.name}</Text>
-              <Text className="font-mono text-xl font-bold text-primary">{totals[id] ?? 0}</Text>
+              <View className="min-w-0 flex-1">
+                <Text className="text-sm font-medium text-zinc-100">{label}</Text>
+                {members ? (
+                  <Text className="text-[11px] text-muted-foreground">{members}</Text>
+                ) : null}
+              </View>
+              <Text className="font-mono text-xl font-bold text-primary">
+                {totals[team.id] ?? 0}
+              </Text>
             </View>
-            <Text className="mt-1 pl-7 font-mono text-xs text-muted-foreground">
+            <Text className="mt-1 font-mono text-xs text-muted-foreground">
               {game.rounds
-                .map((r) => (typeof r.scores[id] === 'number' ? String(r.scores[id]) : '·'))
+                .map((r) =>
+                  typeof r.scores[team.id] === 'number' ? String(r.scores[team.id]) : '·',
+                )
                 .join(' · ')}
             </Text>
           </View>
@@ -498,7 +630,7 @@ function HandAndFootResults({ state: session }: { state: SessionState }) {
       })}
       <Muted className="text-center">
         {game.rounds.length} {game.rounds.length === 1 ? 'round' : 'rounds'} · first to{' '}
-        {game.config.targetScore}
+        {game.config.targetScore} · {playersPerTeamSummary(game.config.playersPerTeam ?? 2)}
       </Muted>
     </Card>
   )
@@ -512,6 +644,6 @@ export const handAndFootUI: GameUIModule = {
   ResultsDetail: HandAndFootResults,
   configSummary: (config) => {
     const c = config as HandAndFootConfig
-    return [`First to ${c.targetScore}`]
+    return [`First to ${c.targetScore}`, playersPerTeamSummary(c.playersPerTeam ?? 2)]
   },
 }
