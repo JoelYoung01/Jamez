@@ -689,20 +689,9 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
                 <View className="min-w-0 flex-1 gap-1">
                   <View className="flex-row items-center gap-2">
                     <TeamAvatars team={team} playerOf={playerOf} />
-                    {isHost ? (
-                      <View className="min-w-0 flex-1">
-                        <TeamEditControl
-                          team={team}
-                          game={game}
-                          players={session.players}
-                          send={send}
-                        />
-                      </View>
-                    ) : (
-                      <Text className="flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
-                        {label}
-                      </Text>
-                    )}
+                    <Text className="min-w-0 flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
+                      {label}
+                    </Text>
                     {editable && (
                       <Pressable
                         onPress={() => setCalcFor(calcFor === team.id ? null : team.id)}

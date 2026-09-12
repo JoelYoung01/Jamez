@@ -761,18 +761,7 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <TeamAvatars team={team} playerOf={playerOf} />
-                    {isHost ? (
-                      <div className="min-w-0 flex-1">
-                        <TeamEditControl
-                          team={team}
-                          game={game}
-                          players={session.players}
-                          send={send}
-                        />
-                      </div>
-                    ) : (
-                      <span className="truncate text-sm font-medium">{label}</span>
-                    )}
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
                     {editable && (
                       <Button
                         variant="ghost"
