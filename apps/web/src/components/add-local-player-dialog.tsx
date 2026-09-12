@@ -1,4 +1,4 @@
-import { rosterAvailableForSession, type RosterPlayer } from '@jamez/core'
+import { randomId, rosterAvailableForSession, type RosterPlayer } from '@jamez/core'
 import { UserPlusIcon } from 'lucide-react'
 import * as React from 'react'
 import { EmojiPicker } from '@/components/emoji-picker'
@@ -33,6 +33,8 @@ export function AddLocalPlayerDialog({
   open: openProp,
   onOpenChange,
   keyboardAvoid = false,
+  showTrigger = true,
+  onAdded,
 }: {
   triggerLabel?: string
   title?: string
@@ -41,6 +43,10 @@ export function AddLocalPlayerDialog({
   open?: boolean
   onOpenChange?: (open: boolean) => void
   keyboardAvoid?: boolean
+  /** When false, render dialog chrome only (nested / controlled use). */
+  showTrigger?: boolean
+  /** Called after a successful add with the seated player id. */
+  onAdded?: (player: { id: string; name: string; emoji: string; photo?: string }) => void
 }) {
   const addLocalPlayer = useSession((s) => s.addLocalPlayer)
   const players = useSession((s) => s.state?.players)
@@ -65,20 +71,24 @@ export function AddLocalPlayerDialog({
     resetForm()
   }
 
-  const addNew = () => {
-    if (!name.trim()) return
-    addLocalPlayer({ name: name.trim(), emoji })
+  const finish = (profile: { id: string; name: string; emoji: string; photo?: string }) => {
+    addLocalPlayer(profile)
+    onAdded?.(profile)
     close()
   }
 
+  const addNew = () => {
+    if (!name.trim()) return
+    finish({ id: randomId(8), name: name.trim(), emoji })
+  }
+
   const pickRecent = (player: RosterPlayer) => {
-    addLocalPlayer({
+    finish({
       id: player.id,
       name: player.name,
       emoji: player.emoji,
       ...(player.photo ? { photo: player.photo } : {}),
     })
-    close()
   }
 
   return (
@@ -89,11 +99,13 @@ export function AddLocalPlayerDialog({
         if (!next) resetForm()
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <UserPlusIcon /> {triggerLabel}
-        </Button>
-      </DialogTrigger>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <UserPlusIcon /> {triggerLabel}
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <DialogContent keyboardAvoid={keyboardAvoid}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

@@ -21,16 +21,29 @@ import {
   LayersIcon,
   PencilIcon,
   Undo2Icon,
+  UserMinusIcon,
+  UserPlusIcon,
+  UsersIcon,
   XIcon,
 } from 'lucide-react'
 import * as React from 'react'
+import { AddLocalPlayerDialog } from '@/components/add-local-player-dialog'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Segmented } from '@/components/ui/segmented'
 import { Switch } from '@/components/ui/switch'
+import { useSession } from '@/lib/session-store'
 import { cn } from '@/lib/utils'
 import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
@@ -342,72 +355,273 @@ function TeamAvatars({
   )
 }
 
-/** Host-only inline rename; empty name clears back to member names. */
-function TeamNameEditor({
+/** Host pencil → dialog to rename, move, add, or remove players. */
+function TeamEditControl({
   team,
+  game,
   players,
-  onSave,
+  send,
 }: {
   team: HandAndFootTeam
+  game: HandAndFootState
   players: SessionState['players']
-  onSave: (name: string) => void
+  send: GamePlayProps['send']
 }) {
-  const fallback = teamLabel({ ...team, name: undefined }, players)
-  const [editing, setEditing] = React.useState(false)
-  const [text, setText] = React.useState(team.name ?? '')
-
-  React.useEffect(() => {
-    if (!editing) setText(team.name ?? '')
-  }, [team.name, editing])
-
-  const commit = () => {
-    const next = text.trim().slice(0, 24)
-    const current = (team.name ?? '').trim()
-    if (next !== current) onSave(next)
-    setEditing(false)
-  }
-
-  if (!editing) {
-    return (
+  const [open, setOpen] = React.useState(false)
+  const label = teamLabel(team, players)
+  return (
+    <>
       <div className="flex min-w-0 items-center gap-1">
-        <div className="truncate text-sm font-medium">{teamLabel(team, players)}</div>
+        <div className="truncate text-sm font-medium">{label}</div>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="h-7 w-7 shrink-0 px-0 text-muted-foreground"
-          aria-label={`Rename ${teamLabel(team, players)}`}
-          onClick={() => {
-            setText(team.name ?? '')
-            setEditing(true)
-          }}
+          aria-label={`Edit ${label}`}
+          onClick={() => setOpen(true)}
         >
           <PencilIcon className="size-3.5" />
         </Button>
       </div>
-    )
+      <TeamEditDialog
+        teamId={team.id}
+        game={game}
+        players={players}
+        open={open}
+        onOpenChange={setOpen}
+        send={send}
+      />
+    </>
+  )
+}
+
+function TeamEditDialog({
+  teamId,
+  game,
+  players,
+  open,
+  onOpenChange,
+  send,
+}: {
+  teamId: string
+  game: HandAndFootState
+  players: SessionState['players']
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  send: GamePlayProps['send']
+}) {
+  const removePlayer = useSession((s) => s.removePlayer)
+  const team = game.teams.find((t) => t.id === teamId)
+  const fallback = team ? teamLabel({ ...team, name: undefined }, players) : 'Team'
+  const [text, setText] = React.useState(team?.name ?? '')
+  const [adding, setAdding] = React.useState(false)
+
+  React.useEffect(() => {
+    if (open) setText(team?.name ?? '')
+  }, [open, team?.name, teamId])
+
+  React.useEffect(() => {
+    if (open && !team) onOpenChange(false)
+  }, [open, team, onOpenChange])
+
+  if (!team) return null
+
+  const commitName = () => {
+    const next = text.trim().slice(0, 24)
+    const current = (team.name ?? '').trim()
+    if (next !== current) send({ type: 'setTeamName', teamId: team.id, name: next })
   }
 
+  const otherTeams = game.teams.filter((t) => t.id !== team.id)
+  const recruits = otherTeams.flatMap((t) =>
+    t.playerIds.map((playerId) => ({
+      playerId,
+      fromTeam: t,
+      player: players.find((p) => p.id === playerId),
+    })),
+  )
+
   return (
-    <div className="flex min-w-0 items-center gap-1">
-      <Input
-        autoFocus
-        maxLength={24}
-        placeholder={fallback}
-        value={text}
-        onChange={(e) => setText(e.target.value.slice(0, 24))}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.currentTarget.blur()
-          } else if (e.key === 'Escape') {
-            setText(team.name ?? '')
-            setEditing(false)
-          }
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) commitName()
+          onOpenChange(next)
+          if (!next) setAdding(false)
         }}
-        className="h-8 min-w-0 flex-1 text-sm font-medium"
+      >
+        <DialogContent keyboardAvoid className="max-h-[min(90vh,40rem)] gap-0 overflow-y-auto p-0">
+          <DialogHeader className="border-b border-border/50 p-5 pb-4">
+            <DialogTitle>Edit team</DialogTitle>
+            <DialogDescription>
+              Rename this team, move people around, or add someone new.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-5 p-5">
+            <div className="grid gap-2">
+              <Label htmlFor={`team-name-${team.id}`}>Team name</Label>
+              <Input
+                id={`team-name-${team.id}`}
+                maxLength={24}
+                placeholder={fallback}
+                value={text}
+                onChange={(e) => setText(e.target.value.slice(0, 24))}
+                onBlur={commitName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                }}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Leave blank to use member names ({fallback}).
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Members</Label>
+              {team.playerIds.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No one on this team yet.</p>
+              ) : (
+                <div className="grid gap-2">
+                  {team.playerIds.map((playerId) => {
+                    const player = players.find((p) => p.id === playerId)
+                    if (!player) return null
+                    return (
+                      <div
+                        key={playerId}
+                        className="flex flex-wrap items-center gap-2 rounded-xl border border-border/50 bg-background/40 px-3 py-2"
+                      >
+                        <span className="text-base leading-none" aria-hidden>
+                          {player.emoji}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                          {player.name}
+                        </span>
+                        {otherTeams.length > 0 && (
+                          <select
+                            className="max-w-[9rem] truncate rounded-md border border-border/60 bg-transparent px-1.5 py-1 text-[11px] text-muted-foreground"
+                            value=""
+                            aria-label={`Move ${player.name} to another team`}
+                            onChange={(e) => {
+                              const next = e.target.value
+                              if (next) send({ type: 'movePlayer', playerId, teamId: next })
+                              e.currentTarget.value = ''
+                            }}
+                          >
+                            <option value="" disabled>
+                              Move to…
+                            </option>
+                            {otherTeams.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {teamLabel(t, players)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {team.playerIds.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2 text-[11px]"
+                            onClick={() => send({ type: 'splitPlayer', playerId })}
+                          >
+                            <UsersIcon className="size-3.5" /> Own team
+                          </Button>
+                        )}
+                        {!player.isHost && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-[11px] text-destructive"
+                            aria-label={`Remove ${player.name} from the game`}
+                            onClick={() => removePlayer(playerId)}
+                          >
+                            <UserMinusIcon className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Add to this team</Label>
+              {recruits.length > 0 ? (
+                <div className="grid gap-1.5">
+                  {recruits.map(({ playerId, fromTeam, player }) => {
+                    if (!player) return null
+                    return (
+                      <button
+                        key={playerId}
+                        type="button"
+                        onClick={() => send({ type: 'movePlayer', playerId, teamId: team.id })}
+                        className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/40 px-3 py-2 text-left transition-colors hover:bg-muted/40"
+                      >
+                        <span className="text-base leading-none" aria-hidden>
+                          {player.emoji}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                          {player.name}
+                        </span>
+                        <span className="truncate text-[11px] text-muted-foreground">
+                          from {teamLabel(fromTeam, players)}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  Everyone else is already on this team (or there are no other teams yet).
+                </p>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="justify-start"
+                onClick={() => {
+                  commitName()
+                  setAdding(true)
+                }}
+              >
+                <UserPlusIcon className="size-3.5" /> Add new player
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter className="border-t border-border/50 p-4">
+            <Button
+              type="button"
+              onClick={() => {
+                commitName()
+                onOpenChange(false)
+              }}
+            >
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AddLocalPlayerDialog
+        showTrigger={false}
+        open={adding}
+        onOpenChange={setAdding}
+        title="Add player to team"
+        confirmLabel="Add to team"
+        keyboardAvoid
+        onAdded={(profile) => {
+          send({ type: 'movePlayer', playerId: profile.id, teamId: team.id })
+        }}
       />
-    </div>
+    </>
   )
 }
 
@@ -459,10 +673,11 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
                 <TeamAvatars team={team} playerOf={playerOf} />
                 <div className="min-w-0 flex-1">
                   {isHost ? (
-                    <TeamNameEditor
+                    <TeamEditControl
                       team={team}
+                      game={game}
                       players={session.players}
-                      onSave={(name) => send({ type: 'setTeamName', teamId: team.id, name })}
+                      send={send}
                     />
                   ) : (
                     <div className="truncate text-sm font-medium">{label}</div>
@@ -548,10 +763,11 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
                     <TeamAvatars team={team} playerOf={playerOf} />
                     {isHost ? (
                       <div className="min-w-0 flex-1">
-                        <TeamNameEditor
+                        <TeamEditControl
                           team={team}
+                          game={game}
                           players={session.players}
-                          onSave={(name) => send({ type: 'setTeamName', teamId: team.id, name })}
+                          send={send}
                         />
                       </div>
                     ) : (
@@ -580,25 +796,6 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
                         >
                           <span>{player.emoji}</span>
                           <span className="truncate">{player.name}</span>
-                          {isHost && game.teams.length > 1 && (
-                            <select
-                              className="ml-auto max-w-[7rem] truncate rounded border border-border/60 bg-transparent px-1 py-0.5 text-[10px] text-muted-foreground"
-                              value={team.id}
-                              aria-label={`Move ${player.name}`}
-                              onChange={(e) => {
-                                const nextTeamId = e.target.value
-                                if (nextTeamId !== team.id) {
-                                  send({ type: 'movePlayer', playerId, teamId: nextTeamId })
-                                }
-                              }}
-                            >
-                              {game.teams.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                  {teamLabel(t, session.players)}
-                                </option>
-                              ))}
-                            </select>
-                          )}
                         </div>
                       )
                     })}
