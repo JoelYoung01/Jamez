@@ -121,6 +121,22 @@ export {
   type Flip7State,
 } from './games/flip-7'
 export {
+  HAND_AND_FOOT_CLEAN_BOOK,
+  HAND_AND_FOOT_DIRTY_BOOK,
+  HAND_AND_FOOT_GOING_OUT,
+  HAND_AND_FOOT_RED_THREE,
+  HAND_AND_FOOT_WILD_BOOK,
+  handAndFootEngine,
+  handAndFootRoundComplete,
+  handAndFootTotals,
+  scoreHandAndFootRound,
+  type HandAndFootAction,
+  type HandAndFootConfig,
+  type HandAndFootRound,
+  type HandAndFootRoundInput,
+  type HandAndFootState,
+} from './games/hand-and-foot'
+export {
   CHIP_COLOR_PRESETS,
   DEFAULT_POKER_CHIPS,
   buildCashOverdrawConfirm,
@@ -174,6 +190,7 @@ export {
   computeStats,
   flip7RoundsFromHistory,
   ginHandsFromHistory,
+  handAndFootRoundsFromHistory,
   historyDetailFromState,
   historyRecordFromState,
   type GameStats,

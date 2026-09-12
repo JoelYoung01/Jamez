@@ -1,5 +1,6 @@
 import type { Flip7Round } from '../games/flip-7'
 import type { GinHand } from '../games/gin-rummy'
+import type { HandAndFootRound } from '../games/hand-and-foot'
 import type { GameSummary } from '../games/types'
 import type { SessionState } from '../protocol/session-state'
 
@@ -23,8 +24,8 @@ export interface HistoryRecord {
   nickname?: string
   /**
    * Optional game-specific archive. Wingspan stays summary-only; gin keeps the
-   * hand log (dealer, knock/gin, deadwood) for later analysis; Flip 7 keeps
-   * the round scoresheet.
+   * hand log (dealer, knock/gin, deadwood) for later analysis; Flip 7 and
+   * Hand & Foot keep the round scoresheet.
    */
   detail?: HistoryGameDetail
 }
@@ -38,6 +39,10 @@ export type HistoryGameDetail =
   | {
       type: 'flip-7'
       rounds: Flip7Round[]
+    }
+  | {
+      type: 'hand-and-foot'
+      rounds: HandAndFootRound[]
     }
 
 export interface HistoryStore {
@@ -92,6 +97,14 @@ export function historyDetailFromState(state: SessionState): HistoryGameDetail |
       rounds: rounds.map((r) => ({ ...r, scores: { ...r.scores } })),
     }
   }
+  if (state.gameId === 'hand-and-foot') {
+    const rounds = (state.game as { rounds?: HandAndFootRound[] }).rounds
+    if (!Array.isArray(rounds) || rounds.length === 0) return undefined
+    return {
+      type: 'hand-and-foot',
+      rounds: rounds.map((r) => ({ ...r, scores: { ...r.scores } })),
+    }
+  }
   return undefined
 }
 
@@ -104,6 +117,12 @@ export function ginHandsFromHistory(record: HistoryRecord): GinHand[] {
 /** Typed accessor for archived Flip 7 rounds (empty for older summary-only records). */
 export function flip7RoundsFromHistory(record: HistoryRecord): Flip7Round[] {
   if (record.detail?.type === 'flip-7') return record.detail.rounds
+  return []
+}
+
+/** Typed accessor for archived Hand & Foot rounds (empty for older summary-only records). */
+export function handAndFootRoundsFromHistory(record: HistoryRecord): HandAndFootRound[] {
+  if (record.detail?.type === 'hand-and-foot') return record.detail.rounds
   return []
 }
 
