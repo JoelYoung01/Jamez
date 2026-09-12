@@ -18,28 +18,21 @@ import {
   PencilIcon,
   RotateCcwIcon,
   TrophyIcon,
-  UserPlusIcon,
   XIcon,
   type LucideIcon,
 } from 'lucide-react-native'
 import * as React from 'react'
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Modal, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { AddLocalPlayerButton } from '@/components/add-local-player-modal'
 import { AppTextInput } from '@/components/app-text-input'
-import { EmojiGrid } from '@/components/emoji-grid'
-import {
-  KeyboardActionButtons,
-  KeyboardForm,
-  useSuppressAndroidKeyboardHost,
-} from '@/components/keyboard-dismiss'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { QrCard } from '@/components/qr-card'
 import { RequireProfile } from '@/components/require-profile'
 import { StatusPill } from '@/components/status-pill'
 import { AppButton, Card, CardTitle, Chip, Muted, Screen, SectionLabel } from '@/components/ui'
 import { getGameIcon, getGameUI } from '@/games/registry'
-import { useKeyboardHeight } from '@/lib/keyboard'
-import { randomEmoji, useProfile } from '@/lib/profile'
+import { useProfile } from '@/lib/profile'
 import { sessionIsOngoing, useSession } from '@/lib/session-store'
 
 export default function SessionScreen() {
@@ -314,110 +307,6 @@ function PlayerRow({
         </Pressable>
       )}
     </View>
-  )
-}
-
-function AddLocalPlayerModal({
-  onClose,
-  onConfirm,
-}: {
-  onClose: () => void
-  onConfirm: (profile: { name: string; emoji: string }) => void
-}) {
-  const keyboardHeight = useKeyboardHeight()
-  const [name, setName] = React.useState('')
-  const [emoji, setEmoji] = React.useState(randomEmoji())
-  useSuppressAndroidKeyboardHost()
-
-  const add = React.useCallback(() => {
-    if (!name.trim()) return
-    onConfirm({ name: name.trim(), emoji })
-  }, [emoji, name, onConfirm])
-
-  return (
-    <Modal transparent animationType="slide" visible onRequestClose={onClose}>
-      <View className="flex-1 justify-end bg-black/60">
-        <Pressable className="absolute inset-0" onPress={onClose} accessibilityLabel="Dismiss" />
-        <View
-          className="rounded-t-3xl border border-line bg-card"
-          style={{ marginBottom: keyboardHeight, maxHeight: '90%' }}
-        >
-          <KeyboardForm onSubmit={add}>
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              bounces={false}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{
-                padding: 16,
-                gap: 12,
-                paddingBottom: keyboardHeight > 0 ? 56 : 16,
-              }}
-            >
-              <Text className="text-lg font-semibold text-zinc-100">Add a local player</Text>
-              <View>
-                <SectionLabel>Name</SectionLabel>
-                <AppTextInput
-                  autoFocus
-                  keyboardAccessory={false}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="e.g. Grandma"
-                  placeholderTextColor="rgba(255,255,255,0.25)"
-                  maxLength={24}
-                  returnKeyType="done"
-                  onSubmitEditing={add}
-                  className="h-12 rounded-xl border border-line bg-field px-3 text-base text-zinc-100"
-                />
-              </View>
-              <View>
-                <SectionLabel>Emoji</SectionLabel>
-                <EmojiGrid value={emoji} onChange={setEmoji} />
-              </View>
-              <View className="flex-row gap-2">
-                <AppButton title="Cancel" variant="secondary" className="flex-1" onPress={onClose} />
-                <AppButton
-                  title="Add player"
-                  className="flex-1"
-                  disabled={!name.trim()}
-                  onPress={add}
-                />
-              </View>
-            </ScrollView>
-            {keyboardHeight > 0 ? (
-              <View pointerEvents="box-none" className="absolute bottom-1.5 right-2">
-                <KeyboardActionButtons floating />
-              </View>
-            ) : null}
-          </KeyboardForm>
-        </View>
-      </View>
-    </Modal>
-  )
-}
-
-function AddLocalPlayerButton() {
-  const addLocalPlayer = useSession((s) => s.addLocalPlayer)
-  const [open, setOpen] = React.useState(false)
-
-  return (
-    <>
-      <AppButton
-        variant="outline"
-        size="sm"
-        title="Local player"
-        icon={<UserPlusIcon size={14} color="#f4f4f5" />}
-        onPress={() => setOpen(true)}
-      />
-      {open ? (
-        <AddLocalPlayerModal
-          onClose={() => setOpen(false)}
-          onConfirm={({ name, emoji }) => {
-            addLocalPlayer({ name, emoji })
-            setOpen(false)
-          }}
-        />
-      ) : null}
-    </>
   )
 }
 

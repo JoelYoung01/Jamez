@@ -19,13 +19,12 @@ import {
   PlayIcon,
   RotateCcwIcon,
   TrophyIcon,
-  UserPlusIcon,
   XIcon,
   type LucideIcon,
 } from 'lucide-react'
 import * as React from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { EmojiPicker } from '@/components/emoji-picker'
+import { AddLocalPlayerDialog } from '@/components/add-local-player-dialog'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { QrCard } from '@/components/qr-card'
 import { StatusPill } from '@/components/status-pill'
@@ -43,7 +42,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getGameIcon, getGameUI } from '@/games/registry'
-import { randomEmoji, useProfile } from '@/lib/profile'
+import { useProfile } from '@/lib/profile'
 import { sessionIsOngoing, useSession } from '@/lib/session-store'
 import { cn } from '@/lib/utils'
 
@@ -292,59 +291,6 @@ function PlayerRow({ player, canKick, onKick }: { player: SessionPlayer; canKick
         </Button>
       )}
     </div>
-  )
-}
-
-function AddLocalPlayerDialog() {
-  const addLocalPlayer = useSession((s) => s.addLocalPlayer)
-  const [open, setOpen] = React.useState(false)
-  const [name, setName] = React.useState('')
-  const [emoji, setEmoji] = React.useState(randomEmoji())
-
-  const add = () => {
-    if (!name.trim()) return
-    addLocalPlayer({ name: name.trim(), emoji })
-    setName('')
-    setEmoji(randomEmoji())
-    setOpen(false)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <UserPlusIcon /> Add local player
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add a local player</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="local-name">Name</Label>
-            <Input
-              id="local-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Grandma"
-              maxLength={24}
-              autoFocus
-              onKeyDown={(e) => e.key === 'Enter' && add()}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Emoji</Label>
-            <EmojiPicker value={emoji} onChange={setEmoji} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button onClick={add} disabled={!name.trim()}>
-            Add player
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 

@@ -24,12 +24,12 @@ import {
   MinusIcon,
   PlusIcon,
   Settings2Icon,
-  UserPlusIcon,
   UserRoundCheckIcon,
 } from 'lucide-react'
 import * as React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ColorPicker } from '@/components/color-picker'
+import { AddLocalPlayerDialog } from '@/components/add-local-player-dialog'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { PokerChip } from '@/components/poker-chip'
 import { PlayerAvatar } from '@/components/player-avatar'
@@ -47,7 +47,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Segmented } from '@/components/ui/segmented'
-import { randomEmoji } from '@/lib/profile'
 import { useSession } from '@/lib/session-store'
 import { cn } from '@/lib/utils'
 import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
@@ -91,45 +90,14 @@ function GuestProfileFields({
 }
 
 function AddGuestButton() {
-  const addLocalPlayer = useSession((s) => s.addLocalPlayer)
-  const [open, setOpen] = React.useState(false)
-  const [name, setName] = React.useState('')
-  const [emoji, setEmoji] = React.useState(randomEmoji())
-
-  const add = () => {
-    if (!name.trim()) return
-    addLocalPlayer({ name: name.trim(), emoji })
-    setName('')
-    setEmoji(randomEmoji())
-    setOpen(false)
-  }
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <UserPlusIcon /> Add guest
-        </Button>
-      </DialogTrigger>
-      <DialogContent keyboardAvoid>
-        <DialogHeader>
-          <DialogTitle>Add to session roster</DialogTitle>
-        </DialogHeader>
-        <GuestProfileFields
-          nameId="guest-name"
-          name={name}
-          emoji={emoji}
-          onNameChange={setName}
-          onEmojiChange={setEmoji}
-          onSubmit={add}
-        />
-        <DialogFooter>
-          <Button onClick={add} disabled={!name.trim()}>
-            Add to roster
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <AddLocalPlayerDialog
+      triggerLabel="Add guest"
+      title="Add to session roster"
+      confirmLabel="Add to roster"
+      namePlaceholder="e.g. Cousin Mike"
+      keyboardAvoid
+    />
   )
 }
 

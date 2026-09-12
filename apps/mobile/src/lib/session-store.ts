@@ -29,6 +29,7 @@ import {
   type HostSnapshot,
 } from './host-sessions'
 import { endSessionLiveActivity, syncSessionLiveActivity } from './live-activity'
+import { usePlayerRoster } from './player-roster'
 import { currentProfile } from './profile'
 import { activeRelays } from './settings'
 import { toast } from './toast'
@@ -66,7 +67,12 @@ interface SessionStoreState {
   finishGame: () => void
   rematch: () => void
   setNickname: (nickname: string) => void
-  addLocalPlayer: (profile: { name: string; emoji: string }) => void
+  addLocalPlayer: (profile: {
+    name: string
+    emoji: string
+    id?: string
+    photo?: string
+  }) => void
   updateLocalPlayer: (playerId: string, patch: { name?: string; emoji?: string }) => void
   removePlayer: (playerId: string) => void
   deactivatePlayer: (playerId: string) => void
@@ -129,9 +135,14 @@ function resetSessionFields() {
 export const useSession = create<SessionStoreState>()((set, get) => {
   function wireHost(h: HostSession, passAndPlay: boolean): void {
     const profile = currentProfile()
+    const rememberRoster = (state: SessionState) => {
+      usePlayerRoster.getState().syncFromSession(state.players)
+    }
+    if (h.current) rememberRoster(h.current)
     unsubs.push(
       h.onState.subscribe((state) => {
         set({ state })
+        rememberRoster(state)
         saveHistoryIfFinished(state, profile.id)
         syncSessionLiveActivity({ role: 'host', code: state.code, state })
       }),
@@ -263,12 +274,43 @@ export const useSession = create<SessionStoreState>()((set, get) => {
 
     addLocalPlayer(profile) {
       const error = host?.addLocalPlayer(profile)
-      if (error) toast.error(error)
+      if (error) {
+        toast.error(error)
+        return
+      }
+      const players = host?.current?.players ?? []
+      const seated = profile.id?.trim()
+        ? players.find((p) => p.id === profile.id!.trim())
+        : players[players.length - 1]
+      if (seated && !seated.isHost) {
+        usePlayerRoster.getState().upsert({
+          id: seated.id,
+          name: seated.name,
+          emoji: seated.emoji,
+          source: 'local',
+          ...(seated.photo || profile.photo
+            ? { photo: seated.photo ?? profile.photo }
+            : {}),
+        })
+      }
     },
 
     updateLocalPlayer(playerId, patch) {
       const error = host?.updateLocalPlayer(playerId, patch)
-      if (error) toast.error(error)
+      if (error) {
+        toast.error(error)
+        return
+      }
+      const seated = host?.current?.players.find((p) => p.id === playerId)
+      if (seated && !seated.isHost) {
+        usePlayerRoster.getState().upsert({
+          id: seated.id,
+          name: seated.name,
+          emoji: seated.emoji,
+          source: 'local',
+          ...(seated.photo ? { photo: seated.photo } : {}),
+        })
+      }
     },
 
     removePlayer(playerId) {

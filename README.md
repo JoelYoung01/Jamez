@@ -7,7 +7,7 @@ Jamez is a peer-to-peer score tracker for board & card game nights. One person *
 | 🌐 **Web app** | React + Vite + Tailwind 4, shadcn-style UI, deployed to GitHub Pages |
 | 📱 **iOS app** | Expo + React Native + NativeWind, shipped to TestFlight via GitHub Actions |
 | 🧠 **Shared core** | One TypeScript engine (`@jamez/core`) powers both apps |
-| 🎮 **Games** | Wingspan 🐦, Gin Rummy 🃏, Flip 7 7️⃣, Poker Bank 🪙; engines are pluggable |
+| 🎮 **Games** | Wingspan 🐦, Gin Rummy 🃏, Flip 7 7️⃣, Hand & Foot 🦶, Poker Bank 🪙; engines are pluggable |
 
 ## How it works
 
@@ -110,6 +110,7 @@ Design rule of thumb: guests may edit **their own** scores (`validateAction` enf
 - **🐦 Wingspan:** full end-game score sheet (birds, bonus cards, end-of-round goals, eggs, cached food, tucked cards + optional Oceania nectar), live standings, official tie-breaker (unused food).
 - **🃏 Gin Rummy:** hand-by-hand recorder (knock / gin / big gin / undercut with configurable bonuses), running totals to a target score, boxes, and the official final tally with line bonuses.
 - **7️⃣ Flip 7:** round-by-round scoresheet racing to 200 (mirrors The Op Games digital score pad), optional card calculator (numbers → ×2 → +N → Flip 7 bonus), negative scores for Vengeance, live standings and archived rounds.
+- **🦶 Hand & Foot:** round-by-round scoresheet racing to 10,000 (one seat per team or cutthroat), optional book calculator (clean/dirty/wild books, red threes, going out, card points − cards left), live standings and archived rounds.
 - **🪙 Poker Bank:** long-running chip bank (`sessionMode: 'ongoing'`). Starting stacks, deposit/withdraw with chip breakdowns, host-configured chip colors, guest seats that real devices can claim, and account merges. Same park/resume vault as match games; ending archives standings to history.
 
 ## Roadmap ideas
