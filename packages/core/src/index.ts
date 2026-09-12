@@ -126,15 +126,20 @@ export {
   HAND_AND_FOOT_GOING_OUT,
   HAND_AND_FOOT_RED_THREE,
   HAND_AND_FOOT_WILD_BOOK,
+  buildHandAndFootTeams,
+  clampPlayersPerTeam,
   handAndFootEngine,
   handAndFootRoundComplete,
   handAndFootTotals,
   scoreHandAndFootRound,
+  teamIdForPlayer,
+  teamLabel,
   type HandAndFootAction,
   type HandAndFootConfig,
   type HandAndFootRound,
   type HandAndFootRoundInput,
   type HandAndFootState,
+  type HandAndFootTeam,
 } from './games/hand-and-foot'
 export {
   CHIP_COLOR_PRESETS,
@@ -184,6 +189,15 @@ export {
   roomStatusLabel,
   type RoomStatus,
 } from './persistence/host-sessions'
+export {
+  PLAYER_ROSTER_STORAGE_KEY,
+  removeRosterPlayer,
+  rosterAvailableForSession,
+  sortRosterPlayers,
+  upsertRosterPlayer,
+  type RosterPlayer,
+  type RosterPlayerSource,
+} from './persistence/player-roster'
 
 // history
 export {

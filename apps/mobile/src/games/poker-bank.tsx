@@ -25,6 +25,7 @@ import {
 import * as React from 'react'
 import { Alert, Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
+import { AddLocalPlayerButton } from '@/components/add-local-player-modal'
 import { ColorPicker } from '@/components/color-picker'
 import { EmojiGrid } from '@/components/emoji-grid'
 import {
@@ -37,7 +38,6 @@ import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
 import { AppButton, Card, CardTitle, Chip, Muted, SectionLabel } from '@/components/ui'
 import { useKeyboardHeight } from '@/lib/keyboard'
-import { randomEmoji } from '@/lib/profile'
 import { useSession } from '@/lib/session-store'
 import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
@@ -810,26 +810,13 @@ function GuestProfileModal({
 }
 
 function AddGuestButton() {
-  const addLocalPlayer = useSession((s) => s.addLocalPlayer)
-  const [open, setOpen] = React.useState(false)
-
   return (
-    <>
-      <AppButton size="sm" variant="outline" title="Add guest" onPress={() => setOpen(true)} />
-      {open ? (
-        <GuestProfileModal
-          title="Add to session roster"
-          confirmLabel="Add"
-          initialName=""
-          initialEmoji={randomEmoji()}
-          onClose={() => setOpen(false)}
-          onConfirm={({ name, emoji }) => {
-            addLocalPlayer({ name, emoji })
-            setOpen(false)
-          }}
-        />
-      ) : null}
-    </>
+    <AddLocalPlayerButton
+      triggerLabel="Add guest"
+      title="Add to session roster"
+      confirmLabel="Add"
+      namePlaceholder="e.g. Cousin Mike"
+    />
   )
 }
 

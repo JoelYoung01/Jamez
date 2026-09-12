@@ -176,7 +176,13 @@ export class HostSession {
 
   // -- Lobby management ------------------------------------------------------
 
-  addLocalPlayer(profile: { name: string; emoji: string }): string | null {
+  addLocalPlayer(profile: {
+    name: string
+    emoji: string
+    /** Reuse a prior roster / remote id so Pass & Play matches the real device later. */
+    id?: string
+    photo?: string
+  }): string | null {
     if (this.state.players.length >= this.game.maxPlayers) {
       return 'Session is full'
     }
@@ -187,8 +193,12 @@ export class HostSession {
     if (atTable && this.state.players.filter(isPlayerActive).length >= this.game.maxPlayers) {
       return 'Session is full'
     }
+    const id = profile.id?.trim() || randomId(8)
+    if (this.state.players.some((p) => p.id === id)) {
+      return 'That player is already in the session'
+    }
     const player: SessionPlayer = {
-      id: randomId(8),
+      id,
       name: profile.name,
       emoji: profile.emoji,
       color: pickPlayerColor(this.state.players.map((p) => p.color)),
@@ -197,6 +207,7 @@ export class HostSession {
       connected: true,
       joinedAt: this.now(),
       active: atTable,
+      ...(profile.photo ? { photo: profile.photo, hasPhoto: true } : {}),
     }
     this.mutate((s) => {
       s.players = [...s.players, player]
