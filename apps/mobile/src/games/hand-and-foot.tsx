@@ -7,6 +7,7 @@ import {
   handAndFootRoundComplete,
   handAndFootTotals,
   scoreHandAndFootRound,
+  randomId,
   teamLabel,
   type HandAndFootConfig,
   type HandAndFootState,
@@ -22,14 +23,19 @@ import {
   LayersIcon,
   PencilIcon,
   Undo2Icon,
+  UserMinusIcon,
+  UserPlusIcon,
+  UsersIcon,
   XIcon,
 } from 'lucide-react-native'
 import * as React from 'react'
-import { Pressable, Switch, Text, View } from 'react-native'
+import { Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native'
+import { AddLocalPlayerModal } from '@/components/add-local-player-modal'
 import { AppTextInput } from '@/components/app-text-input'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
 import { AppButton, Card, CardTitle, Muted, SectionLabel } from '@/components/ui'
+import { useSession } from '@/lib/session-store'
 import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
 const ACCENT = '#d4524a'
@@ -320,71 +326,246 @@ function TeamAvatars({
   )
 }
 
-/** Host-only inline rename; empty name clears back to member names. */
-function TeamNameEditor({
+/** Host pencil opens a sheet to rename, move, add, or remove players. */
+function TeamEditControl({
   team,
+  game,
   players,
-  onSave,
+  send,
 }: {
   team: HandAndFootTeam
+  game: HandAndFootState
   players: SessionState['players']
-  onSave: (name: string) => void
+  send: GamePlayProps['send']
 }) {
-  const fallback = teamLabel({ ...team, name: undefined }, players)
-  const [editing, setEditing] = React.useState(false)
-  const [text, setText] = React.useState(team.name ?? '')
-
-  React.useEffect(() => {
-    if (!editing) setText(team.name ?? '')
-  }, [team.name, editing])
-
-  const commit = () => {
-    const next = text.trim().slice(0, 24)
-    const current = (team.name ?? '').trim()
-    if (next !== current) onSave(next)
-    setEditing(false)
-  }
-
-  if (!editing) {
-    return (
+  const [open, setOpen] = React.useState(false)
+  const label = teamLabel(team, players)
+  return (
+    <>
       <View className="min-w-0 flex-row items-center gap-1">
         <Text className="min-w-0 flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
-          {teamLabel(team, players)}
+          {label}
         </Text>
         <Pressable
-          onPress={() => {
-            setText(team.name ?? '')
-            setEditing(true)
-          }}
-          accessibilityLabel={`Rename ${teamLabel(team, players)}`}
+          onPress={() => setOpen(true)}
+          accessibilityLabel={`Edit ${label}`}
           className="h-8 w-8 items-center justify-center active:opacity-70"
         >
           <PencilIcon size={14} color="#a1a1ab" />
         </Pressable>
       </View>
-    )
-  }
-
-  return (
-    <AppTextInput
-      autoFocus
-      maxLength={24}
-      placeholder={fallback}
-      value={text}
-      onChangeText={(raw) => setText(raw.slice(0, 24))}
-      onBlur={commit}
-      onSubmitEditing={commit}
-      className="h-9 rounded-lg border border-line bg-field px-2 text-sm font-medium text-zinc-100"
-    />
+      {open ? (
+        <TeamEditSheet
+          teamId={team.id}
+          game={game}
+          players={players}
+          send={send}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </>
   )
 }
+
+function TeamEditSheet({
+  teamId,
+  game,
+  players,
+  send,
+  onClose,
+}: {
+  teamId: string
+  game: HandAndFootState
+  players: SessionState['players']
+  send: GamePlayProps['send']
+  onClose: () => void
+}) {
+  const removePlayer = useSession((s) => s.removePlayer)
+  const addLocalPlayer = useSession((s) => s.addLocalPlayer)
+  const team = game.teams.find((t) => t.id === teamId)
+  const fallback = team ? teamLabel({ ...team, name: undefined }, players) : 'Team'
+  const [text, setText] = React.useState(team?.name ?? '')
+  const [adding, setAdding] = React.useState(false)
+
+  React.useEffect(() => {
+    setText(team?.name ?? '')
+  }, [team?.name, teamId])
+
+  React.useEffect(() => {
+    if (!team) onClose()
+  }, [team, onClose])
+
+  if (!team) return null
+
+  const commitName = () => {
+    const next = text.trim().slice(0, 24)
+    const current = (team.name ?? '').trim()
+    if (next !== current) send({ type: 'setTeamName', teamId: team.id, name: next })
+  }
+
+  const close = () => {
+    commitName()
+    onClose()
+  }
+
+  const otherTeams = game.teams.filter((t) => t.id !== team.id)
+  const recruits = otherTeams.flatMap((t) =>
+    t.playerIds.map((playerId) => ({
+      playerId,
+      fromTeam: t,
+      player: players.find((p) => p.id === playerId),
+    })),
+  )
+
+  return (
+    <>
+      <Modal transparent animationType="slide" visible onRequestClose={close}>
+        <View className="flex-1 justify-end bg-black/60">
+          <Pressable className="absolute inset-0" onPress={close} accessibilityLabel="Dismiss" />
+          <View className="max-h-[90%] rounded-t-3xl border border-line bg-card">
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+              contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 28 }}
+            >
+              <View className="gap-1">
+                <Text className="text-lg font-semibold text-zinc-100">Edit team</Text>
+                <Muted>Rename, move people, or add someone new.</Muted>
+              </View>
+
+              <View className="gap-2">
+                <SectionLabel>Team name</SectionLabel>
+                <AppTextInput
+                  maxLength={24}
+                  placeholder={fallback}
+                  value={text}
+                  onChangeText={(raw) => setText(raw.slice(0, 24))}
+                  onBlur={commitName}
+                  onSubmitEditing={commitName}
+                  className="h-11 rounded-xl border border-line bg-field px-3 text-base text-zinc-100"
+                />
+                <Muted>Leave blank to use member names ({fallback}).</Muted>
+              </View>
+
+              <View className="gap-2">
+                <SectionLabel>Members</SectionLabel>
+                {team.playerIds.map((playerId) => {
+                  const player = players.find((p) => p.id === playerId)
+                  if (!player) return null
+                  return (
+                    <View
+                      key={playerId}
+                      className="gap-2 rounded-xl border border-line bg-background/40 px-3 py-2"
+                    >
+                      <View className="flex-row items-center gap-2">
+                        <Text className="text-base">{player.emoji}</Text>
+                        <Text
+                          className="min-w-0 flex-1 text-sm font-medium text-zinc-100"
+                          numberOfLines={1}
+                        >
+                          {player.name}
+                        </Text>
+                        {!player.isHost ? (
+                          <Pressable
+                            onPress={() => removePlayer(playerId)}
+                            accessibilityLabel={`Remove ${player.name}`}
+                            className="h-8 w-8 items-center justify-center active:opacity-70"
+                          >
+                            <UserMinusIcon size={16} color="#f87171" />
+                          </Pressable>
+                        ) : null}
+                      </View>
+                      <View className="flex-row flex-wrap gap-1.5">
+                        {otherTeams.map((t) => (
+                          <Pressable
+                            key={t.id}
+                            onPress={() => send({ type: 'movePlayer', playerId, teamId: t.id })}
+                            className="rounded-lg border border-line px-2 py-1 active:opacity-70"
+                          >
+                            <Text className="text-[10px] text-zinc-100" numberOfLines={1}>
+                              → {teamLabel(t, players)}
+                            </Text>
+                          </Pressable>
+                        ))}
+                        {team.playerIds.length > 1 ? (
+                          <Pressable
+                            onPress={() => send({ type: 'splitPlayer', playerId })}
+                            className="flex-row items-center gap-1 rounded-lg border border-line px-2 py-1 active:opacity-70"
+                          >
+                            <UsersIcon size={12} color="#f4f4f5" />
+                            <Text className="text-[10px] text-zinc-100">Own team</Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    </View>
+                  )
+                })}
+              </View>
+
+              <View className="gap-2">
+                <SectionLabel>Add to this team</SectionLabel>
+                {recruits.map(({ playerId, fromTeam, player }) => {
+                  if (!player) return null
+                  return (
+                    <Pressable
+                      key={playerId}
+                      onPress={() => send({ type: 'movePlayer', playerId, teamId: team.id })}
+                      className="flex-row items-center gap-3 rounded-xl border border-line bg-background/40 px-3 py-2 active:opacity-80"
+                    >
+                      <Text className="text-base">{player.emoji}</Text>
+                      <Text
+                        className="min-w-0 flex-1 text-sm font-medium text-zinc-100"
+                        numberOfLines={1}
+                      >
+                        {player.name}
+                      </Text>
+                      <Text className="text-[10px] text-muted-foreground" numberOfLines={1}>
+                        from {teamLabel(fromTeam, players)}
+                      </Text>
+                    </Pressable>
+                  )
+                })}
+                <AppButton
+                  title="Add new player"
+                  variant="outline"
+                  size="sm"
+                  icon={<UserPlusIcon size={14} color="#f4f4f5" />}
+                  onPress={() => {
+                    commitName()
+                    setAdding(true)
+                  }}
+                />
+              </View>
+
+              <AppButton title="Done" onPress={close} />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {adding ? (
+        <AddLocalPlayerModal
+          title="Add player to team"
+          confirmLabel="Add to team"
+          onClose={() => setAdding(false)}
+          onConfirm={(profile) => {
+            const id = profile.id?.trim() || randomId(8)
+            addLocalPlayer({ ...profile, id })
+            send({ type: 'movePlayer', playerId: id, teamId: team.id })
+            setAdding(false)
+          }}
+        />
+      ) : null}
+    </>
+  )
+}
+
 
 function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
   const game = session.game as HandAndFootState
   const totals = handAndFootTotals(game)
   const [activeRound, setActiveRound] = React.useState(Math.max(0, game.rounds.length - 1))
   const [calcFor, setCalcFor] = React.useState<string | null>(null)
-  const [movingPlayerId, setMovingPlayerId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     setActiveRound((prev) => {
@@ -424,10 +605,11 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
             <TeamAvatars team={team} playerOf={playerOf} />
             <View className="min-w-0 flex-1">
               {isHost ? (
-                <TeamNameEditor
+                <TeamEditControl
                   team={team}
+                  game={game}
                   players={session.players}
-                  onSave={(name) => send({ type: 'setTeamName', teamId: team.id, name })}
+                  send={send}
                 />
               ) : (
                 <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
@@ -507,19 +689,9 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
                 <View className="min-w-0 flex-1 gap-1">
                   <View className="flex-row items-center gap-2">
                     <TeamAvatars team={team} playerOf={playerOf} />
-                    {isHost ? (
-                      <View className="min-w-0 flex-1">
-                        <TeamNameEditor
-                          team={team}
-                          players={session.players}
-                          onSave={(name) => send({ type: 'setTeamName', teamId: team.id, name })}
-                        />
-                      </View>
-                    ) : (
-                      <Text className="flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
-                        {label}
-                      </Text>
-                    )}
+                    <Text className="min-w-0 flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
+                      {label}
+                    </Text>
                     {editable && (
                       <Pressable
                         onPress={() => setCalcFor(calcFor === team.id ? null : team.id)}
@@ -532,42 +704,12 @@ function HandAndFootPlay({ state: session, me, isHost, send }: GamePlayProps) {
                   {team.playerIds.map((playerId) => {
                     const player = playerOf(playerId)
                     if (!player) return null
-                    const isMoving = movingPlayerId === playerId
                     return (
-                      <View key={playerId} className="gap-1 pl-1">
-                        <Pressable
-                          disabled={!isHost || game.teams.length <= 1}
-                          onPress={() =>
-                            setMovingPlayerId(isMoving ? null : playerId)
-                          }
-                          className="flex-row items-center gap-1.5 active:opacity-70"
-                        >
-                          <Text className="text-sm">{player.emoji}</Text>
-                          <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>
-                            {player.name}
-                            {isHost && game.teams.length > 1 ? ' · move' : ''}
-                          </Text>
-                        </Pressable>
-                        {isMoving && isHost && (
-                          <View className="flex-row flex-wrap gap-1">
-                            {game.teams
-                              .filter((t) => t.id !== team.id)
-                              .map((t) => (
-                                <Pressable
-                                  key={t.id}
-                                  onPress={() => {
-                                    send({ type: 'movePlayer', playerId, teamId: t.id })
-                                    setMovingPlayerId(null)
-                                  }}
-                                  className="rounded-lg border border-line px-2 py-1 active:opacity-70"
-                                >
-                                  <Text className="text-[10px] text-zinc-100" numberOfLines={1}>
-                                    → {teamLabel(t, session.players)}
-                                  </Text>
-                                </Pressable>
-                              ))}
-                          </View>
-                        )}
+                      <View key={playerId} className="flex-row items-center gap-1.5 pl-1">
+                        <Text className="text-sm">{player.emoji}</Text>
+                        <Text className="text-[11px] text-muted-foreground" numberOfLines={1}>
+                          {player.name}
+                        </Text>
                       </View>
                     )
                   })}

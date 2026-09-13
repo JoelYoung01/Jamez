@@ -177,6 +177,35 @@ describe('hand and foot teams engine', () => {
     expect(state.teams[0]?.playerIds.sort()).toEqual(['a', 'b', 'c', 'd'])
   })
 
+  it('splits a player onto their own team', () => {
+    let state = fourPlayerPartnership()
+    const teamA = state.teams[0]!
+    expect(
+      handAndFootEngine.validateAction(
+        state,
+        { type: 'splitPlayer', playerId: 'a' },
+        ctxOf('c'),
+      ),
+    ).toMatch(/host/i)
+
+    state = handAndFootEngine.applyAction(
+      state,
+      { type: 'splitPlayer', playerId: 'b' },
+      ctxHost,
+    )
+    expect(state.teams).toHaveLength(3)
+    expect(teamIdForPlayer(state, 'a')).toBe(teamA.id)
+    expect(state.teams.find((t) => t.playerIds.includes('a'))?.playerIds).toEqual(['a'])
+    expect(state.teams.find((t) => t.playerIds.includes('b'))?.playerIds).toEqual(['b'])
+    expect(
+      handAndFootEngine.validateAction(
+        state,
+        { type: 'splitPlayer', playerId: 'b' },
+        ctxHost,
+      ),
+    ).toMatch(/alone/i)
+  })
+
   it('lets the host name teams (and clear back to member names)', () => {
     let state = fourPlayerPartnership()
     const teamA = state.teams[0]!

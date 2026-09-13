@@ -56,6 +56,8 @@ export type HandAndFootAction =
   | { type: 'undoRound' }
   | { type: 'setTeamName'; teamId: string; name: string }
   | { type: 'movePlayer'; playerId: string; teamId: string }
+  /** Peel a player onto their own new team (host roster edit). */
+  | { type: 'splitPlayer'; playerId: string }
 
 export const HAND_AND_FOOT_CLEAN_BOOK = 500
 export const HAND_AND_FOOT_DIRTY_BOOK = 300
@@ -228,6 +230,14 @@ export const handAndFootEngine: GameEngine<
       if (!findTeam(state, action.teamId)) return 'Unknown team'
       return null
     }
+    if (action.type === 'splitPlayer') {
+      if (!ctx.isHost) return 'Only the host can move players'
+      if (!state.playerIds.includes(action.playerId)) return 'Unknown player'
+      const current = state.teams.find((t) => t.playerIds.includes(action.playerId))
+      if (!current) return 'Unknown player'
+      if (current.playerIds.length <= 1) return 'Player is already alone on a team'
+      return null
+    }
 
     const team = findTeam(state, action.teamId)
     if (!team) return 'Unknown team'
@@ -304,6 +314,23 @@ export const handAndFootEngine: GameEngine<
               return { ...round, scores }
             })
       return { ...state, teams, rounds }
+    }
+
+    if (action.type === 'splitPlayer') {
+      const teams = state.teams.map((t) => ({
+        ...t,
+        playerIds: t.playerIds.filter((id) => id !== action.playerId),
+      }))
+      const solo: HandAndFootTeam = {
+        id: `team-${action.playerId}-${randomId(3)}`,
+        playerIds: [action.playerId],
+      }
+      const nextTeams = [...teams.filter((t) => t.playerIds.length > 0), solo]
+      const rounds = state.rounds.map((round) => ({
+        ...round,
+        scores: { ...round.scores, [solo.id]: null },
+      }))
+      return { ...state, teams: nextTeams, rounds }
     }
 
     let rounds = state.rounds
