@@ -1,3 +1,4 @@
+import type { CribbagePeg } from '../games/cribbage'
 import type { Flip7Round } from '../games/flip-7'
 import type { GinHand } from '../games/gin-rummy'
 import type { HandAndFootRound } from '../games/hand-and-foot'
@@ -24,8 +25,8 @@ export interface HistoryRecord {
   nickname?: string
   /**
    * Optional game-specific archive. Wingspan stays summary-only; gin keeps the
-   * hand log (dealer, knock/gin, deadwood) for later analysis; Flip 7 and
-   * Hand & Foot keep the round scoresheet.
+   * hand log (dealer, knock/gin, deadwood) for later analysis; cribbage keeps
+   * the peg log; Flip 7 and Hand & Foot keep the round scoresheet.
    */
   detail?: HistoryGameDetail
 }
@@ -35,6 +36,10 @@ export type HistoryGameDetail =
   | {
       type: 'gin-rummy'
       hands: GinHand[]
+    }
+  | {
+      type: 'cribbage'
+      pegs: CribbagePeg[]
     }
   | {
       type: 'flip-7'
@@ -89,6 +94,14 @@ export function historyDetailFromState(state: SessionState): HistoryGameDetail |
       hands: hands.map((h) => ({ ...h })),
     }
   }
+  if (state.gameId === 'cribbage') {
+    const pegs = (state.game as { pegs?: CribbagePeg[] }).pegs
+    if (!Array.isArray(pegs) || pegs.length === 0) return undefined
+    return {
+      type: 'cribbage',
+      pegs: pegs.map((p) => ({ ...p })),
+    }
+  }
   if (state.gameId === 'flip-7') {
     const rounds = (state.game as { rounds?: Flip7Round[] }).rounds
     if (!Array.isArray(rounds) || rounds.length === 0) return undefined
@@ -111,6 +124,12 @@ export function historyDetailFromState(state: SessionState): HistoryGameDetail |
 /** Typed accessor for archived gin hands (empty for older summary-only records). */
 export function ginHandsFromHistory(record: HistoryRecord): GinHand[] {
   if (record.detail?.type === 'gin-rummy') return record.detail.hands
+  return []
+}
+
+/** Typed accessor for archived cribbage pegs (empty for older summary-only records). */
+export function cribbagePegsFromHistory(record: HistoryRecord): CribbagePeg[] {
+  if (record.detail?.type === 'cribbage') return record.detail.pegs
   return []
 }
 
