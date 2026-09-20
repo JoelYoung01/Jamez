@@ -185,7 +185,13 @@ function RecordHandForm({ state: session, me, isHost, send }: GamePlayProps) {
                   id={`dw-${id}`}
                   inputMode="numeric"
                   placeholder={
-                    isKnocker ? (knockerEditable ? '1–10' : '0 (gin!)') : 'after layoffs'
+                    isKnocker
+                      ? knockerEditable
+                        ? '1–10'
+                        : '0 (gin!)'
+                      : outcome === 'knock'
+                        ? 'after layoffs'
+                        : 'deadwood'
                   }
                   disabled={!editable}
                   value={editable ? (deadwoodByPlayer[id] ?? '') : '0'}

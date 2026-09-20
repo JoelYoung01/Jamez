@@ -66,9 +66,6 @@ export function buildActivityFeed(opts: {
   const historyIds = new Set(opts.history.map((h) => h.id))
 
   const vaultBySessionId = new Map(opts.vault.map((v) => [v.state.sessionId, v]))
-  const vaultByRoom = new Map(
-    opts.vault.map((v) => [`${v.state.gameId}:${v.state.code}`, v]),
-  )
 
   for (const snap of opts.vault) {
     const status = normalizeRoomStatus(snap.status, snap.state.phase)
@@ -99,13 +96,19 @@ export function buildActivityFeed(opts: {
 
   for (const record of opts.history) {
     if (!includeEnded && isEndedLongTermRecord(record)) continue
-    const vault =
-      vaultBySessionId.get(record.id) ?? vaultByRoom.get(`${record.gameId}:${record.code}`)
+    // Only the exact session may resume — never match by room code alone.
+    // Rematches reuse `gameId:code` with a new sessionId; older history rows
+    // for that room must open the history detail, not the live rematch.
+    const vault = vaultBySessionId.get(record.id)
+    const status = vault ? normalizeRoomStatus(vault.status, vault.state.phase) : null
+    const canOpen = Boolean(
+      vault && status !== 'complete' && vault.state.phase !== 'finished',
+    )
     items.push({
       kind: 'history',
       key: `hist:${record.id}`,
       record,
-      canOpen: Boolean(vault),
+      canOpen,
       at: record.finishedAt,
     })
   }

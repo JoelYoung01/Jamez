@@ -120,6 +120,7 @@ export function HostConfigPage() {
     } else {
       setConfig(getGameEngine(gameId)?.defaultConfig())
     }
+    // Gin Rummy no longer offers Pass & Play — always use networked lobby.
     setPassAndPlay(false)
     setNickname('')
   }, [gameId])
@@ -143,7 +144,12 @@ export function HostConfigPage() {
   const GameIcon = getGameIcon(gameId)
 
   const create = () => {
-    const code = hostGame({ gameId, config, passAndPlay, nickname })
+    const code = hostGame({
+      gameId,
+      config,
+      passAndPlay: gameId === 'gin-rummy' ? false : passAndPlay,
+      nickname,
+    })
     if (code) navigate(`/session/${code}`)
   }
 
@@ -185,23 +191,25 @@ export function HostConfigPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="flex items-center justify-between p-4">
-            <div>
-              <Label htmlFor="pass-and-play">Pass & Play</Label>
-              <p className="text-xs text-muted-foreground">
-                Everyone plays on this device. Works with zero connectivity.
-              </p>
-            </div>
-            <Switch id="pass-and-play" checked={passAndPlay} onCheckedChange={setPassAndPlay} />
-          </CardContent>
-        </Card>
+        {gameId !== 'gin-rummy' && (
+          <Card>
+            <CardContent className="flex items-center justify-between p-4">
+              <div>
+                <Label htmlFor="pass-and-play">Pass & Play</Label>
+                <p className="text-xs text-muted-foreground">
+                  Everyone plays on this device. Works with zero connectivity.
+                </p>
+              </div>
+              <Switch id="pass-and-play" checked={passAndPlay} onCheckedChange={setPassAndPlay} />
+            </CardContent>
+          </Card>
+        )}
 
         <Button size="lg" onClick={create}>
           Open the lobby
         </Button>
         <p className="text-center text-xs text-muted-foreground/70">
-          {passAndPlay
+          {passAndPlay && gameId !== 'gin-rummy'
             ? "You'll add every player yourself on the next screen."
             : 'A join code + QR appears next. Friends hop in from their phones.'}
         </p>

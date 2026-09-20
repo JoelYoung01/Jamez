@@ -73,7 +73,67 @@ describe('buildActivityFeed', () => {
       status: 'inactive',
       statusLabel: 'Parked',
     })
-    expect(feed[1]).toMatchObject({ kind: 'history', canOpen: true })
+    // Finished vault row for the same session does not make history "openable".
+    expect(feed[1]).toMatchObject({ kind: 'history', canOpen: false })
+  })
+
+  it('does not mark older rematch history as openable via room code', () => {
+    const history: HistoryRecord[] = [
+      {
+        id: 'old-match',
+        gameId: 'gin-rummy',
+        code: 'SAME01',
+        createdAt: 1,
+        finishedAt: 100,
+        players: [{ id: 'h', name: 'Host', emoji: '🎲' }],
+        summary: { headline: 'Host wins', winnerIds: ['h'], entries: [] },
+        myPlayerId: 'h',
+      },
+    ]
+    const vault = [
+      {
+        state: session({
+          sessionId: 'live-rematch',
+          code: 'SAME01',
+          gameId: 'gin-rummy',
+          phase: 'playing',
+        }),
+        savedAt: 200,
+        status: 'active' as const,
+      },
+    ]
+    const feed = buildActivityFeed({ history, vault })
+    const hist = feed.find((i) => i.kind === 'history')
+    expect(hist).toMatchObject({ kind: 'history', canOpen: false })
+  })
+
+  it('marks history openable only when the exact session is still in the vault', () => {
+    const history: HistoryRecord[] = [
+      {
+        id: 'live-1',
+        gameId: 'poker-bank',
+        code: 'BANK01',
+        createdAt: 1,
+        finishedAt: 50,
+        players: [{ id: 'h', name: 'Host', emoji: '🎲' }],
+        summary: { headline: 'Host leads', winnerIds: ['h'], entries: [] },
+        myPlayerId: 'h',
+      },
+    ]
+    const vault = [
+      {
+        state: session({
+          sessionId: 'live-1',
+          code: 'BANK01',
+          gameId: 'poker-bank',
+          phase: 'playing',
+        }),
+        savedAt: 200,
+        status: 'inactive' as const,
+      },
+    ]
+    const feed = buildActivityFeed({ history, vault })
+    expect(feed.find((i) => i.kind === 'history')).toMatchObject({ canOpen: true })
   })
 
   it('includes parked gin matches alongside banks', () => {

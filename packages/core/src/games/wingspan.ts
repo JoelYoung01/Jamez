@@ -158,6 +158,7 @@ export const wingspanEngine: GameEngine<WingspanConfig, WingspanState, WingspanA
   isFinished() {
     return false
   },
+  requiresHostFinish: true,
 
   summary(state, players): GameSummary {
     const ranking = wingspanRanking(state)

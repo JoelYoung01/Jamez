@@ -172,9 +172,11 @@ export function HistoryDetailPage() {
   const records = useHistory()
   const record = records.find((r) => r.id === id)
   const vault = listHostSnapshots()
-  const snap = vault.find(
-    (v) => v.state.sessionId === id || (record && v.state.code === record.code && v.state.gameId === record.gameId),
-  )
+  const snap = vault.find((v) => v.state.sessionId === id)
+  const snapOpen =
+    snap &&
+    snap.state.phase !== 'finished' &&
+    (snap.status === undefined || snap.status === 'draft' || snap.status === 'active' || snap.status === 'inactive')
   const navigate = useNavigate()
 
   if (!record) {
@@ -195,7 +197,13 @@ export function HistoryDetailPage() {
     )
   }
 
-  return <HistoryDetail record={record} canOpen={Boolean(snap)} onOpen={() => navigate(`/session/${record.code}`)} />
+  return (
+    <HistoryDetail
+      record={record}
+      canOpen={Boolean(snapOpen)}
+      onOpen={() => navigate(`/session/${record.code}`)}
+    />
+  )
 }
 
 function HistoryDetail({

@@ -89,6 +89,13 @@ interface SessionStoreState {
    * the host snapshot is cleared (dissolve). Match games just dissolve.
    */
   endSession: () => void
+  /**
+   * End a match early, save history, dissolve, and clear the live session.
+   * Score-sheet games (`requiresHostFinish`) crown winners from current scores;
+   * auto-finish games (gin, etc.) mark a draw with mid-match scores.
+   * Ongoing rooms should use endSession instead.
+   */
+  endMatchGame: () => void
   /** End for everyone and drop the room without writing history. */
   discardSession: () => void
   leaveSession: () => void
@@ -374,6 +381,24 @@ export const useSession = create<SessionStoreState>()((set, get) => {
         }
       }
       host?.end()
+      if (state) clearHostSnapshot(state)
+      cleanupRefs()
+      set(resetSessionFields())
+    },
+
+    endMatchGame() {
+      if (!host) return
+      const engine = getGameEngine(host.current.gameId)
+      const error = host.finish(
+        engine?.requiresHostFinish ? undefined : { asDraw: true },
+      )
+      if (error) {
+        toast.error(error)
+        return
+      }
+      // finish() triggers onState → saveHistoryIfFinished before we dissolve.
+      const state = host.current
+      host.end()
       if (state) clearHostSnapshot(state)
       cleanupRefs()
       set(resetSessionFields())

@@ -1,4 +1,4 @@
-import type { GameEngine } from '../games/types'
+import { asDrawSummary, type GameEngine } from '../games/types'
 import { getGameEngine } from '../games/registry'
 import { normalizeAvatarPhoto, stripPlayerPhotos } from '../profile/avatar'
 import type { RoomTransport } from '../transport/types'
@@ -322,11 +322,15 @@ export class HostSession {
    * Snapshot standings and mark the session finished. Match games use this when
    * the ruleset ends; ongoing rooms (Poker Bank) use it to archive standings
    * before dissolving so the bank remains findable in history.
+   *
+   * Pass `{ asDraw: true }` to keep mid-match scores but clear winners (host
+   * ended early via "End Game").
    */
-  finish(): string | null {
+  finish(opts?: { asDraw?: boolean }): string | null {
     if (this.state.phase !== 'playing') return 'Game is not in progress'
     this.mutate((s) => {
-      s.summary = this.game.summary(s.game, s.players)
+      const summary = this.game.summary(s.game, s.players)
+      s.summary = opts?.asDraw ? asDrawSummary(summary) : summary
       s.phase = 'finished'
       s.finishedAt = this.now()
     })
