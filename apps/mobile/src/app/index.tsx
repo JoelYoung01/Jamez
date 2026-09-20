@@ -87,17 +87,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View className="items-center py-5">
-          <Text className="text-center text-4xl font-extrabold tracking-tight text-zinc-100">
-            Game night, <Text className="text-primary">scored</Text>.
-          </Text>
-          <Text className="mt-2 max-w-sm text-center text-sm text-muted-foreground">
-            Host a session, friends join with a code or QR. Everyone submits their own scores, and
-            every stat stays on your devices.
-          </Text>
-        </View>
-
-        <View className="gap-3">
+        <View className="mt-3 gap-3">
           <View className="flex-row gap-3">
             <HomeTile
               icon={<RadioTowerIcon size={20} color="#fbbf24" />}
