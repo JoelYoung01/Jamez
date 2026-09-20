@@ -120,7 +120,7 @@ export function HostConfigPage() {
     } else {
       setConfig(getGameEngine(gameId)?.defaultConfig())
     }
-    // Gin Rummy no longer offers Pass & Play — always use networked lobby.
+    // Two-hand card games (gin, cribbage) no longer offer Pass & Play — networked lobby only.
     setPassAndPlay(false)
     setNickname('')
   }, [gameId])
@@ -143,11 +143,14 @@ export function HostConfigPage() {
   const SetupForm = ui.SetupForm as React.ComponentType<{ config: unknown; onChange: (c: unknown) => void }>
   const GameIcon = getGameIcon(gameId)
 
+  // Two-hand card games always use the networked lobby (same as gin after #47).
+  const networkedOnly = gameId === 'gin-rummy' || gameId === 'cribbage'
+
   const create = () => {
     const code = hostGame({
       gameId,
       config,
-      passAndPlay: gameId === 'gin-rummy' ? false : passAndPlay,
+      passAndPlay: networkedOnly ? false : passAndPlay,
       nickname,
     })
     if (code) navigate(`/session/${code}`)
@@ -191,7 +194,7 @@ export function HostConfigPage() {
           </CardContent>
         </Card>
 
-        {gameId !== 'gin-rummy' && (
+        {!networkedOnly && (
           <Card>
             <CardContent className="flex items-center justify-between p-4">
               <div>
@@ -209,7 +212,7 @@ export function HostConfigPage() {
           Open the lobby
         </Button>
         <p className="text-center text-xs text-muted-foreground/70">
-          {passAndPlay && gameId !== 'gin-rummy'
+          {passAndPlay && !networkedOnly
             ? "You'll add every player yourself on the next screen."
             : 'A join code + QR appears next. Friends hop in from their phones.'}
         </p>

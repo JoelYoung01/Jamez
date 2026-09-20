@@ -108,6 +108,27 @@ export {
   type GinState,
 } from './games/gin-rummy'
 export {
+  CRIBBAGE_PEG_KIND_LABELS,
+  CRIBBAGE_QUICK_PEGS,
+  CRIBBAGE_RANKS,
+  CRIBBAGE_SUITS,
+  cribbageEngine,
+  cribbageIsSkunk,
+  cribbagePipValue,
+  cribbageSequenceValue,
+  cribbageTotals,
+  scoreCribbageHand,
+  type CribbageAction,
+  type CribbageCard,
+  type CribbageConfig,
+  type CribbageHandBreakdown,
+  type CribbagePeg,
+  type CribbagePegKind,
+  type CribbageRank,
+  type CribbageState,
+  type CribbageSuit,
+} from './games/cribbage'
+export {
   FLIP7_BONUS,
   FLIP7_NUMBER_CARDS,
   FLIP7_PLUS_MODIFIERS,
@@ -203,6 +224,7 @@ export {
 // history
 export {
   computeStats,
+  cribbagePegsFromHistory,
   flip7RoundsFromHistory,
   ginHandsFromHistory,
   handAndFootRoundsFromHistory,

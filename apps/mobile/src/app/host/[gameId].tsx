@@ -59,11 +59,14 @@ export default function HostConfigScreen() {
   }>
   const GameIcon = getGameIcon(gameId)
 
+  // Two-hand card games always use the networked lobby (same as gin after #47).
+  const networkedOnly = gameId === 'gin-rummy' || gameId === 'cribbage'
+
   const create = () => {
     const code = hostGame({
       gameId,
       config,
-      passAndPlay: gameId === 'gin-rummy' ? false : passAndPlay,
+      passAndPlay: networkedOnly ? false : passAndPlay,
       nickname,
     })
     if (code) router.replace(`/session/${code}`)
@@ -94,7 +97,7 @@ export default function HostConfigScreen() {
               <SetupForm config={config} onChange={setConfig} />
             </Card>
 
-            {gameId !== 'gin-rummy' ? (
+            {!networkedOnly ? (
               <Card className="flex-row items-center justify-between p-4">
                 <View className="min-w-0 flex-1 pr-3">
                   <Text className="text-sm font-medium text-zinc-100">Pass & Play</Text>
@@ -113,7 +116,7 @@ export default function HostConfigScreen() {
 
             <AppButton size="lg" title="Open the lobby" onPress={create} />
             <Text className="text-center text-xs text-muted-foreground/70">
-              {passAndPlay && gameId !== 'gin-rummy'
+              {passAndPlay && !networkedOnly
                 ? "You'll add every player yourself on the next screen."
                 : 'A join code + QR appears next. Friends hop in from their phones.'}
             </Text>
