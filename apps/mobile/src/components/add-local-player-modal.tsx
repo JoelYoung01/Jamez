@@ -1,5 +1,6 @@
 import { rosterAvailableForSession, type RosterPlayer } from '@jamez/core'
-import { UserPlusIcon } from 'lucide-react-native'
+import { clsx } from 'clsx'
+import { UserPlusIcon, XIcon } from 'lucide-react-native'
 import * as React from 'react'
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
@@ -38,13 +39,19 @@ export function AddLocalPlayerModal({
   const keyboardHeight = useKeyboardHeight()
   const players = useSession((s) => s.state?.players)
   const entries = usePlayerRoster((s) => s.entries)
+  const removeRoster = usePlayerRoster((s) => s.remove)
   const available = React.useMemo(
     () => rosterAvailableForSession(entries, players?.map((p) => p.id) ?? []),
     [entries, players],
   )
   const [name, setName] = React.useState('')
   const [emoji, setEmoji] = React.useState(randomEmoji())
+  const [tab, setTab] = React.useState<'recent' | 'new'>(available.length > 0 ? 'recent' : 'new')
   useSuppressAndroidKeyboardHost()
+
+  React.useEffect(() => {
+    setTab(available.length > 0 ? 'recent' : 'new')
+  }, [available.length])
 
   const add = React.useCallback(() => {
     if (!name.trim()) return
@@ -80,57 +87,115 @@ export function AddLocalPlayerModal({
               }}
             >
               <Text className="text-lg font-semibold text-zinc-100">{title}</Text>
-              {available.length > 0 ? (
-                <View className="gap-2">
-                  <SectionLabel>Recent players</SectionLabel>
+              <View className="flex-row rounded-xl bg-muted p-1">
+                <Pressable
+                  onPress={() => setTab('recent')}
+                  className={clsx(
+                    'flex-1 items-center rounded-lg py-2',
+                    tab === 'recent' && 'bg-background',
+                  )}
+                >
+                  <Text
+                    className={clsx(
+                      'text-sm font-medium',
+                      tab === 'recent' ? 'text-zinc-100' : 'text-muted-foreground',
+                    )}
+                  >
+                    Recent
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setTab('new')}
+                  className={clsx(
+                    'flex-1 items-center rounded-lg py-2',
+                    tab === 'new' && 'bg-background',
+                  )}
+                >
+                  <Text
+                    className={clsx(
+                      'text-sm font-medium',
+                      tab === 'new' ? 'text-zinc-100' : 'text-muted-foreground',
+                    )}
+                  >
+                    Create new
+                  </Text>
+                </Pressable>
+              </View>
+
+              {tab === 'recent' ? (
+                available.length === 0 ? (
+                  <Text className="py-6 text-center text-sm text-muted-foreground">
+                    No recent players yet. Create a new one.
+                  </Text>
+                ) : (
                   <View className="gap-1.5">
                     {available.map((player) => (
-                      <Pressable
+                      <View
                         key={player.id}
-                        onPress={() => pickRecent(player)}
-                        className="flex-row items-center gap-3 rounded-xl border border-line bg-background/40 px-3 py-2 active:opacity-80"
+                        className="flex-row items-center gap-2 rounded-xl border border-line bg-background/40 px-2 py-1.5"
                       >
-                        <Text className="text-lg leading-none">{player.emoji}</Text>
-                        <Text
-                          className="min-w-0 flex-1 text-sm font-medium text-zinc-100"
-                          numberOfLines={1}
+                        <Pressable
+                          onPress={() => pickRecent(player)}
+                          className="min-w-0 flex-1 flex-row items-center gap-3 px-1 py-1 active:opacity-80"
                         >
-                          {player.name}
-                        </Text>
-                        <Chip tone="outline">{player.source}</Chip>
-                      </Pressable>
+                          <Text className="text-lg leading-none">{player.emoji}</Text>
+                          <Text
+                            className="min-w-0 flex-1 text-sm font-medium text-zinc-100"
+                            numberOfLines={1}
+                          >
+                            {player.name}
+                          </Text>
+                          <Chip tone="outline">{player.source}</Chip>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => removeRoster(player.id)}
+                          hitSlop={8}
+                          accessibilityLabel={`Remove ${player.name} from suggestions`}
+                          className="h-8 w-8 items-center justify-center rounded-md active:opacity-70"
+                        >
+                          <XIcon size={14} color="#a1a1ab" />
+                        </Pressable>
+                      </View>
                     ))}
                   </View>
+                )
+              ) : (
+                <View className="gap-3">
+                  <View>
+                    <SectionLabel>Name</SectionLabel>
+                    <AppTextInput
+                      autoFocus
+                      keyboardAccessory={false}
+                      value={name}
+                      onChangeText={setName}
+                      placeholder={namePlaceholder}
+                      placeholderTextColor="rgba(255,255,255,0.25)"
+                      maxLength={24}
+                      returnKeyType="done"
+                      onSubmitEditing={add}
+                      className="h-12 rounded-xl border border-line bg-field px-3 text-base text-zinc-100"
+                    />
+                  </View>
+                  <View>
+                    <SectionLabel>Emoji</SectionLabel>
+                    <EmojiGrid value={emoji} onChange={setEmoji} />
+                  </View>
+                  <View className="flex-row gap-2">
+                    <AppButton
+                      title="Cancel"
+                      variant="secondary"
+                      className="flex-1"
+                      onPress={onClose}
+                    />
+                    <AppButton
+                      title={confirmLabel}
+                      className="flex-1"
+                      disabled={!name.trim()}
+                      onPress={add}
+                    />
+                  </View>
                 </View>
-              ) : null}
-              <View>
-                <SectionLabel>{available.length > 0 ? 'Create new' : 'Name'}</SectionLabel>
-                <AppTextInput
-                  autoFocus={available.length === 0}
-                  keyboardAccessory={false}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder={namePlaceholder}
-                  placeholderTextColor="rgba(255,255,255,0.25)"
-                  maxLength={24}
-                  returnKeyType="done"
-                  onSubmitEditing={add}
-                  className="h-12 rounded-xl border border-line bg-field px-3 text-base text-zinc-100"
-                />
-              </View>
-              <View>
-                <SectionLabel>Emoji</SectionLabel>
-                <EmojiGrid value={emoji} onChange={setEmoji} />
-              </View>
-              <View className="flex-row gap-2">
-                <AppButton title="Cancel" variant="secondary" className="flex-1" onPress={onClose} />
-                <AppButton
-                  title={confirmLabel}
-                  className="flex-1"
-                  disabled={!name.trim()}
-                  onPress={add}
-                />
-              </View>
+              )}
             </ScrollView>
             {keyboardHeight > 0 ? (
               <View pointerEvents="box-none" className="absolute bottom-1.5 right-2">
