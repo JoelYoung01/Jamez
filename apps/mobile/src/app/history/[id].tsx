@@ -21,11 +21,15 @@ export default function HistoryDetailScreen() {
     let alive = true
     void listHostSnapshots().then((vault) => {
       if (!alive || !record) return
+      const snap = vault.find((v) => v.state.sessionId === record.id)
       setCanOpen(
-        vault.some(
-          (v) =>
-            v.state.sessionId === record.id ||
-            (v.state.code === record.code && v.state.gameId === record.gameId),
+        Boolean(
+          snap &&
+            snap.state.phase !== 'finished' &&
+            (snap.status === undefined ||
+              snap.status === 'draft' ||
+              snap.status === 'active' ||
+              snap.status === 'inactive'),
         ),
       )
     })
