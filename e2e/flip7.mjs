@@ -85,7 +85,7 @@ try {
   await shot(host, 'flip7-02-lobby')
   console.log('  guests joined')
 
-  await host.getByRole('button', { name: 'Start the game' }).click()
+  await host.getByRole('button', { name: 'Start', exact: true }).click()
   await host.getByText('Round 1').waitFor({ timeout: 15000 })
   await bea.getByText('Round 1').waitFor({ timeout: 15000 })
   await shot(host, 'flip7-03-play')

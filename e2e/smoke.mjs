@@ -102,7 +102,7 @@ try {
   await host.getByText('Gale').waitFor({ timeout: 15000 })
   console.log('  guest joined')
 
-  await host.getByRole('button', { name: 'Start the game' }).click()
+  await host.getByRole('button', { name: 'Start', exact: true }).click()
   await guest.getByRole('tab', { name: 'Score sheet' }).waitFor({ timeout: 15000 })
 
   // Guest fills their own sheet from their device.
@@ -125,18 +125,20 @@ try {
   await host.getByText('87').first().waitFor({ timeout: 15000 })
   await shot(host, '04-wingspan-host-standings')
 
-  await host.getByRole('button', { name: 'Finish & reveal results' }).click()
-  await guest.getByText('Gale wins with 87 pts').waitFor({ timeout: 15000 })
+  // Score-sheet games end via End Game (crowns winners, saves history, dissolves).
+  await host.getByRole('button', { name: 'End Game' }).click()
+  await host.getByRole('button', { name: 'Yes, end it' }).click()
+  await guest.getByText('Session ended').waitFor({ timeout: 15000 })
   await shot(guest, '05-wingspan-results')
   console.log('  results synced ✅')
 
-  await host.getByRole('button', { name: 'End session for everyone' }).click()
-  await host.getByRole('button', { name: 'Yes, end it' }).click()
-  await guest.getByText('Session ended').waitFor({ timeout: 15000 })
+  await guest.getByRole('button', { name: 'Back home' }).click()
+  await guest.goto(`${base}/history`)
+  await guest.getByText('Gale wins with 87 pts').waitFor({ timeout: 15000 })
+  console.log('  wingspan history saved ✅')
 
   // --------------------------------------------------------------- gin rummy
   console.log('scenario: gin rummy')
-  await host.getByRole('button', { name: 'Back home' }).isVisible().catch(() => {})
   await host.goto(`${base}/host/gin-rummy${relayParam}`)
   await host.getByText('Game options').waitFor()
   await shot(host, '06-gin-config')
@@ -148,7 +150,7 @@ try {
 
   await guest.goto(`${base}/join/${ginCode}${relayParam}`)
   await host.getByText('Gale').waitFor({ timeout: 15000 })
-  await host.getByRole('button', { name: 'Start the game' }).click()
+  await host.getByRole('button', { name: 'Start', exact: true }).click()
   await guest.getByText('Record a hand').waitFor({ timeout: 15000 })
 
   // Hand 1: guest (Gale) goes gin catching 30 -> +55.
@@ -179,7 +181,7 @@ try {
 
   await host.getByText('Gale wins the match').waitFor({ timeout: 15000 })
   await host.getByRole('button', { name: 'Rematch' }).waitFor()
-  await host.getByRole('button', { name: 'End session for everyone' }).waitFor()
+  await host.getByRole('button', { name: 'Exit' }).waitFor()
   await host.getByRole('button', { name: 'Close for now' }).waitFor({ state: 'hidden' })
   await shot(host, '08-gin-results')
   console.log('  auto-finish at 100 ✅')

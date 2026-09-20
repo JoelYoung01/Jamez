@@ -79,9 +79,8 @@ try {
     await page.getByRole('button', { name: /Add local player/i }).click()
     const dialog = page.getByRole('dialog')
     await dialog.waitFor()
-    // Prefer create-new path
-    await dialog.locator('input').first().fill(name)
-    // Emoji picker: click the emoji button if present, else leave default
+    await dialog.getByRole('tab', { name: 'Create new' }).click()
+    await dialog.getByRole('textbox', { name: 'Name' }).fill(name)
     const emojiBtn = dialog.getByRole('button', { name: emoji })
     if (await emojiBtn.count()) await emojiBtn.click()
     await dialog.getByRole('button', { name: /Add player/i }).click()
@@ -89,7 +88,7 @@ try {
   }
 
   await shot('haf-edit-01-lobby')
-  await page.getByRole('button', { name: /Start the game/i }).click()
+  await page.getByRole('button', { name: 'Start', exact: true }).click()
   await page.getByText('Round 1').waitFor({ timeout: 15000 })
   await shot('haf-edit-02-play-before')
 
