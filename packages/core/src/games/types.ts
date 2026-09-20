@@ -21,6 +21,20 @@ export interface GameSummary {
 }
 
 /**
+ * Keep mid-match standings but clear winners and retitle as a draw.
+ * Used when the host ends a match early (e.g. "End Game").
+ */
+export function asDrawSummary(summary: GameSummary): GameSummary {
+  const scores = summary.entries.map((e) => e.score)
+  const scoreBit = scores.length >= 2 ? ` · ${scores.join(' – ')}` : ''
+  return {
+    ...summary,
+    winnerIds: [],
+    headline: `Draw${scoreBit}`,
+  }
+}
+
+/**
  * Engine capability hint for presentation (rematch, archive-on-end, table
  * presence). Park / resume / Live Activity use host-local `RoomStatus`
  * (`draft` | `active` | `inactive` | `complete`) for every game.
@@ -62,6 +76,11 @@ export interface GameEngine<C = unknown, S = unknown, A extends { type: string }
   applyAction(state: S, action: A, ctx: ActionContext): S
   /** When true after an action, the session finishes automatically. */
   isFinished(state: S): boolean
+  /**
+   * Host must tap Finish / End Game to close the match — `isFinished` never
+   * becomes true on its own (score sheets like Wingspan).
+   */
+  requiresHostFinish?: boolean
   summary(state: S, players: SessionPlayer[]): GameSummary
   addPlayer?(state: S, player: SessionPlayer): S
   removePlayer?(state: S, playerId: string): S

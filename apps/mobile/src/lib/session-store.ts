@@ -85,6 +85,13 @@ interface SessionStoreState {
   ) => string | null
   parkSession: () => void
   endSession: () => void
+  /**
+   * End a match early, save history, dissolve, and clear the live session.
+   * Score-sheet games (`requiresHostFinish`) crown winners from current scores;
+   * auto-finish games (gin, etc.) mark a draw with mid-match scores.
+   * Ongoing rooms should use endSession instead.
+   */
+  endMatchGame: () => void
   /** End for everyone and drop the room without writing history. */
   discardSession: () => void
   leaveSession: () => void
@@ -375,6 +382,24 @@ export const useSession = create<SessionStoreState>()((set, get) => {
         }
       }
       host?.end()
+      if (state) clearHostSnapshot(state)
+      cleanupRefs()
+      void endSessionLiveActivity('immediate')
+      set(resetSessionFields())
+    },
+
+    endMatchGame() {
+      if (!host) return
+      const engine = getGameEngine(host.current.gameId)
+      const error = host.finish(
+        engine?.requiresHostFinish ? undefined : { asDraw: true },
+      )
+      if (error) {
+        toast.error(error)
+        return
+      }
+      const state = host.current
+      host.end()
       if (state) clearHostSnapshot(state)
       cleanupRefs()
       void endSessionLiveActivity('immediate')

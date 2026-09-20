@@ -450,4 +450,17 @@ describe('host/guest session over memory transport', () => {
     expect(resumed.current.nickname).toBe('Cabin trip')
     resumed.end()
   })
+
+  it('finish({ asDraw: true }) keeps scores but clears winners', () => {
+    const code = generateJoinCode()
+    const host = makeHost(code, ginRummyEngine as never)
+    expect(host.addLocalPlayer({ name: 'Bob', emoji: '🃏' })).toBeNull()
+    expect(host.startGame()).toBeNull()
+    expect(host.finish({ asDraw: true })).toBeNull()
+    expect(host.current.phase).toBe('finished')
+    expect(host.current.summary?.winnerIds).toEqual([])
+    expect(host.current.summary?.headline).toMatch(/^Draw/)
+    expect(host.current.summary?.entries.length).toBe(2)
+    host.end()
+  })
 })

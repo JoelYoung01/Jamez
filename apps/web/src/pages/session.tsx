@@ -8,9 +8,9 @@ import {
   type SessionState,
 } from '@jamez/core'
 import {
+  ArrowLeftIcon,
   CircleHelpIcon,
   DoorClosedIcon,
-  FlagIcon,
   HandIcon,
   Loader2Icon,
   LogOutIcon,
@@ -128,13 +128,36 @@ export function SessionPage() {
 
 function SessionHeader({ state }: { state: SessionState }) {
   const store = useSession()
+  const navigate = useNavigate()
   const game = getGameEngine(state.gameId)
   const GameIcon = getGameIcon(state.gameId)
   const title = sessionDisplayName({ nickname: state.nickname, gameId: state.gameId })
   const isHost = store.role === 'host'
+  const ongoing = sessionIsOngoing(state)
+  const cancelLobby = isHost && state.phase === 'lobby' && !ongoing
+
+  const onBack = () => {
+    if (cancelLobby) {
+      store.discardSession()
+      navigate('/')
+      return
+    }
+    if (store.role === 'guest') store.leaveSession()
+    navigate('/')
+  }
+
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-2.5">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={cancelLobby ? 'Cancel' : 'Back'}
+          onClick={onBack}
+          className="shrink-0 text-muted-foreground"
+        >
+          <ArrowLeftIcon />
+        </Button>
         <GameIcon className="size-6 shrink-0" style={{ color: game?.accentColor }} />
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
@@ -296,6 +319,7 @@ function PlayerRow({ player, canKick, onKick }: { player: SessionPlayer; canKick
 
 function LobbyView() {
   const store = useSession()
+  const navigate = useNavigate()
   const state = store.state!
   const isHost = store.role === 'host'
   const game = getGameEngine(state.gameId)
@@ -385,20 +409,34 @@ function LobbyView() {
       </Card>
 
       {isHost ? (
-        <Button size="lg" onClick={() => store.startGame()} disabled={!canStart}>
-          <PlayIcon />
-          {canStart
-            ? ongoing
-              ? 'Open the bank'
-              : 'Start the game'
-            : `Need ${game?.minPlayers ?? 1}+ players to start`}
-        </Button>
+        <div className="grid gap-2">
+          <Button size="lg" onClick={() => store.startGame()} disabled={!canStart}>
+            <PlayIcon />
+            {canStart
+              ? ongoing
+                ? 'Open the bank'
+                : 'Start'
+              : `Need ${game?.minPlayers ?? 1}+ players to start`}
+          </Button>
+          {ongoing ? (
+            <HostSessionControls />
+          ) : (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                store.discardSession()
+                navigate('/')
+              }}
+            >
+              <XIcon /> Cancel
+            </Button>
+          )}
+        </div>
       ) : (
         <p className="flex items-center justify-center gap-2 text-center text-sm text-muted-foreground">
           <Loader2Icon className="size-4 animate-spin" /> Waiting for the host to start…
         </p>
       )}
-      {isHost && <HostSessionControls />}
     </div>
   )
 }
@@ -414,8 +452,6 @@ function PlayingView() {
   if (!ui) return <StatusCard icon={CircleHelpIcon} title="Unsupported game" body="This app version doesn't know this game yet. Update and rejoin." />
   const PlayView = ui.PlayView
 
-  const ongoing = sessionIsOngoing(state)
-
   return (
     <div className="grid gap-4">
       <PlayView
@@ -424,16 +460,7 @@ function PlayingView() {
         isHost={isHost}
         send={(action, actorId) => store.sendAction(action, actorId) ?? null}
       />
-      {isHost && (
-        <div className="grid gap-2">
-          {!ongoing && (
-            <Button variant="secondary" onClick={() => store.finishGame()}>
-              <FlagIcon /> Finish & reveal results
-            </Button>
-          )}
-          <HostSessionControls />
-        </div>
-      )}
+      {isHost && <HostSessionControls />}
     </div>
   )
 }
@@ -513,7 +540,15 @@ function FinishedView() {
           </Button>
         )}
         {isHost ? (
-          <HostSessionControls />
+          <Button
+            variant="secondary"
+            onClick={() => {
+              store.endSession()
+              navigate('/')
+            }}
+          >
+            <LogOutIcon /> Exit
+          </Button>
         ) : (
           <Button
             variant="secondary"
@@ -534,19 +569,16 @@ function HostSessionControls() {
   const store = useSession()
   const navigate = useNavigate()
   const ongoing = sessionIsOngoing(store.state)
-  const hidePark = store.state?.phase === 'finished'
   const [mode, setMode] = React.useState<'idle' | 'park' | 'end'>('idle')
 
   if (mode === 'idle') {
     return (
       <div className="grid gap-2">
-        {!hidePark && (
-          <Button onClick={() => setMode('park')}>
-            <MoonIcon /> Close for now
-          </Button>
-        )}
+        <Button onClick={() => setMode('park')}>
+          <MoonIcon /> Close for now
+        </Button>
         <Button variant="destructive" onClick={() => setMode('end')}>
-          <LogOutIcon /> {ongoing ? 'End & save standings' : 'End session for everyone'}
+          <LogOutIcon /> {ongoing ? 'End & save standings' : 'End Game'}
         </Button>
       </div>
     )
@@ -575,7 +607,11 @@ function HostSessionControls() {
       <Button
         variant="destructive"
         onClick={() => {
-          store.endSession()
+          if (ongoing) {
+            store.endSession()
+          } else {
+            store.endMatchGame()
+          }
           navigate('/')
         }}
       >

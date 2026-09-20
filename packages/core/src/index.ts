@@ -69,6 +69,7 @@ export {
 
 // games
 export {
+  asDrawSummary,
   formatPoints,
   isOngoingGame,
   namesList,
