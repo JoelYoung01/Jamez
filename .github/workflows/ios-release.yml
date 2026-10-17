@@ -129,6 +129,8 @@ jobs:
       # Signs the app for App Store distribution via cloud-managed signing:
       # -allowProvisioningUpdates + the ASC API key let Xcode create/fetch the
       # Apple Distribution certificate and App Store profile on the fly.
+      # Apple refuses that request with "PLA Update available" until the
+      # Account Holder accepts the current Developer Program License Agreement.
       - name: Export IPA (distribution signing)
         if: steps.creds.outputs.configured == 'true'
         run: |
