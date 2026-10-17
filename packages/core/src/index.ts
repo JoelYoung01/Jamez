@@ -143,6 +143,20 @@ export {
   type Flip7State,
 } from './games/flip-7'
 export {
+  SIX_NIMMT_DECK_MAX,
+  SIX_NIMMT_DECK_MIN,
+  SIX_NIMMT_DEFAULT_TARGET,
+  bullheadsOnCard,
+  sixNimmtEngine,
+  sixNimmtRoundComplete,
+  sixNimmtTotals,
+  sumBullheads,
+  type SixNimmtAction,
+  type SixNimmtConfig,
+  type SixNimmtRound,
+  type SixNimmtState,
+} from './games/six-nimmt'
+export {
   HAND_AND_FOOT_CLEAN_BOOK,
   HAND_AND_FOOT_DIRTY_BOOK,
   HAND_AND_FOOT_GOING_OUT,
@@ -227,6 +241,7 @@ export {
   cribbagePegsFromHistory,
   flip7RoundsFromHistory,
   ginHandsFromHistory,
+  sixNimmtRoundsFromHistory,
   handAndFootRoundsFromHistory,
   historyDetailFromState,
   historyRecordFromState,

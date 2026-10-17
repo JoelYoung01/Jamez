@@ -2,6 +2,7 @@ import { DicesIcon, type LucideIcon } from 'lucide-react-native'
 import { cribbageUI } from './cribbage'
 import { flip7UI } from './flip-7'
 import { ginRummyUI } from './gin-rummy'
+import { sixNimmtUI } from './six-nimmt'
 import { handAndFootUI } from './hand-and-foot'
 import { pokerBankUI } from './poker-bank'
 import type { GameUIModule } from './types'
@@ -12,6 +13,7 @@ const modules: GameUIModule[] = [
   ginRummyUI,
   cribbageUI,
   flip7UI,
+  sixNimmtUI,
   handAndFootUI,
   pokerBankUI,
 ]

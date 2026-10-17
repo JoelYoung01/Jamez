@@ -4,10 +4,12 @@ import {
   ginTotals,
   flip7Totals,
   handAndFootTotals,
+  sixNimmtTotals,
   isPlayerActive,
   wingspanRanking,
   type Flip7State,
   type GinState,
+  type SixNimmtState,
   type HandAndFootState,
   type PokerBankState,
   type SessionPhase,
@@ -71,6 +73,15 @@ function standingsLines(state: SessionState): string[] {
         .filter(isPlayerActive)
         .map((p) => ({ p, score: totals[p.id] ?? 0 }))
         .sort((a, b) => b.score - a.score)
+        .slice(0, 4)
+        .map(({ p, score }, i) => `${i + 1}. ${p.emoji} ${p.name} · ${score}`)
+    }
+    if (state.gameId === 'six-nimmt') {
+      const totals = sixNimmtTotals(state.game as SixNimmtState)
+      return state.players
+        .filter(isPlayerActive)
+        .map((p) => ({ p, score: totals[p.id] ?? 0 }))
+        .sort((a, b) => a.score - b.score)
         .slice(0, 4)
         .map(({ p, score }, i) => `${i + 1}. ${p.emoji} ${p.name} · ${score}`)
     }

@@ -7,7 +7,7 @@ Jamez is a peer-to-peer score tracker for board & card game nights. One person *
 | 🌐 **Web app** | React + Vite + Tailwind 4, shadcn-style UI, deployed to GitHub Pages |
 | 📱 **iOS app** | Expo + React Native + NativeWind, shipped to TestFlight via GitHub Actions |
 | 🧠 **Shared core** | One TypeScript engine (`@jamez/core`) powers both apps |
-| 🎮 **Games** | Wingspan 🐦, Gin Rummy 🃏, Cribbage 🟢, Flip 7 7️⃣, Hand & Foot 🦶, Poker Bank 🪙; engines are pluggable |
+| 🎮 **Games** | Wingspan 🐦, Gin Rummy 🃏, Cribbage 🟢, Flip 7 7️⃣, 6 nimmt! 🐂, Hand & Foot 🦶, Poker Bank 🪙; engines are pluggable |
 
 ## How it works
 
@@ -111,6 +111,7 @@ Design rule of thumb: guests may edit **their own** scores (`validateAction` enf
 - **🃏 Gin Rummy:** hand-by-hand recorder (knock / gin / big gin / undercut with configurable bonuses), running totals to a target score, boxes, and the official final tally with line bonuses.
 - **🟢 Cribbage:** digital pegboard racing to 121 (or 61), Bicycle combination hand calculator (15s, pairs, runs, flush, His Nobs), His Heels / play / hand / crib peg kinds, dealer + crib marker, and skunk / lurch when the loser is still below the halfway line.
 - **7️⃣ Flip 7:** round-by-round scoresheet racing to 200 (mirrors The Op Games digital score pad), optional card calculator (numbers → ×2 → +N → Flip 7 bonus), negative scores for Vengeance, live standings and archived rounds.
+- **🐂 6 nimmt!:** round-by-round bullhead totals. A round closes when every seat is entered; the match ends once anyone reaches 66 (or a house target). Lowest total wins and ties share it. Optional pile calculator (55 = 7, doubles = 5, tens = 3, fives = 2, other cards = 1).
 - **🦶 Hand & Foot:** round-by-round scoresheet racing to 10,000 (one seat per team or cutthroat), optional book calculator (clean/dirty/wild books, red threes, going out, card points − cards left), live standings and archived rounds.
 - **🪙 Poker Bank:** long-running chip bank (`sessionMode: 'ongoing'`). Starting stacks, deposit/withdraw with chip breakdowns, host-configured chip colors, guest seats that real devices can claim, and account merges. Same park/resume vault as match games; ending archives standings to history.
 

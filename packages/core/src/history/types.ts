@@ -2,6 +2,7 @@ import type { CribbagePeg } from '../games/cribbage'
 import type { Flip7Round } from '../games/flip-7'
 import type { GinHand } from '../games/gin-rummy'
 import type { HandAndFootRound } from '../games/hand-and-foot'
+import type { SixNimmtRound } from '../games/six-nimmt'
 import type { GameSummary } from '../games/types'
 import type { SessionState } from '../protocol/session-state'
 
@@ -26,7 +27,7 @@ export interface HistoryRecord {
   /**
    * Optional game-specific archive. Wingspan stays summary-only; gin keeps the
    * hand log (dealer, knock/gin, deadwood) for later analysis; cribbage keeps
-   * the peg log; Flip 7 and Hand & Foot keep the round scoresheet.
+   * the peg log; Flip 7, 6 nimmt!, and Hand & Foot keep the round scoresheet.
    */
   detail?: HistoryGameDetail
 }
@@ -44,6 +45,10 @@ export type HistoryGameDetail =
   | {
       type: 'flip-7'
       rounds: Flip7Round[]
+    }
+  | {
+      type: 'six-nimmt'
+      rounds: SixNimmtRound[]
     }
   | {
       type: 'hand-and-foot'
@@ -110,6 +115,14 @@ export function historyDetailFromState(state: SessionState): HistoryGameDetail |
       rounds: rounds.map((r) => ({ ...r, scores: { ...r.scores } })),
     }
   }
+  if (state.gameId === 'six-nimmt') {
+    const rounds = (state.game as { rounds?: SixNimmtRound[] }).rounds
+    if (!Array.isArray(rounds) || rounds.length === 0) return undefined
+    return {
+      type: 'six-nimmt',
+      rounds: rounds.map((r) => ({ ...r, scores: { ...r.scores } })),
+    }
+  }
   if (state.gameId === 'hand-and-foot') {
     const rounds = (state.game as { rounds?: HandAndFootRound[] }).rounds
     if (!Array.isArray(rounds) || rounds.length === 0) return undefined
@@ -136,6 +149,12 @@ export function cribbagePegsFromHistory(record: HistoryRecord): CribbagePeg[] {
 /** Typed accessor for archived Flip 7 rounds (empty for older summary-only records). */
 export function flip7RoundsFromHistory(record: HistoryRecord): Flip7Round[] {
   if (record.detail?.type === 'flip-7') return record.detail.rounds
+  return []
+}
+
+/** Typed accessor for archived 6 nimmt! rounds (empty for older summary-only records). */
+export function sixNimmtRoundsFromHistory(record: HistoryRecord): SixNimmtRound[] {
+  if (record.detail?.type === 'six-nimmt') return record.detail.rounds
   return []
 }
 
@@ -167,7 +186,13 @@ export function computeStats(records: HistoryRecord[]): Stats {
     byGame.played += 1
     if (won) byGame.wins += 1
     const mine = record.summary.entries.find((e) => e.playerId === record.myPlayerId)
-    if (mine && (byGame.bestScore === null || mine.score > byGame.bestScore)) {
+    // 6 nimmt! is won by the lowest bullhead total, so "best" is the smallest score.
+    const lowerIsBetter = record.gameId === 'six-nimmt'
+    const improves =
+      mine &&
+      (byGame.bestScore === null ||
+        (lowerIsBetter ? mine.score < byGame.bestScore : mine.score > byGame.bestScore))
+    if (mine && improves) {
       byGame.bestScore = mine.score
     }
   }
