@@ -3,6 +3,7 @@ import { flip7Engine } from './flip-7'
 import { ginRummyEngine } from './gin-rummy'
 import { handAndFootEngine } from './hand-and-foot'
 import { pokerBankEngine } from './poker-bank'
+import { sixNimmtEngine } from './six-nimmt'
 import type { GameEngine } from './types'
 import { wingspanEngine } from './wingspan'
 
@@ -15,6 +16,7 @@ export const gameEngines: ReadonlyArray<GameEngine<any, any, any>> = [
   ginRummyEngine,
   cribbageEngine,
   flip7Engine,
+  sixNimmtEngine,
   handAndFootEngine,
   pokerBankEngine,
 ]

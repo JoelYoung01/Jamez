@@ -3,9 +3,11 @@ import { ginRummyEngine, type GinState } from '../games/gin-rummy'
 import { wingspanEngine } from '../games/wingspan'
 import type { SessionPlayer, SessionState } from '../protocol/session-state'
 import {
+  computeStats,
   ginHandsFromHistory,
   historyDetailFromState,
   historyRecordFromState,
+  type HistoryRecord,
 } from './types'
 
 function player(id: string, name: string, isHost = false): SessionPlayer {
@@ -105,6 +107,30 @@ describe('historyRecordFromState gin detail', () => {
     }
     expect(historyDetailFromState(state)).toBeUndefined()
     expect(historyRecordFromState(state, 'a')?.detail).toBeUndefined()
+  })
+
+  it('treats the lowest 6 nimmt! score as the best', () => {
+    const record = (score: number): HistoryRecord => ({
+      id: `s-${score}`,
+      gameId: 'six-nimmt',
+      code: 'ABCDEF',
+      createdAt: 1,
+      finishedAt: 2,
+      players: [{ id: 'a', name: 'Ada', emoji: '🦊' }],
+      summary: {
+        headline: 'Ada wins',
+        winnerIds: ['a'],
+        entries: [{ playerId: 'a', rank: 1, score, scoreText: `${score} pts` }],
+      },
+      myPlayerId: 'a',
+    })
+    expect(computeStats([record(40), record(12)]).byGame['six-nimmt']?.bestScore).toBe(12)
+    expect(
+      computeStats([
+        { ...record(10), id: 'flip', gameId: 'flip-7' },
+        { ...record(80), id: 'flip2', gameId: 'flip-7' },
+      ]).byGame['flip-7']?.bestScore,
+    ).toBe(80)
   })
 
   it('omits gin detail when the hand log is empty', () => {
