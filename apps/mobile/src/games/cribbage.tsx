@@ -4,6 +4,8 @@ import {
   CRIBBAGE_RANKS,
   CRIBBAGE_SUITS,
   cribbageIsSkunk,
+  cribbageSideLabel,
+  cribbageSides,
   cribbageTotals,
   scoreCribbageHand,
   type CribbageCard,
@@ -87,8 +89,10 @@ function CribbageSetup({ config, onChange }: GameSetupProps<CribbageConfig>) {
           className="h-10 rounded-lg border border-line bg-field px-3 font-mono text-base text-zinc-100"
         />
         <Text className="text-xs text-muted-foreground">
-          Bicycle: first to {config.targetScore}. Loser below {config.skunkLine} when the winner
-          pegs out is lurched (double game).
+          Bicycle: first to {config.targetScore}. Every losing side still below {config.skunkLine}{' '}
+          when the winner pegs out is lurched (double game). Two or three players each keep a peg.
+          Four players play as partners — opposite seats in join order share a score, and the deal
+          moves clockwise.
         </Text>
       </View>
     </View>
@@ -341,17 +345,50 @@ function PegPad({ state: session, me, isHost, send }: GamePlayProps) {
       <Text className="text-sm font-semibold text-zinc-100">Peg points</Text>
       <View className="gap-1.5">
         <SectionLabel>Who scores?</SectionLabel>
-        <Segmented
-          value={playerId}
-          onChange={(id) => {
-            if (!canPegFor(id)) return
-            setPlayerOverride(id)
-          }}
-          options={game.playerIds.map((id) => ({
-            value: id,
-            label: `${playerOf(id)?.emoji ?? ''} ${playerOf(id)?.name ?? '?'}`,
-          }))}
-        />
+        {game.playerIds.length > 2 ? (
+          <View className="flex-row flex-wrap gap-1.5">
+            {game.playerIds.map((id) => {
+              const allowed = canPegFor(id)
+              const selected = id === playerId
+              return (
+                <Pressable
+                  key={id}
+                  disabled={!allowed}
+                  onPress={() => {
+                    if (!allowed) return
+                    setPlayerOverride(id)
+                  }}
+                  className={clsx(
+                    'rounded-full border px-2.5 py-1',
+                    selected ? 'border-emerald-400/50 bg-emerald-400/15' : 'border-line bg-field',
+                    !allowed && 'opacity-40',
+                  )}
+                >
+                  <Text className={clsx('text-xs', selected ? 'text-emerald-100' : 'text-muted-foreground')}>
+                    {playerOf(id)?.emoji ?? ''} {playerOf(id)?.name ?? '?'}
+                  </Text>
+                </Pressable>
+              )
+            })}
+          </View>
+        ) : (
+          <Segmented
+            value={playerId}
+            onChange={(id) => {
+              if (!canPegFor(id)) return
+              setPlayerOverride(id)
+            }}
+            options={game.playerIds.map((id) => ({
+              value: id,
+              label: `${playerOf(id)?.emoji ?? ''} ${playerOf(id)?.name ?? '?'}`,
+            }))}
+          />
+        )}
+        {cribbageSides(game).some((side) => side.playerIds.length > 1) && (
+          <Text className="text-xs text-muted-foreground">
+            Points peg on the partnership, whoever at the table scored them.
+          </Text>
+        )}
       </View>
       <View className="flex-row flex-wrap gap-1.5">
         {CRIBBAGE_QUICK_PEGS.map((n) => (
@@ -411,59 +448,105 @@ function CribbagePlay(props: GamePlayProps) {
   const { state: session, isHost, send } = props
   const game = session.game as CribbageState
   const totals = cribbageTotals(game)
+  const sides = cribbageSides(game)
+  const partnership = sides.some((side) => side.playerIds.length > 1)
   const playerOf = (id: string) => session.players.find((p) => p.id === id)
   const skunked = cribbageIsSkunk(game)
 
   return (
     <View className="gap-3">
-      <View className="flex-row gap-3">
-        {game.playerIds.map((id) => {
-          const player = playerOf(id)
-          const total = totals[id] ?? 0
+      <View className={clsx('gap-3', sides.length > 2 ? 'flex-col' : 'flex-row')}>
+        {sides.map((side) => {
+          const total = totals[side.id] ?? 0
           const progress = Math.min(1, total / game.config.targetScore)
           const skunkProgress = Math.min(1, game.config.skunkLine / game.config.targetScore)
-          const isDealer = game.dealerId === id
-          if (!player) return null
+          const dealerHere = !!game.dealerId && side.playerIds.includes(game.dealerId)
+          const role =
+            sides.length === 2
+              ? dealerHere
+                ? 'dealer · crib'
+                : 'pone'
+              : dealerHere
+                ? 'dealer · crib'
+                : 'non-dealer'
           return (
-            <Pressable
-              key={id}
-              disabled={!isHost || isDealer}
-              accessibilityRole={isHost ? 'button' : undefined}
-              accessibilityState={isHost ? { selected: isDealer } : undefined}
-              accessibilityLabel={isHost ? `Set ${player.name} as dealer` : undefined}
-              onPress={
-                isHost && !isDealer ? () => send({ type: 'setDealer', playerId: id }) : undefined
-              }
-              className="flex-1 active:opacity-80"
+            <Card
+              key={side.id}
+              className={clsx('flex-1 items-center gap-1 p-4', dealerHere && 'border-primary/40')}
             >
-              <Card className={clsx('items-center gap-1 p-4', isDealer && 'border-primary/40')}>
-                <PlayerAvatar player={player} showPresence />
-                <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
-                  {player.name}
-                </Text>
-                <Text className="font-mono text-4xl font-bold text-zinc-100">{total}</Text>
-                <Text className="text-xs text-muted-foreground">
-                  {isDealer ? 'dealer · crib' : 'pone'}
-                </Text>
-                <View className="relative mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <View
-                    className="absolute inset-y-0 w-px bg-amber-400/80"
-                    style={{ left: `${skunkProgress * 100}%` }}
-                  />
-                  <View
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${progress * 100}%` }}
-                  />
-                </View>
-              </Card>
-            </Pressable>
+              <View className="flex-row items-start justify-center gap-3">
+                {side.playerIds.map((id) => {
+                  const player = playerOf(id)
+                  if (!player) return null
+                  const isDealer = game.dealerId === id
+                  const body = (
+                    <>
+                      <PlayerAvatar player={player} showPresence />
+                      <Text className="max-w-24 text-sm font-medium text-zinc-100" numberOfLines={1}>
+                        {player.name}
+                      </Text>
+                      {partnership && (
+                        <Text className="text-[10px] text-muted-foreground">
+                          {isDealer ? 'dealer' : dealerHere ? 'partner' : 'opponent'}
+                        </Text>
+                      )}
+                    </>
+                  )
+                  if (!isHost || isDealer) {
+                    return (
+                      <View key={id} className="items-center gap-1">
+                        {body}
+                      </View>
+                    )
+                  }
+                  return (
+                    <Pressable
+                      key={id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Set ${player.name} as dealer`}
+                      onPress={() => send({ type: 'setDealer', playerId: id })}
+                      className="items-center gap-1 active:opacity-80"
+                    >
+                      {body}
+                    </Pressable>
+                  )
+                })}
+              </View>
+              <Text className="font-mono text-4xl font-bold text-zinc-100">{total}</Text>
+              <Text className="text-xs text-muted-foreground">{role}</Text>
+              <View className="relative mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <View
+                  className="absolute inset-y-0 w-px bg-amber-400/80"
+                  style={{ left: `${skunkProgress * 100}%` }}
+                />
+                <View className="h-full rounded-full bg-primary" style={{ width: `${progress * 100}%` }} />
+              </View>
+            </Card>
           )
         })}
       </View>
-      <View className="flex-row items-center justify-center gap-2">
+      {partnership && (
+        <Text className="text-center text-xs text-muted-foreground">
+          Partners {cribbageSideLabel(sides[0]!, session.players)} vs{' '}
+          {cribbageSideLabel(sides[1]!, session.players)}.
+          {game.pegs.length === 0
+            ? ' Switch the pairing before the first peg.'
+            : ' Pairing is locked for this match.'}
+        </Text>
+      )}
+      <View className="flex-row flex-wrap items-center justify-center gap-2">
         <Text className="text-center text-xs text-muted-foreground">
           First to {game.config.targetScore} · skunk below {game.config.skunkLine}
         </Text>
+        {isHost && partnership && (
+          <Pressable
+            disabled={game.pegs.length > 0}
+            onPress={() => send({ type: 'cyclePartnerships' })}
+            className={clsx('active:opacity-70', game.pegs.length > 0 && 'opacity-40')}
+          >
+            <Text className="text-xs text-muted-foreground">Switch partners</Text>
+          </Pressable>
+        )}
         {isHost && (
           <Pressable
             onPress={() => send({ type: 'nextDeal' })}
@@ -527,20 +610,23 @@ function CribbageResults({ state: session }: { state: SessionState }) {
   const totals = cribbageTotals(game)
   const skunked = cribbageIsSkunk(game)
   const playerOf = (id: string) => session.players.find((p) => p.id === id)
-  const sorted = [...game.playerIds].sort((a, b) => (totals[b] ?? 0) - (totals[a] ?? 0))
+  const sorted = [...cribbageSides(game)].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0))
+  const best = sorted[0] ? (totals[sorted[0].id] ?? 0) : 0
 
   return (
     <Card className="gap-3 p-4">
       <Text className="text-sm font-semibold text-zinc-100">Final board</Text>
-      {sorted.map((id) => {
-        const player = playerOf(id)
-        const score = totals[id] ?? 0
-        const winner = sorted[0] === id && score >= game.config.targetScore
+      {sorted.map((side) => {
+        const members = side.playerIds.map((id) => playerOf(id)).filter((p) => !!p)
+        const score = totals[side.id] ?? 0
+        const winner = score === best && score >= game.config.targetScore
         return (
-          <View key={id} className="rounded-xl border border-line p-3">
+          <View key={side.id} className="rounded-xl border border-line p-3">
             <View className="flex-row items-center gap-2">
-              <Text>{player?.emoji}</Text>
-              <Text className="flex-1 text-sm font-medium text-zinc-100">{player?.name}</Text>
+              <Text>{members.map((player) => player.emoji).join(' ')}</Text>
+              <Text className="flex-1 text-sm font-medium text-zinc-100">
+                {members.map((player) => player.name).join(' & ')}
+              </Text>
               <Text className="font-mono text-xl font-bold text-primary">{score}</Text>
             </View>
             <Text className="mt-1 pl-7 text-xs text-muted-foreground">

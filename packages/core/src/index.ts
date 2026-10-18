@@ -116,6 +116,9 @@ export {
   cribbageIsSkunk,
   cribbagePipValue,
   cribbageSequenceValue,
+  cribbageSideForPlayer,
+  cribbageSideLabel,
+  cribbageSides,
   cribbageTotals,
   scoreCribbageHand,
   type CribbageAction,
@@ -125,6 +128,7 @@ export {
   type CribbagePeg,
   type CribbagePegKind,
   type CribbageRank,
+  type CribbageSide,
   type CribbageState,
   type CribbageSuit,
 } from './games/cribbage'
