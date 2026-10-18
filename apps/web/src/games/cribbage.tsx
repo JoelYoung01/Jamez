@@ -4,6 +4,8 @@ import {
   CRIBBAGE_RANKS,
   CRIBBAGE_SUITS,
   cribbageIsSkunk,
+  cribbageSideLabel,
+  cribbageSides,
   cribbageTotals,
   scoreCribbageHand,
   type CribbageCard,
@@ -92,8 +94,10 @@ function CribbageSetup({ config, onChange }: GameSetupProps<CribbageConfig>) {
           className="h-9 font-mono tabular-nums"
         />
         <p className="text-xs text-muted-foreground">
-          Per Bicycle: first to {config.targetScore}. If the loser is still below{' '}
-          {config.skunkLine} when the winner pegs out, they are lurched (double game).
+          Per Bicycle: first to {config.targetScore}. If every losing side is still below{' '}
+          {config.skunkLine} when the winner pegs out, they are lurched (double game). Two or
+          three players each keep a peg. Four players play as partners — opposite seats in join
+          order share a score, and the deal moves clockwise.
         </p>
       </div>
     </div>
@@ -314,22 +318,56 @@ function PegPad({ state: session, me, isHost, send }: GamePlayProps) {
       <CardContent className="grid gap-3">
         <div className="grid gap-1.5">
           <Label className="text-xs text-muted-foreground">Who scores?</Label>
-          <Segmented
-            value={playerId}
-            onChange={(id) => {
-              if (!canPegFor(id)) return
-              setPlayerOverride(id)
-            }}
-            options={game.playerIds.map((id) => ({
-              value: id,
-              label: (
-                <span className={cn('flex items-center gap-1.5', !canPegFor(id) && 'opacity-40')}>
-                  <span>{playerOf(id)?.emoji}</span>
-                  {playerOf(id)?.name ?? '?'}
-                </span>
-              ),
-            }))}
-          />
+          {game.playerIds.length > 2 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {game.playerIds.map((id) => {
+                const allowed = canPegFor(id)
+                const selected = id === playerId
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    disabled={!allowed}
+                    onClick={() => {
+                      if (!allowed) return
+                      setPlayerOverride(id)
+                    }}
+                    className={cn(
+                      'rounded-full border px-2.5 py-1 text-xs transition-colors',
+                      selected
+                        ? 'border-emerald-400/50 bg-emerald-400/15 text-emerald-100'
+                        : 'border-border/50 bg-background/40 text-muted-foreground hover:bg-muted/40',
+                      !allowed && 'opacity-40',
+                    )}
+                  >
+                    {playerOf(id)?.emoji} {playerOf(id)?.name ?? '?'}
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <Segmented
+              value={playerId}
+              onChange={(id) => {
+                if (!canPegFor(id)) return
+                setPlayerOverride(id)
+              }}
+              options={game.playerIds.map((id) => ({
+                value: id,
+                label: (
+                  <span className={cn('flex items-center gap-1.5', !canPegFor(id) && 'opacity-40')}>
+                    <span>{playerOf(id)?.emoji}</span>
+                    {playerOf(id)?.name ?? '?'}
+                  </span>
+                ),
+              }))}
+            />
+          )}
+          {cribbageSides(game).some((side) => side.playerIds.length > 1) && (
+            <p className="text-xs text-muted-foreground">
+              Points peg on the partnership, whoever at the table scored them.
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-4 gap-1.5">
           {CRIBBAGE_QUICK_PEGS.map((n) => (
@@ -383,51 +421,68 @@ function CribbagePlay(props: GamePlayProps) {
   const { state: session, isHost, send } = props
   const game = session.game as CribbageState
   const totals = cribbageTotals(game)
+  const sides = cribbageSides(game)
+  const partnership = sides.some((side) => side.playerIds.length > 1)
   const playerOf = (id: string) => session.players.find((p) => p.id === id)
   const skunked = cribbageIsSkunk(game)
 
   return (
     <div className="grid gap-3">
-      <div className="grid grid-cols-2 gap-3">
-        {game.playerIds.map((id) => {
-          const player = playerOf(id)
-          const total = totals[id] ?? 0
+      <div className={cn('grid gap-3', sides.length > 2 ? 'sm:grid-cols-3' : 'grid-cols-2')}>
+        {sides.map((side) => {
+          const total = totals[side.id] ?? 0
           const progress = Math.min(1, total / game.config.targetScore)
           const skunkProgress = Math.min(1, game.config.skunkLine / game.config.targetScore)
-          const isDealer = game.dealerId === id
-          if (!player) return null
+          const dealerHere = !!game.dealerId && side.playerIds.includes(game.dealerId)
+          const role =
+            sides.length === 2
+              ? dealerHere
+                ? 'dealer · crib'
+                : 'pone'
+              : dealerHere
+                ? 'dealer · crib'
+                : 'non-dealer'
           return (
-            <Card
-              key={id}
-              role={isHost ? 'button' : undefined}
-              tabIndex={isHost ? 0 : undefined}
-              aria-pressed={isHost ? isDealer : undefined}
-              aria-label={isHost ? `Set ${player.name} as dealer` : undefined}
-              onClick={
-                isHost && !isDealer ? () => send({ type: 'setDealer', playerId: id }) : undefined
-              }
-              onKeyDown={
-                isHost && !isDealer
-                  ? (e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        send({ type: 'setDealer', playerId: id })
-                      }
-                    }
-                  : undefined
-              }
-              className={cn(
-                isDealer && 'ring-1 ring-primary/40',
-                isHost && !isDealer && 'cursor-pointer transition-colors hover:bg-muted/40',
-              )}
-            >
+            <Card key={side.id} className={cn(dealerHere && 'ring-1 ring-primary/40')}>
               <CardContent className="flex flex-col items-center gap-1.5 p-4">
-                <PlayerAvatar player={player} showPresence />
-                <div className="max-w-full truncate text-sm font-medium">{player.name}</div>
-                <div className="font-mono text-4xl font-bold tabular-nums">{total}</div>
-                <div className="text-xs text-muted-foreground">
-                  {isDealer ? 'dealer · crib' : 'pone'}
+                <div className="flex items-start justify-center gap-3">
+                  {side.playerIds.map((id) => {
+                    const player = playerOf(id)
+                    if (!player) return null
+                    const isDealer = game.dealerId === id
+                    const body = (
+                      <>
+                        <PlayerAvatar player={player} showPresence />
+                        <div className="max-w-24 truncate text-sm font-medium">{player.name}</div>
+                        {partnership && (
+                          <div className="text-[10px] text-muted-foreground">
+                            {isDealer ? 'dealer' : dealerHere ? 'partner' : 'opponent'}
+                          </div>
+                        )}
+                      </>
+                    )
+                    if (!isHost || isDealer) {
+                      return (
+                        <div key={id} className="flex flex-col items-center gap-1">
+                          {body}
+                        </div>
+                      )
+                    }
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-label={`Set ${player.name} as dealer`}
+                        onClick={() => send({ type: 'setDealer', playerId: id })}
+                        className="flex flex-col items-center gap-1 rounded-lg transition-colors hover:bg-muted/40"
+                      >
+                        {body}
+                      </button>
+                    )
+                  })}
                 </div>
+                <div className="font-mono text-4xl font-bold tabular-nums">{total}</div>
+                <div className="text-xs text-muted-foreground">{role}</div>
                 <div className="relative mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                   <div
                     className="absolute inset-y-0 w-px bg-amber-400/80"
@@ -444,12 +499,32 @@ function CribbagePlay(props: GamePlayProps) {
           )
         })}
       </div>
-      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+      {partnership && (
+        <p className="text-center text-xs text-muted-foreground">
+          Partners {cribbageSideLabel(sides[0]!, session.players)} vs{' '}
+          {cribbageSideLabel(sides[1]!, session.players)}.
+          {game.pegs.length === 0
+            ? ' Switch the pairing before the first peg.'
+            : ' Pairing is locked for this match.'}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
         <span>
           First to <span className="font-semibold text-foreground">{game.config.targetScore}</span>
           {' · '}
           skunk below {game.config.skunkLine}
         </span>
+        {isHost && partnership && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            disabled={game.pegs.length > 0}
+            onClick={() => send({ type: 'cyclePartnerships' })}
+          >
+            Switch partners
+          </Button>
+        )}
         {isHost && (
           <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => send({ type: 'nextDeal' })}>
             <Redo2Icon className="size-3.5" /> Next deal
@@ -505,7 +580,8 @@ function CribbageResults({ state: session }: { state: SessionState }) {
   const totals = cribbageTotals(game)
   const skunked = cribbageIsSkunk(game)
   const playerOf = (id: string) => session.players.find((p) => p.id === id)
-  const sorted = [...game.playerIds].sort((a, b) => (totals[b] ?? 0) - (totals[a] ?? 0))
+  const sorted = [...cribbageSides(game)].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0))
+  const best = sorted[0] ? (totals[sorted[0].id] ?? 0) : 0
 
   return (
     <Card>
@@ -513,15 +589,15 @@ function CribbageResults({ state: session }: { state: SessionState }) {
         <CardTitle className="text-sm">Final board</CardTitle>
       </CardHeader>
       <CardContent className="grid gap-3">
-        {sorted.map((id) => {
-          const player = playerOf(id)
-          const score = totals[id] ?? 0
-          const winner = sorted[0] === id && score >= game.config.targetScore
+        {sorted.map((side) => {
+          const members = side.playerIds.map((id) => playerOf(id)).filter((p) => !!p)
+          const score = totals[side.id] ?? 0
+          const winner = score === best && score >= game.config.targetScore
           return (
-            <div key={id} className="rounded-xl border border-border/50 p-3">
+            <div key={side.id} className="rounded-xl border border-border/50 p-3">
               <div className="flex items-center gap-2">
-                <span>{player?.emoji}</span>
-                <span className="flex-1 font-medium">{player?.name}</span>
+                <span>{members.map((player) => player.emoji).join(' ')}</span>
+                <span className="flex-1 font-medium">{members.map((player) => player.name).join(' & ')}</span>
                 <span className="font-mono text-xl font-bold tabular-nums text-primary">{score}</span>
               </div>
               <div className="mt-1 pl-7 text-xs text-muted-foreground">

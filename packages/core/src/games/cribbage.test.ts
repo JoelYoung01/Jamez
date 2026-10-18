@@ -3,6 +3,7 @@ import type { SessionPlayer } from '../protocol/session-state'
 import {
   cribbageEngine,
   cribbageIsSkunk,
+  cribbageSides,
   cribbageTotals,
   scoreCribbageHand,
   type CribbageAction,
@@ -22,11 +23,13 @@ const config = cribbageEngine.defaultConfig()
 const ctxHost = { actorId: 'a', isHost: true, now: 100 }
 const ctxGuest = { actorId: 'b', isHost: false, now: 100 }
 
-function freshState(overrides?: Partial<typeof config>): CribbageState {
-  return cribbageEngine.init({ ...config, ...overrides }, [
-    player('a', 'Alice', true),
-    player('b', 'Bob'),
-  ])
+const NAMES = ['Alice', 'Bob', 'Carol', 'Dan'] as const
+
+function freshState(overrides?: Partial<typeof config>, count = 2): CribbageState {
+  return cribbageEngine.init(
+    { ...config, ...overrides },
+    Array.from({ length: count }, (_, i) => player('abcd'[i]!, NAMES[i]!, i === 0)),
+  )
 }
 
 function peg(
@@ -216,5 +219,107 @@ describe('cribbage engine', () => {
     expect(cribbageEngine.isFinished(peg(state, { playerId: 'a', points: 29, kind: 'hand' }))).toBe(
       false,
     )
+  })
+
+  it('scores three-handed cribbage on separate pegs and rotates the deal', () => {
+    let state = freshState(undefined, 3)
+    expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([['a'], ['b'], ['c']])
+    expect(
+      cribbageEngine.validateAction(state, { type: 'cyclePartnerships' }, ctxHost),
+    ).toMatch(/four players/)
+
+    state = peg(state, { playerId: 'a', points: 2, kind: 'heels' })
+    state = peg(state, { playerId: 'c', points: 4, kind: 'run' }, { actorId: 'c', isHost: false, now: 100 })
+    expect(cribbageTotals(state)).toEqual({ a: 2, b: 0, c: 4 })
+
+    state = cribbageEngine.applyAction(state, { type: 'nextDeal' }, ctxHost)
+    expect(state.dealerId).toBe('b')
+    state = cribbageEngine.applyAction(state, { type: 'nextDeal' }, ctxHost)
+    expect(state.dealerId).toBe('c')
+    state = cribbageEngine.applyAction(state, { type: 'nextDeal' }, ctxHost)
+    expect(state.dealerId).toBe('a')
+  })
+})
+
+describe('four-handed cribbage', () => {
+  const table = [
+    player('a', 'Alice', true),
+    player('b', 'Bob'),
+    player('c', 'Carol'),
+    player('d', 'Dan'),
+  ]
+
+  it('opens as opposite-seat partnerships and shares a peg', () => {
+    let state = freshState(undefined, 4)
+    expect(cribbageEngine.minPlayers).toBe(2)
+    expect(cribbageEngine.maxPlayers).toBe(4)
+    expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([
+      ['a', 'c'],
+      ['b', 'd'],
+    ])
+
+    const ctxCarol = { actorId: 'c', isHost: false, now: 100 }
+    expect(
+      cribbageEngine.validateAction(state, { type: 'peg', playerId: 'a', points: 2 }, ctxCarol),
+    ).toMatch(/yourself/)
+    state = peg(state, { playerId: 'a', points: 2, kind: 'heels' })
+    state = peg(state, { playerId: 'c', points: 6, kind: 'run' }, ctxCarol)
+    state = peg(state, { playerId: 'b', points: 2, kind: 'fifteen' }, { actorId: 'b', isHost: false, now: 100 })
+
+    const [us, them] = cribbageSides(state)
+    expect(cribbageTotals(state)).toEqual({ [us!.id]: 8, [them!.id]: 2 })
+  })
+
+  it('lets the host switch partners until the first peg, then rotates all four deals', () => {
+    let state = freshState(undefined, 4)
+    expect(
+      cribbageEngine.validateAction(state, { type: 'cyclePartnerships' }, ctxGuest),
+    ).toMatch(/host/)
+
+    state = cribbageEngine.applyAction(state, { type: 'cyclePartnerships' }, ctxHost)
+    expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([
+      ['a', 'b'],
+      ['c', 'd'],
+    ])
+    state = cribbageEngine.applyAction(state, { type: 'cyclePartnerships' }, ctxHost)
+    expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([
+      ['a', 'd'],
+      ['b', 'c'],
+    ])
+    state = cribbageEngine.applyAction(state, { type: 'cyclePartnerships' }, ctxHost)
+    expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([
+      ['a', 'c'],
+      ['b', 'd'],
+    ])
+
+    state = peg(state, { playerId: 'a', points: 1, kind: 'nobs' })
+    expect(
+      cribbageEngine.validateAction(state, { type: 'cyclePartnerships' }, ctxHost),
+    ).toMatch(/lock/)
+    state = cribbageEngine.applyAction(state, { type: 'undoPeg' }, ctxHost)
+    expect(cribbageEngine.validateAction(state, { type: 'cyclePartnerships' }, ctxHost)).toBeNull()
+
+    state = peg(state, { playerId: 'd', points: 2, kind: 'go' })
+    for (const dealerId of ['b', 'c', 'd', 'a']) {
+      state = cribbageEngine.applyAction(state, { type: 'nextDeal' }, ctxHost)
+      expect(state.dealerId).toBe(dealerId)
+    }
+  })
+
+  it('skunks the losing partnership and credits both winners', () => {
+    let state = freshState({ targetScore: 121, skunkLine: 61 }, 4)
+    state = peg(state, { playerId: 'a', points: 40, kind: 'hand' })
+    state = peg(state, { playerId: 'c', points: 40, kind: 'hand' })
+    state = peg(state, { playerId: 'a', points: 40, kind: 'crib' })
+    state = peg(state, { playerId: 'c', points: 1, kind: 'nobs' })
+    state = peg(state, { playerId: 'b', points: 30, kind: 'hand' })
+    expect(cribbageEngine.isFinished(state)).toBe(true)
+    expect(cribbageIsSkunk(state)).toBe(true)
+
+    const summary = cribbageEngine.summary(state, table)
+    expect(summary.winnerIds).toEqual(['a', 'c'])
+    expect(summary.headline).toBe('Alice & Carol skunks Bob & Dan 121 – 30')
+    expect(summary.entries.find((e) => e.playerId === 'b')?.scoreText).toMatch(/Bob & Dan/)
+    expect(summary.entries.find((e) => e.playerId === 'b')?.scoreText).toMatch(/lurched/)
   })
 })
