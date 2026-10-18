@@ -170,7 +170,11 @@ function SessionHeader({ state }: { state: SessionState }) {
           </div>
         </div>
       </div>
-      <StatusPill transportStatus={store.transportStatus} passAndPlay={store.passAndPlay} />
+      <StatusPill
+        transportStatus={store.transportStatus}
+        passAndPlay={store.passAndPlay}
+        inviteCode={state.code}
+      />
     </div>
   )
 }

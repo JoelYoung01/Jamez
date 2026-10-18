@@ -194,7 +194,11 @@ function SessionHeader({ state }: { state: SessionState }) {
           </Text>
         </View>
       </View>
-      <StatusPill transportStatus={store.transportStatus} passAndPlay={store.passAndPlay} />
+      <StatusPill
+        transportStatus={store.transportStatus}
+        passAndPlay={store.passAndPlay}
+        inviteCode={state.code}
+      />
       {nickOpen ? (
         <NicknameModal
           initial={state.nickname ?? ''}
