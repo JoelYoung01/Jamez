@@ -16,7 +16,7 @@ import {
 } from './cribbage'
 
 function player(id: string, name = id, isHost = false): SessionPlayer {
-  return { id, name, emoji: '🃏', color: '#fff', isHost, remote: !isHost, connected: true, joinedAt: 0 }
+  return { id, name, emoji: '🃏', color: '#fff', isHost, clientIds: isHost ? [] : [id], connected: true, joinedAt: 0 }
 }
 
 function card(rank: CribbageCard['rank'], suit: CribbageCard['suit']): CribbageCard {

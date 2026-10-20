@@ -3,6 +3,7 @@ import {
   buildCashTransferSummary,
   chipBreakdown,
   formatPokerAmount,
+  hasPhoneClient,
   isPlayerActive,
   pointsFromChipCounts,
   toPoints,
@@ -589,8 +590,8 @@ function CashSheet({
 function ClaimMergePanel() {
   const store = useSession()
   const state = store.state!
-  const guests = state.players.filter((p) => !p.remote && !p.isHost)
-  const remotes = state.players.filter((p) => p.remote && isPlayerActive(p))
+  const guests = state.players.filter((p) => !hasPhoneClient(p) && !p.isHost)
+  const remotes = state.players.filter((p) => hasPhoneClient(p) && isPlayerActive(p))
   const inactive = state.players.filter((p) => !isPlayerActive(p))
   const [open, setOpen] = React.useState(inactive.length > 0)
   const [claimerId, setClaimerId] = React.useState(remotes[0]?.id ?? '')
@@ -650,7 +651,7 @@ function ClaimMergePanel() {
                   size="sm"
                   title="Claim seat"
                   disabled={!claimerId || !seatId}
-                  onPress={() => store.claimSeat(claimerId, seatId)}
+                  onPress={() => store.mergePlayers(seatId, claimerId, 'combine')}
                 />
               </>
             )}
@@ -832,7 +833,7 @@ function GuestIdentity({
   const updateLocalPlayer = useSession((s) => s.updateLocalPlayer)
   const deactivatePlayer = useSession((s) => s.deactivatePlayer)
   const [open, setOpen] = React.useState(false)
-  const isGuest = !player.remote && !player.isHost
+  const isGuest = !hasPhoneClient(player) && !player.isHost
 
   const body = (
     <>
@@ -948,7 +949,7 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
           const balance = game.banks[player.id]?.balance ?? 0
           const mine = me?.id === player.id
           const canAct = isHost || mine
-          const isGuest = !player.remote && !player.isHost
+          const isGuest = !hasPhoneClient(player) && !player.isHost
           return (
             <Card key={player.id} className={`gap-3 p-3.5 ${mine ? 'border-primary/40' : ''}`}>
               <View className="flex-row items-center gap-3">

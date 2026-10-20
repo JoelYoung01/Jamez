@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import * as React from 'react'
 import { AddLocalPlayerDialog } from '@/components/add-local-player-dialog'
+import { HostPlayerMenu } from '@/components/player-actions'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -411,7 +412,6 @@ function TeamEditDialog({
   onOpenChange: (open: boolean) => void
   send: GamePlayProps['send']
 }) {
-  const removePlayer = useSession((s) => s.removePlayer)
   const team = game.teams.find((t) => t.id === teamId)
   const fallback = team ? teamLabel({ ...team, name: undefined }, players) : 'Team'
   const [text, setText] = React.useState(team?.name ?? '')
@@ -496,9 +496,9 @@ function TeamEditDialog({
                         <span className="text-base leading-none" aria-hidden>
                           {player.emoji}
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                          {player.name}
-                        </span>
+                        <HostPlayerMenu player={player} className="min-w-0 flex-1">
+                          <span className="truncate text-sm font-medium">{player.name}</span>
+                        </HostPlayerMenu>
                         {otherTeams.length > 0 && (
                           <select
                             className="max-w-[9rem] truncate rounded-md border border-border/60 bg-transparent px-1.5 py-1 text-[11px] text-muted-foreground"
@@ -529,18 +529,6 @@ function TeamEditDialog({
                             onClick={() => send({ type: 'splitPlayer', playerId })}
                           >
                             <UsersIcon className="size-3.5" /> Own team
-                          </Button>
-                        )}
-                        {!player.isHost && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-[11px] text-destructive"
-                            aria-label={`Remove ${player.name} from the game`}
-                            onClick={() => removePlayer(playerId)}
-                          >
-                            <UserMinusIcon className="size-3.5" />
                           </Button>
                         )}
                       </div>

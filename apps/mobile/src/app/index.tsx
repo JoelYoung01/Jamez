@@ -12,6 +12,7 @@ import {
   DicesIcon,
   MoonIcon,
   RadioTowerIcon,
+  UsersIcon,
   SettingsIcon,
   TicketIcon,
   TrophyIcon,
@@ -121,6 +122,13 @@ export default function HomeScreen() {
               onPress={() => router.push('/stats')}
             />
           </View>
+          <HomeTile
+            icon={<UsersIcon size={20} color="#fbbf24" />}
+            title="Players"
+            description="People you play with, on a phone or not."
+            cta="Manage players"
+            onPress={() => router.push('/players')}
+          />
         </View>
 
         {recent.length > 0 && (

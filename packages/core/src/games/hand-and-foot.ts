@@ -433,6 +433,26 @@ export const handAndFootEngine: GameEngine<
     }
   },
 
+  mergePlayers(state, fromId, toId, mode) {
+    const fromTeam = state.teams.find((team) => team.playerIds.includes(fromId))
+    const toTeam = state.teams.find((team) => team.playerIds.includes(toId))
+    let next = state
+    if (mode === 'combine' && fromTeam && toTeam && fromTeam.id !== toTeam.id) {
+      next = {
+        ...state,
+        rounds: state.rounds.map((round) => {
+          const scores = { ...round.scores }
+          const fromScore = scores[fromTeam.id]
+          const toScore = scores[toTeam.id]
+          if (fromScore == null && toScore == null) scores[toTeam.id] = null
+          else scores[toTeam.id] = (fromScore ?? 0) + (toScore ?? 0)
+          return { ...round, scores }
+        }),
+      }
+    }
+    return handAndFootEngine.removePlayer!(next, fromId)
+  },
+
   removePlayer(state, playerId) {
     if (!state.playerIds.includes(playerId)) return state
     let teams = state.teams.map((t) => ({

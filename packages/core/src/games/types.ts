@@ -96,15 +96,17 @@ export interface GameEngine<C = unknown, S = unknown, A extends { type: string }
   removePlayer?(state: S, playerId: string): S
   /**
    * Claimer takes over a seat's game resources (replacing the claimer's).
-   * Used when a remote player claims a host-created guest seat.
+   * Kept for poker history continuity. Host merges go through `mergePlayers`.
    */
   claimSeat?(state: S, seatId: string, claimerId: string): S
   /**
-   * Merge `fromId`'s game resources into `toId`, then drop `fromId`.
-   * Used for consolidating duplicate seats / accounts.
+   * Fold `fromId` into `toId`. `combine` adds scores; `keep` drops `fromId`'s
+   * score and leaves the survivor's. Games with nothing to add treat both alike.
    */
-  mergePlayers?(state: S, fromId: string, toId: string): S
+  mergePlayers?(state: S, fromId: string, toId: string, mode: PlayerMergeMode): S
 }
+
+export type PlayerMergeMode = 'combine' | 'keep'
 
 /** True when the engine is a long-lived room rather than a finite match. */
 export function isOngoingGame(game: Pick<GameEngine, 'sessionMode'>): boolean {

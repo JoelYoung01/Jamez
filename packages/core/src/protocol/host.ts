@@ -4,17 +4,37 @@ import { normalizeAvatarPhoto, stripPlayerPhotos } from '../profile/avatar'
 import type { RoomTransport } from '../transport/types'
 import { Emitter, type Unsubscribe } from '../util/emitter'
 import { randomId } from '../util/ids'
+import type { PlayerMergeMode } from '../games/types'
 import {
+  hasPhoneClient,
   isPlayerActive,
   makeEnvelope,
   normalizeNickname,
+  normalizeSessionPlayer,
   parseEnvelope,
   pickPlayerColor,
+  seatForClientId,
   type PlayerProfile,
   type SessionPlayer,
   type SessionState,
   type WireMessage,
 } from './session-state'
+
+const ACTION_ID_FIELDS = ['playerId', 'knockerId'] as const
+
+/** Map a phone's profile id onto the seat id inside an action payload. */
+function canonicalizeAction(
+  action: { type: string } & Record<string, unknown>,
+  clientId: string,
+  seatId: string,
+): { type: string } & Record<string, unknown> {
+  if (clientId === seatId) return action
+  const next: { type: string } & Record<string, unknown> = { ...action }
+  for (const field of ACTION_ID_FIELDS) {
+    if (next[field] === clientId) next[field] = seatId
+  }
+  return next
+}
 
 const PING_INTERVAL_MS = 10_000
 const PRESENCE_SWEEP_MS = 5_000
@@ -34,6 +54,17 @@ export interface HostSessionOptions {
   /** Optional display nickname for a brand-new session. */
   nickname?: string
   now?: () => number
+  /**
+   * Host player library lookup. A phone hello resolves here before a new seat
+   * is created, so a known person (including a second phone) reuses their id.
+   */
+  resolveLibrary?: (clientId: string) => {
+    id: string
+    name: string
+    emoji: string
+    photo?: string
+    clientIds: string[]
+  } | null
 }
 
 /**
@@ -50,6 +81,7 @@ export class HostSession {
   private readonly hostId: string
   private readonly now: () => number
   private readonly onSnapshot?: (state: SessionState) => void
+  private readonly resolveLibrary?: HostSessionOptions['resolveLibrary']
 
   private lastSeen = new Map<string, number>()
   private timers: ReturnType<typeof setInterval>[] = []
@@ -62,6 +94,7 @@ export class HostSession {
     this.transport = options.transport
     this.now = options.now ?? (() => Date.now())
     this.onSnapshot = options.onSnapshot
+    this.resolveLibrary = options.resolveLibrary
     this.hostId = options.hostProfile.id
 
     if (options.resumeFrom) {
@@ -72,9 +105,10 @@ export class HostSession {
       this.state = {
         ...options.resumeFrom,
         players: options.resumeFrom.players.map((p) => {
+          const normalized = normalizeSessionPlayer(p)
           if (p.id === options.hostProfile.id) {
             return {
-              ...p,
+              ...normalized,
               name: options.hostProfile.name,
               emoji: options.hostProfile.emoji,
               photo: hostPhoto,
@@ -83,8 +117,9 @@ export class HostSession {
             }
           }
           return {
-            ...p,
-            connected: !p.remote, // remote guests must re-hello
+            ...normalized,
+            // Phone seats must hello again. Host-created seats stay playable.
+            connected: !hasPhoneClient(normalized),
             hasPhoto: Boolean(p.photo) || p.hasPhoto === true,
           }
         }),
@@ -99,7 +134,7 @@ export class HostSession {
         ...(hostPhoto ? { photo: hostPhoto, hasPhoto: true } : { hasPhoto: false }),
         color: pickPlayerColor([]),
         isHost: true,
-        remote: false,
+        clientIds: [],
         connected: true,
         joinedAt: this.now(),
       }
@@ -195,9 +230,11 @@ export class HostSession {
   addLocalPlayer(profile: {
     name: string
     emoji: string
-    /** Reuse a prior roster / remote id so Pass & Play matches the real device later. */
+    /** Reuse a library id so a later hello from a bound phone attaches to this seat. */
     id?: string
     photo?: string
+    /** Phones already bound to this library player. Empty for a host-created player. */
+    clientIds?: string[]
   }): string | null {
     const limit = this.tableLimit()
     if (this.state.players.length >= limit) {
@@ -211,17 +248,19 @@ export class HostSession {
       return 'Session is full'
     }
     const id = profile.id?.trim() || randomId(8)
-    if (this.state.players.some((p) => p.id === id)) {
+    const uniqueClients = [...new Set((profile.clientIds ?? []).map((clientId) => clientId.trim()).filter(Boolean))]
+    if (this.state.players.some((p) => p.id === id || p.clientIds.some((clientId) => uniqueClients.includes(clientId)))) {
       return 'That player is already in the session'
     }
+    const phoneBound = uniqueClients.length > 0
     const player: SessionPlayer = {
       id,
       name: profile.name,
       emoji: profile.emoji,
       color: pickPlayerColor(this.state.players.map((p) => p.color)),
       isHost: false,
-      remote: false,
-      connected: true,
+      clientIds: uniqueClients,
+      connected: !phoneBound,
       joinedAt: this.now(),
       active: atTable,
       ...(profile.photo ? { photo: profile.photo, hasPhoto: true } : {}),
@@ -236,8 +275,9 @@ export class HostSession {
   }
 
   /**
-   * Update the name/emoji of a host-created guest seat (`remote: false`).
-   * Remote joiners and the host edit their own profile on-device instead.
+   * Update the name/emoji of a host-created player (no bound phone).
+   * Phone profiles refresh from the device on hello; the host's alias lives
+   * in the library, not on the seat.
    */
   updateLocalPlayer(
     playerId: string,
@@ -246,7 +286,7 @@ export class HostSession {
     const player = this.state.players.find((p) => p.id === playerId)
     if (!player) return 'Player not found'
     if (player.isHost) return 'The host profile is edited in Settings'
-    if (player.remote) return 'Only host-created guest seats can be edited'
+    if (hasPhoneClient(player)) return 'Only host-created players can be edited'
     const name =
       patch.name !== undefined ? patch.name.trim().slice(0, 24) : player.name
     const emoji = patch.emoji !== undefined ? patch.emoji : player.emoji
@@ -290,7 +330,7 @@ export class HostSession {
     if (!isPlayerActive(player)) return null
     this.mutate((s) => {
       s.players = s.players.map((p) =>
-        p.id === playerId ? { ...p, active: false, connected: p.remote ? false : p.connected } : p,
+        p.id === playerId ? { ...p, active: false, connected: hasPhoneClient(p) ? false : p.connected } : p,
       )
     })
     return null
@@ -305,7 +345,7 @@ export class HostSession {
     if (activeCount >= this.tableLimit()) return 'Session is full'
     this.mutate((s) => {
       s.players = s.players.map((p) =>
-        p.id === playerId ? { ...p, active: true, connected: p.remote ? p.connected : true } : p,
+        p.id === playerId ? { ...p, active: true, connected: hasPhoneClient(p) ? p.connected : true } : p,
       )
       if (s.phase === 'playing' && s.game && this.game.addPlayer) {
         const seated = s.players.find((p) => p.id === playerId)
@@ -375,85 +415,75 @@ export class HostSession {
   }
 
   /**
-   * Let a joined player take over a host-created guest seat. The claimer keeps
-   * their device identity and receives the seat's game resources (replacing
-   * whatever they had); the guest seat is removed from the session.
+   * Disconnect every phone on a seat. The seat stays so the host can keep
+   * playing it; those phones can hello again later and reattach.
    */
-  claimSeat(claimerId: string, seatId: string): string | null {
-    if (claimerId === seatId) return 'Pick two different players'
-    if (!this.game.claimSeat) {
-      return `${this.game.name} does not support claiming seats`
+  kickPlayer(playerId: string): string | null {
+    if (playerId === this.hostId) return 'The host cannot be kicked'
+    const player = this.state.players.find((p) => p.id === playerId)
+    if (!player) return 'Player not found'
+    for (const clientId of player.clientIds) {
+      this.lastSeen.delete(clientId)
+      this.sendWire({ t: 'kick', to: clientId })
     }
-    const claimer = this.state.players.find((p) => p.id === claimerId)
-    const seat = this.state.players.find((p) => p.id === seatId)
-    if (!claimer) return 'Claiming player not found'
-    if (!seat) return 'Seat not found'
-    if (seat.isHost) return 'The host seat cannot be claimed'
-    if (seat.remote) return 'Only host-created guest seats can be claimed'
-    if (claimer.isHost) return 'The host cannot claim a guest seat'
-    if (this.state.phase === 'lobby') {
-      // Lobby: drop the guest seat; claimer is already seated with their device id.
+    if (hasPhoneClient(player)) {
       this.mutate((s) => {
-        s.players = s.players.filter((p) => p.id !== seatId)
+        s.players = s.players.map((p) => (p.id === playerId ? { ...p, connected: false } : p))
       })
-      return null
     }
-    if (this.state.phase !== 'playing' || !this.state.game) {
-      return 'Seats can only be claimed during an open session'
-    }
-    this.mutate((s) => {
-      s.game = this.game.claimSeat!(s.game, seatId, claimerId)
-      s.players = s.players.filter((p) => p.id !== seatId)
-    })
     return null
   }
 
   /**
-   * Merge one player's game resources into another, then remove the source.
-   *
-   * Rules:
-   * - The host seat can never be removed (`fromId` cannot be the host).
-   * - Guest seat (`remote: false`) + real player (`remote: true`): the player
-   *   always survives (`toId` must be the remote player).
-   * - Player + player (or guest + guest): the host chooses `toId`.
+   * Fold one seated player into another. `toId` survives, including every
+   * phone bound to either seat. `mode` is how the open game treats scores.
    */
-  mergePlayers(fromId: string, toId: string): string | null {
+  mergePlayers(
+    fromId: string,
+    toId: string,
+    mode: PlayerMergeMode = 'combine',
+    profile?: { name?: string; emoji?: string; photo?: string },
+  ): string | null {
     if (fromId === toId) return 'Pick two different players'
-    if (!this.game.mergePlayers) {
-      return `${this.game.name} does not support merging players`
-    }
     if (fromId === this.hostId) return 'The host cannot be merged away'
     const from = this.state.players.find((p) => p.id === fromId)
     const to = this.state.players.find((p) => p.id === toId)
     if (!from || !to) return 'Player not found'
-
-    const fromIsGuest = !from.remote && !from.isHost
-    const toIsGuest = !to.remote && !to.isHost
-    const fromIsPlayer = from.remote || from.isHost
-    const toIsPlayer = to.remote || to.isHost
-
-    if (fromIsGuest && toIsPlayer) {
-      // ok — guest folds into player
-    } else if (fromIsPlayer && toIsGuest) {
-      return 'When merging a guest with a player, the player must receive the balance'
-    } else if (fromIsGuest && toIsGuest) {
-      // ok — host picks survivor
-    } else if (fromIsPlayer && toIsPlayer) {
-      // ok — host picks survivor
+    const clientIds = [...new Set([...to.clientIds, ...from.clientIds])]
+    const applyProfile = (player: SessionPlayer): SessionPlayer => {
+      if (!profile || player.isHost) return { ...player, clientIds }
+      const photo = profile.photo !== undefined ? profile.photo : player.photo
+      return {
+        ...player,
+        clientIds,
+        ...(profile.name ? { name: profile.name } : {}),
+        ...(profile.emoji ? { emoji: profile.emoji } : {}),
+        ...(photo ? { photo, hasPhoto: true } : {}),
+      }
     }
 
-    if (this.state.phase === 'lobby') {
+    if (this.state.phase === 'lobby' || !this.state.game) {
       this.mutate((s) => {
-        s.players = s.players.filter((p) => p.id !== fromId)
+        s.players = s.players
+          .filter((p) => p.id !== fromId)
+          .map((p) => (p.id === toId ? applyProfile(p) : p))
       })
       return null
     }
-    if (this.state.phase !== 'playing' || !this.state.game) {
+    if (this.state.phase !== 'playing') {
       return 'Players can only be merged during an open session'
     }
     this.mutate((s) => {
-      s.game = this.game.mergePlayers!(s.game, fromId, toId)
-      s.players = s.players.filter((p) => p.id !== fromId)
+      if (s.game) {
+        if (this.game.mergePlayers) {
+          s.game = this.game.mergePlayers(s.game, fromId, toId, mode)
+        } else if (this.game.removePlayer) {
+          s.game = this.game.removePlayer(s.game, fromId)
+        }
+      }
+      s.players = s.players
+        .filter((p) => p.id !== fromId)
+        .map((p) => (p.id === toId ? applyProfile(p) : p))
     })
     return null
   }
@@ -471,6 +501,9 @@ export class HostSession {
     reqId?: string,
     fromRemote = false,
   ): string | null {
+    const seat =
+      seatForClientId(this.state.players, actorId) ??
+      this.state.players.find((p) => p.id === actorId)
     const fail = (reason: string): string => {
       if (fromRemote) this.sendWire({ t: 'reject', to: actorId, reqId, reason })
       return reason
@@ -478,18 +511,21 @@ export class HostSession {
     if (this.state.phase !== 'playing' || !this.state.game) {
       return fail('Game is not in progress')
     }
-    const actor = this.state.players.find((p) => p.id === actorId)
-    if (!actor || !isPlayerActive(actor)) return fail('You are not at the table')
-    const targetId = typeof action.playerId === 'string' ? action.playerId : undefined
-    if (targetId && targetId !== actorId) {
+    if (!seat || !isPlayerActive(seat)) return fail('You are not at the table')
+    if (fromRemote && seat.id !== actorId && !seat.clientIds.includes(actorId)) {
+      return fail('You are not at the table')
+    }
+    const canonical = canonicalizeAction(action, actorId, seat.id)
+    const targetId = typeof canonical.playerId === 'string' ? canonical.playerId : undefined
+    if (targetId && targetId !== seat.id) {
       const target = this.state.players.find((p) => p.id === targetId)
       if (target && !isPlayerActive(target)) return fail('That player is not at the table')
     }
-    const ctx = { actorId, isHost: actorId === this.hostId, now: this.now() }
-    const error = this.game.validateAction(this.state.game, action, ctx)
+    const ctx = { actorId: seat.id, isHost: actorId === this.hostId, now: this.now() }
+    const error = this.game.validateAction(this.state.game, canonical, ctx)
     if (error) return fail(error)
     this.mutate((s) => {
-      s.game = this.game.applyAction(s.game, action, ctx)
+      s.game = this.game.applyAction(s.game, canonical, ctx)
       if (this.game.isFinished(s.game)) {
         s.summary = this.game.summary(s.game, s.players)
         s.phase = 'finished'
@@ -512,15 +548,20 @@ export class HostSession {
       case 'bye':
         // Explicit leave = not present (keeps bank / history). App background
         // and reconnects use heartbeats / hello and must not go through bye.
-        if (msg.playerId !== this.hostId) {
-          this.deactivatePlayer(msg.playerId)
-        } else {
-          this.markConnected(msg.playerId, false)
+        {
+          const leaving = seatForClientId(this.state.players, msg.playerId)
+          if (leaving && leaving.id !== this.hostId) {
+            this.lastSeen.delete(msg.playerId)
+            if (this.phoneIsConnected(leaving)) this.markClient(msg.playerId, false)
+            else this.deactivatePlayer(leaving.id)
+          } else {
+            this.markClient(msg.playerId, false)
+          }
         }
         break
       case 'hb':
         this.lastSeen.set(msg.playerId, this.now())
-        this.markConnected(msg.playerId, true)
+        this.markClient(msg.playerId, true)
         if (msg.rev < this.state.rev) this.sendState()
         break
       case 'action':
@@ -541,9 +582,16 @@ export class HostSession {
   private handleHello(profile: PlayerProfile): void {
     this.lastSeen.set(profile.id, this.now())
     const photo = normalizeAvatarPhoto(profile.photo)
-    const existing = this.state.players.find((p) => p.id === profile.id)
+    const bound = this.resolveLibrary?.(profile.id) ?? null
+    const existing =
+      seatForClientId(this.state.players, profile.id) ??
+      (bound ? this.state.players.find((p) => p.id === bound.id) : undefined)
     if (existing) {
-      // Reconnect (or profile update) for a known player — including soft-removed seats.
+      if (existing.isHost) {
+        this.sendWire({ t: 'reject', to: profile.id, reason: 'That player is already in this session' })
+        return
+      }
+      // Reconnect, or a second phone already bound to this seat.
       if (!isPlayerActive(existing)) {
         const activeCount = this.state.players.filter(isPlayerActive).length
         if (activeCount >= this.tableLimit()) {
@@ -556,15 +604,17 @@ export class HostSession {
         }
       }
       const prevPhoto = existing.photo
+      const clientIds = [...new Set([...existing.clientIds, profile.id, ...(bound?.clientIds ?? [])])]
       this.mutate((s) => {
         s.players = s.players.map((p) =>
-          p.id === profile.id
+          p.id === existing.id
             ? {
                 ...p,
                 name: profile.name,
                 emoji: profile.emoji,
                 photo,
                 hasPhoto: Boolean(photo),
+                clientIds,
                 connected: true,
                 // Explicit join / rejoin checks them in at the table.
                 active: true,
@@ -572,12 +622,12 @@ export class HostSession {
             : p,
         )
         if (s.phase === 'playing' && s.game && this.game.addPlayer) {
-          const seated = s.players.find((p) => p.id === profile.id)
+          const seated = s.players.find((p) => p.id === existing.id)
           if (seated) s.game = this.game.addPlayer(s.game, seated)
         }
       })
       this.sendState()
-      if (photo && photo !== prevPhoto) this.broadcastAvatar(profile.id, photo)
+      if (photo && photo !== prevPhoto) this.broadcastAvatar(existing.id, photo)
       return
     }
     if (this.state.players.filter(isPlayerActive).length >= this.tableLimit()) {
@@ -600,14 +650,16 @@ export class HostSession {
       })
       return
     }
+    const id = bound?.id ?? profile.id
+    const clientIds = [...new Set([...(bound?.clientIds ?? []), profile.id])]
     const player: SessionPlayer = {
-      id: profile.id,
+      id,
       name: profile.name,
       emoji: profile.emoji,
       ...(photo ? { photo, hasPhoto: true } : { hasPhoto: false }),
       color: pickPlayerColor(this.state.players.map((p) => p.color)),
       isHost: false,
-      remote: true,
+      clientIds,
       connected: true,
       joinedAt: this.now(),
       active: true,
@@ -618,7 +670,7 @@ export class HostSession {
         s.game = this.game.addPlayer(s.game, player)
       }
     })
-    if (photo) this.broadcastAvatar(profile.id, photo)
+    if (photo) this.broadcastAvatar(id, photo)
   }
 
   private handleAvatarReq(playerIds?: string[]): void {
@@ -634,20 +686,31 @@ export class HostSession {
     this.sendWire({ t: 'avatar', playerId, photo })
   }
 
-  private markConnected(playerId: string, connected: boolean): void {
-    const player = this.state.players.find((p) => p.id === playerId)
-    if (!player || !player.remote || player.connected === connected) return
+  /** A phone seat stays connected while any of its phones has been seen recently. */
+  private phoneIsConnected(player: SessionPlayer, now = this.now()): boolean {
+    const cutoff = now - PRESENCE_TIMEOUT_MS
+    return player.clientIds.some((id) => (this.lastSeen.get(id) ?? 0) >= cutoff)
+  }
+
+  private markClient(clientId: string, seen: boolean): void {
+    const player = seatForClientId(this.state.players, clientId)
+    if (!player || !hasPhoneClient(player)) return
+    if (!seen) this.lastSeen.delete(clientId)
+    const connected = this.phoneIsConnected(player)
+    if (player.connected === connected) return
     this.mutate((s) => {
-      s.players = s.players.map((p) => (p.id === playerId ? { ...p, connected } : p))
+      s.players = s.players.map((p) => (p.id === player.id ? { ...p, connected } : p))
     })
   }
 
   private sweepPresence(): void {
-    const cutoff = this.now() - PRESENCE_TIMEOUT_MS
     for (const player of this.state.players) {
-      if (!player.remote || !player.connected) continue
-      const seen = this.lastSeen.get(player.id) ?? 0
-      if (seen < cutoff) this.markConnected(player.id, false)
+      if (!hasPhoneClient(player) || !player.connected) continue
+      if (!this.phoneIsConnected(player)) {
+        this.mutate((s) => {
+          s.players = s.players.map((p) => (p.id === player.id ? { ...p, connected: false } : p))
+        })
+      }
     }
   }
 

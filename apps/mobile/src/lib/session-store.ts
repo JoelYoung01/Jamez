@@ -12,6 +12,7 @@ import {
   type GuestSession,
   type GuestStatus,
   type HostSession,
+  type PlayerMergeMode,
   type SessionState,
   type TransportStatus,
   type Unsubscribe,
@@ -29,7 +30,7 @@ import {
   type HostSnapshot,
 } from './host-sessions'
 import { endSessionLiveActivity, syncSessionLiveActivity } from './live-activity'
-import { usePlayerRoster } from './player-roster'
+import { resolveLibraryPlayer, usePlayerRoster } from './player-roster'
 import { currentProfile } from './profile'
 import { activeRelays } from './settings'
 import { toast } from './toast'
@@ -73,13 +74,19 @@ interface SessionStoreState {
     emoji: string
     id?: string
     photo?: string
+    clientIds?: string[]
   }) => void
   updateLocalPlayer: (playerId: string, patch: { name?: string; emoji?: string }) => void
   removePlayer: (playerId: string) => void
+  kickPlayer: (playerId: string) => void
   deactivatePlayer: (playerId: string) => void
   reactivatePlayer: (playerId: string) => void
-  claimSeat: (claimerId: string, seatId: string) => void
-  mergePlayers: (fromId: string, toId: string) => void
+  mergePlayers: (
+    fromId: string,
+    toId: string,
+    mode?: PlayerMergeMode,
+    profile?: { name?: string; emoji?: string; photo?: string },
+  ) => boolean
   sendAction: (
     action: { type: string } & Record<string, unknown>,
     actorId?: string,
@@ -187,6 +194,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
         transport: makeTransport(code, passAndPlay),
         onSnapshot: (state) => persistHostSnapshot(state, passAndPlay, 'active'),
         nickname,
+        resolveLibrary: resolveLibraryPlayer,
       })
       wireHost(host, passAndPlay)
       host.start()
@@ -247,6 +255,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
         transport: makeTransport(snapshot.state.code, passAndPlay),
         onSnapshot: (state) => persistHostSnapshot(state, passAndPlay, 'active'),
         resumeFrom: snapshot.state,
+        resolveLibrary: resolveLibraryPlayer,
       })
       persistHostSnapshot(snapshot.state, passAndPlay, 'active')
       wireHost(host, passAndPlay)
@@ -300,7 +309,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
           id: seated.id,
           name: seated.name,
           emoji: seated.emoji,
-          source: 'local',
+          clientIds: seated.clientIds,
           ...(seated.photo || profile.photo
             ? { photo: seated.photo ?? profile.photo }
             : {}),
@@ -320,7 +329,7 @@ export const useSession = create<SessionStoreState>()((set, get) => {
           id: seated.id,
           name: seated.name,
           emoji: seated.emoji,
-          source: 'local',
+          clientIds: seated.clientIds,
           ...(seated.photo ? { photo: seated.photo } : {}),
         })
       }
@@ -328,6 +337,11 @@ export const useSession = create<SessionStoreState>()((set, get) => {
 
     removePlayer(playerId) {
       const error = host?.removePlayer(playerId)
+      if (error) toast.error(error)
+    },
+
+    kickPlayer(playerId) {
+      const error = host?.kickPlayer(playerId)
       if (error) toast.error(error)
     },
 
@@ -341,14 +355,13 @@ export const useSession = create<SessionStoreState>()((set, get) => {
       if (error) toast.error(error)
     },
 
-    claimSeat(claimerId, seatId) {
-      const error = host?.claimSeat(claimerId, seatId)
-      if (error) toast.error(error)
-    },
-
-    mergePlayers(fromId, toId) {
-      const error = host?.mergePlayers(fromId, toId)
-      if (error) toast.error(error)
+    mergePlayers(fromId, toId, mode = 'combine', profile) {
+      const error = host?.mergePlayers(fromId, toId, mode, profile)
+      if (error) {
+        toast.error(error)
+        return false
+      }
+      return true
     },
 
     sendAction(action, actorId) {

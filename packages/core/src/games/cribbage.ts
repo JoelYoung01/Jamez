@@ -563,4 +563,26 @@ export const cribbageEngine: GameEngine<CribbageConfig, CribbageState, CribbageA
       }),
     }
   },
+
+  mergePlayers(state, fromId, toId, mode) {
+    const playerIds = state.playerIds.filter((id) => id !== fromId)
+    if (!playerIds.includes(toId)) playerIds.push(toId)
+    const sides = (state.sides ?? []).map((side) => ({
+      ...side,
+      playerIds: side.playerIds.filter((id) => id !== fromId),
+    })).filter((side) => side.playerIds.length > 0)
+    const pegs =
+      mode === 'combine'
+        ? state.pegs.map((peg) =>
+            peg.playerId === fromId ? { ...peg, playerId: toId } : peg,
+          )
+        : state.pegs.filter((peg) => peg.playerId !== fromId)
+    return {
+      ...state,
+      playerIds,
+      sides,
+      pegs,
+      dealerId: state.dealerId === fromId ? toId : state.dealerId,
+    }
+  },
 }

@@ -93,7 +93,15 @@ export class GuestSession {
 
   /** The guest's own player entry in the latest state, if joined. */
   get me() {
-    return this._state?.players.find((p) => p.id === this.profile.id) ?? null
+    return this.seatIn(this._state)
+  }
+
+  private seatIn(state: SessionState | null): SessionPlayer | null {
+    if (!state) return null
+    return (
+      state.players.find((p) => p.id === this.profile.id || p.clientIds?.includes(this.profile.id)) ??
+      null
+    )
   }
 
   start(): void {
@@ -159,7 +167,7 @@ export class GuestSession {
         const incoming = msg.state
         if (this._state && incoming.rev < this._state.rev) return // stale
         this.applyState(incoming)
-        const meNow = this._state?.players.find((p) => p.id === this.profile.id)
+        const meNow = this.seatIn(this._state)
         const inSession = Boolean(meNow && meNow.active !== false)
         if (!inSession) {
           // Hard-removed or soft-deactivated by the host.
@@ -167,7 +175,7 @@ export class GuestSession {
           return
         }
         if (this._status !== 'joined') this.setStatus('joined')
-        // A resumed host marks remote players disconnected until they check
+        // A resumed host marks phone players disconnected until they check
         // in again; answer immediately instead of waiting for the next
         // heartbeat interval.
         if (meNow && !meNow.connected) this.sendHello()
@@ -188,6 +196,12 @@ export class GuestSession {
         if (msg.to === this.profile.id) {
           this.onReject.emit({ reqId: msg.reqId, reason: msg.reason })
           if (this._status === 'waiting_host') this.setStatus('rejected')
+        }
+        break
+      case 'kick':
+        if (msg.to === this.profile.id) {
+          this.setStatus('ended')
+          this.stop()
         }
         break
       case 'ended':

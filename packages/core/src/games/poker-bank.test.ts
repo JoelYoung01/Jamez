@@ -22,7 +22,7 @@ function player(id: string, name: string, remote = false): SessionPlayer {
     emoji: '🃏',
     color: '#fff',
     isHost: id === 'host',
-    remote,
+    clientIds: remote ? [id] : [],
     connected: true,
     joinedAt: 1,
   }
@@ -201,7 +201,7 @@ describe('poker bank engine', () => {
       ...state,
       banks: { ...state.banks, a: { balance: 100 }, b: { balance: 250 } },
     }
-    const merged = pokerBankEngine.mergePlayers!(state, 'a', 'b')
+    const merged = pokerBankEngine.mergePlayers!(state, 'a', 'b', 'combine')
     // Source rows stay under fromId so history does not stitch into the survivor.
     expect(merged.ledger.some((e) => e.playerId === 'a')).toBe(true)
     expect(merged.ledger.at(-1)).toMatchObject({ kind: 'merge', playerId: 'b', points: 100 })
@@ -216,7 +216,7 @@ describe('poker bank engine', () => {
       ...state,
       banks: { ...state.banks, a: { balance: 100 }, b: { balance: 250 } },
     }
-    const merged = pokerBankEngine.mergePlayers!(state, 'a', 'b')
+    const merged = pokerBankEngine.mergePlayers!(state, 'a', 'b', 'combine')
     expect(merged.banks.b?.balance).toBe(350)
     expect(merged.banks.a).toBeUndefined()
   })

@@ -8,15 +8,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { PageHeader } from '@/components/page-header'
 import { AppButton, Card, Muted, Screen, Spinner } from '@/components/ui'
 
-/** Pull a join code out of whatever the QR contains (join URL or bare code). */
-function extractJoinCode(data: string): string | null {
+/** Pull a join or enroll code out of a QR (URL or bare join code). */
+function extractCode(data: string): { kind: 'join' | 'enroll'; code: string } | null {
+  const enroll = data.toUpperCase().match(new RegExp(`ENROLL/([A-Z0-9]{${JOIN_CODE_LENGTH}})`))
+  if (enroll?.[1] && isValidJoinCode(normalizeJoinCode(enroll[1]))) {
+    return { kind: 'enroll', code: normalizeJoinCode(enroll[1]) }
+  }
   const fromUrl = data.toUpperCase().match(new RegExp(`(?:JOIN|SESSION)/([A-Z0-9]{${JOIN_CODE_LENGTH}})`))
-  if (fromUrl?.[1]) {
-    const code = normalizeJoinCode(fromUrl[1])
-    if (isValidJoinCode(code)) return code
+  if (fromUrl?.[1] && isValidJoinCode(normalizeJoinCode(fromUrl[1]))) {
+    return { kind: 'join', code: normalizeJoinCode(fromUrl[1]) }
   }
   const bare = normalizeJoinCode(data)
-  return isValidJoinCode(bare) ? bare : null
+  return isValidJoinCode(bare) ? { kind: 'join', code: bare } : null
 }
 
 export default function ScanScreen() {
@@ -26,10 +29,10 @@ export default function ScanScreen() {
 
   const onScanned = ({ data }: { data: string }) => {
     if (handled.current) return
-    const code = extractJoinCode(data)
-    if (!code) return
+    const found = extractCode(data)
+    if (!found) return
     handled.current = true
-    router.replace(`/session/${code}`)
+    router.replace(found.kind === 'enroll' ? `/enroll/${found.code}` : `/session/${found.code}`)
   }
 
   return (

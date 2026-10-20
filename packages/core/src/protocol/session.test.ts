@@ -143,7 +143,7 @@ describe('host/guest session over memory transport', () => {
     const code = generateJoinCode()
     const host = makeHost(code)
     expect(host.addLocalPlayer({ name: 'Cousin', emoji: '🃏' })).toBeNull()
-    const seat = host.current.players.find((p) => !p.remote && !p.isHost)!
+    const seat = host.current.players.find((p) => p.clientIds.length === 0 && !p.isHost)!
     expect(host.updateLocalPlayer(seat.id, { name: 'Mike', emoji: '😎' })).toBeNull()
     const updated = host.current.players.find((p) => p.id === seat.id)!
     expect(updated.name).toBe('Mike')
@@ -333,33 +333,34 @@ describe('host/guest session over memory transport', () => {
     await until(() => (g1.status === 'joined' ? true : null))
     await until(() => (host.current.players.some((p) => p.id === 'phone-1') ? true : null))
 
-    expect(host.claimSeat('phone-1', seatId)).toBeNull()
+    expect(host.mergePlayers(seatId, 'phone-1', 'combine')).toBeNull()
     expect(host.current.players.find((p) => p.id === seatId)).toBeUndefined()
     const bank = host.current.game as PokerBankState
-    expect(bank.banks['phone-1']?.balance).toBe(700)
+    // Seat 700 plus the phone's starting 500.
+    expect(bank.banks['phone-1']?.balance).toBe(1200)
     expect(bank.banks[seatId]).toBeUndefined()
-    // Guest seat history is stitched onto the claimer (no orphan seat series).
-    expect(bank.ledger.every((e) => e.playerId !== seatId)).toBe(true)
-    expect(bank.ledger.filter((e) => e.playerId === 'phone-1' && e.kind === 'start')).toHaveLength(1)
-    expect(bank.ledger.find((e) => e.playerId === 'phone-1' && e.kind === 'deposit')?.points).toBe(
-      200,
-    )
+    expect(bank.banks['phone-1']).toBeTruthy()
 
-    // Second remote player joins; host merges them into phone-1 (player+player).
+    // Second phone joins; host merges them into phone-1 and keeps both client ids.
     const g2 = makeGuest(code, 'phone-2', 'Quinn')
     await until(() => (host.current.players.some((p) => p.id === 'phone-2') ? true : null))
     expect(
       host.applyAction({ type: 'deposit', playerId: 'phone-2', amount: 50, unit: 'points' }),
     ).toBeNull()
-    expect(host.mergePlayers('phone-2', 'phone-1')).toBeNull()
+    expect(host.mergePlayers('phone-2', 'phone-1', 'combine')).toBeNull()
     expect(host.current.players.find((p) => p.id === 'phone-2')).toBeUndefined()
     const merged = host.current.game as PokerBankState
-    expect(merged.banks['phone-1']?.balance).toBe(1250)
+    expect(merged.banks['phone-1']?.balance).toBe(1750)
+    expect(host.current.players.find((p) => p.id === 'phone-1')?.clientIds).toEqual(
+      expect.arrayContaining(['phone-1', 'phone-2']),
+    )
 
-    // Guest must fold into player, not the other way around.
     expect(host.addLocalPlayer({ name: 'Seat B', emoji: '🎴' })).toBeNull()
     const seatB = host.current.players.find((p) => p.name === 'Seat B')!.id
-    expect(host.mergePlayers('phone-1', seatB)).toMatch(/player must receive/)
+    expect(host.reactivatePlayer(seatB)).toBeNull()
+    expect(host.mergePlayers('phone-1', seatB, 'keep')).toBeNull()
+    expect(host.current.players.find((p) => p.id === 'phone-1')).toBeUndefined()
+    expect((host.current.game as PokerBankState).banks[seatB]?.balance).toBe(500)
 
     host.end()
     g1.stop()
@@ -462,5 +463,46 @@ describe('host/guest session over memory transport', () => {
     expect(host.current.summary?.headline).toMatch(/^Draw/)
     expect(host.current.summary?.entries.length).toBe(2)
     host.end()
+  })
+
+  it('attaches a second bound phone to the same seat', async () => {
+    const code = generateJoinCode()
+    const library = {
+      id: 'phone-1',
+      name: 'Pat',
+      emoji: '🃏',
+      clientIds: ['phone-1', 'phone-2'],
+    }
+    const host = createHostSession({
+      code,
+      game: wingspanEngine as never,
+      hostProfile: profile('host-1', 'Hana'),
+      transport: createMemoryTransport(code),
+      resolveLibrary: (clientId) => (library.clientIds.includes(clientId) ? library : null),
+    })
+    host.start()
+    const web = makeGuest(code, 'phone-1', 'Pat')
+    await until(() => (web.status === 'joined' ? true : null))
+    const app = makeGuest(code, 'phone-2', 'Patrick')
+    await until(() => (app.me?.id === 'phone-1' ? true : null))
+    expect(host.current.players.filter((p) => !p.isHost)).toHaveLength(1)
+    expect(host.current.players.find((p) => p.id === 'phone-1')?.clientIds).toEqual(
+      expect.arrayContaining(['phone-1', 'phone-2']),
+    )
+    expect(host.startGame()).toBeNull()
+    app.sendAction({ type: 'setCategory', playerId: 'phone-2', category: 'birds', value: 4 })
+    await until(() =>
+      (host.current.game as WingspanState | null)?.sheets['phone-1']?.birds === 4 ? true : null,
+    )
+    // The host can still record for that seat while the phone is connected.
+    expect(
+      host.applyAction({ type: 'setCategory', playerId: 'phone-1', category: 'eggs', value: 3 }),
+    ).toBeNull()
+    await until(() =>
+      (app.state?.game as WingspanState | null)?.sheets['phone-1']?.eggs === 3 ? true : null,
+    )
+    host.end()
+    web.stop()
+    app.stop()
   })
 })

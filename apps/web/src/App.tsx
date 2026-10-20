@@ -4,7 +4,9 @@ import { ContinuePage } from '@/pages/continue'
 import { HistoryDetailPage, HistoryPage } from '@/pages/history'
 import { HomePage } from '@/pages/home'
 import { HostConfigPage, HostPage } from '@/pages/host'
+import { EnrollPage } from '@/pages/enroll'
 import { JoinPage } from '@/pages/join'
+import { PlayersPage } from '@/pages/players'
 import { SessionPage } from '@/pages/session'
 import { SessionReportsPage } from '@/pages/session-reports'
 import { StatsPage } from '@/pages/stats'
@@ -18,6 +20,8 @@ export function App() {
         <Route path="/host/:gameId" element={<HostConfigPage />} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/join/:code" element={<JoinPage />} />
+        <Route path="/enroll/:code" element={<EnrollPage />} />
+        <Route path="/players" element={<PlayersPage />} />
         <Route path="/continue" element={<ContinuePage />} />
         <Route path="/session/:code" element={<SessionPage />} />
         <Route path="/session/:code/reports" element={<SessionReportsPage />} />

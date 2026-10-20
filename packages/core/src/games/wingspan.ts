@@ -189,6 +189,30 @@ export const wingspanEngine: GameEngine<WingspanConfig, WingspanState, WingspanA
     return { ...state, sheets: { ...state.sheets, [player.id]: emptySheet() } }
   },
 
+  mergePlayers(state, fromId, toId, mode) {
+    const from = state.sheets[fromId]
+    const to = state.sheets[toId] ?? emptySheet()
+    if (!from) return state
+    const sheets = { ...state.sheets }
+    delete sheets[fromId]
+    if (mode === 'combine') {
+      sheets[toId] = {
+        birds: to.birds + from.birds,
+        bonusCards: to.bonusCards + from.bonusCards,
+        roundGoals: to.roundGoals + from.roundGoals,
+        eggs: to.eggs + from.eggs,
+        foodOnCards: to.foodOnCards + from.foodOnCards,
+        tuckedCards: to.tuckedCards + from.tuckedCards,
+        nectar: to.nectar + from.nectar,
+        unusedFood: to.unusedFood + from.unusedFood,
+        done: to.done || from.done,
+      }
+    } else if (!state.sheets[toId]) {
+      sheets[toId] = emptySheet()
+    }
+    return { ...state, sheets }
+  },
+
   removePlayer(state, playerId) {
     if (!state.sheets[playerId]) return state
     const sheets = { ...state.sheets }

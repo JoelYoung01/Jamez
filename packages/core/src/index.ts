@@ -47,11 +47,14 @@ export {
 export {
   PLAYER_COLORS,
   SESSION_NICKNAME_MAX,
+  hasPhoneClient,
   isPlayerActive,
   makeEnvelope,
   normalizeNickname,
+  normalizeSessionPlayer,
   parseEnvelope,
   pickPlayerColor,
+  seatForClientId,
   type Envelope,
   type PlayerProfile,
   type SessionPhase,
@@ -60,6 +63,7 @@ export {
   type WireMessage,
 } from './protocol/session-state'
 export { HostSession, createHostSession, type HostSessionOptions } from './protocol/host'
+export { EnrollGuest, EnrollHost, type EnrollGuestOptions, type EnrollHostOptions } from './protocol/enroll'
 export {
   GuestSession,
   createGuestSession,
@@ -77,6 +81,7 @@ export {
   type GameEngine,
   type GameSessionMode,
   type GameSummary,
+  type PlayerMergeMode,
   type SummaryEntry,
 } from './games/types'
 export { gameEngines, getGameEngine } from './games/registry'
@@ -236,13 +241,21 @@ export {
   type RoomStatus,
 } from './persistence/host-sessions'
 export {
+  PLAYER_LIBRARY_STORAGE_KEY,
   PLAYER_ROSTER_STORAGE_KEY,
-  removeRosterPlayer,
-  rosterAvailableForSession,
-  sortRosterPlayers,
-  upsertRosterPlayer,
-  type RosterPlayer,
-  type RosterPlayerSource,
+  filterLibraryPlayers,
+  libraryDisplayName,
+  libraryPlayerByClientId,
+  mergeLibraryPlayers,
+  migrateLibraryEntries,
+  setLibraryAlias,
+  setLibraryInactive,
+  sortLibraryPlayers,
+  upsertLibraryPlayer,
+  type LibraryFieldSource,
+  type LibraryMergeChoices,
+  type LibraryPlayer,
+  type LibraryUpsert,
 } from './persistence/player-roster'
 
 // history
