@@ -5,6 +5,8 @@ import { createMemoryTransport } from '../transport/memory'
 import {
   cribbageEngine,
   cribbageIsSkunk,
+  cribbagePlayerLimit,
+  cribbageSeatingError,
   cribbageSides,
   cribbageTotals,
   scoreCribbageHand,
@@ -134,8 +136,8 @@ describe('cribbage hand scoring (Bicycle)', () => {
 describe('cribbage engine', () => {
   it('defaults to Bicycle 121 with a 61 skunk line and two teams', () => {
     expect(config).toEqual({ targetScore: 121, skunkLine: 61, teamCount: 2 })
-    expect(cribbageEngine.playerLimit(config)).toBe(4)
-    expect(cribbageEngine.playerLimit({ ...config, teamCount: 3 })).toBe(6)
+    expect(cribbagePlayerLimit(config)).toBe(4)
+    expect(cribbagePlayerLimit({ ...config, teamCount: 3 })).toBe(6)
     expect(cribbageEngine.maxPlayers).toBe(6)
   })
 
@@ -230,9 +232,7 @@ describe('cribbage engine', () => {
   it('scores three-handed cribbage on separate pegs and rotates the deal', () => {
     let state = freshState({ teamCount: 3 }, 3)
     expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([['a'], ['b'], ['c']])
-    expect(cribbageEngine.validateStart({ ...config, teamCount: 3 }, [player('a'), player('b')])).toMatch(
-      /team 3/,
-    )
+    expect(cribbageSeatingError({ ...config, teamCount: 3 }, ['a', 'b'])).toMatch(/team 3/)
 
     state = peg(state, { playerId: 'a', points: 2, kind: 'heels' })
     state = peg(state, { playerId: 'c', points: 4, kind: 'run' }, { actorId: 'c', isHost: false, now: 100 })
@@ -295,12 +295,7 @@ describe('four-handed cribbage', () => {
       ['b', 'e'],
       ['c', 'f'],
     ])
-    expect(
-      cribbageEngine.validateStart(
-        { ...config, teamCount: 3 },
-        IDS.map((id, i) => player(id, NAMES[i])),
-      ),
-    ).toBeNull()
+    expect(cribbageSeatingError({ ...config, teamCount: 3 }, [...IDS])).toBeNull()
 
     const summary = cribbageEngine.summary(
       peg(
