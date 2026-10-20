@@ -28,7 +28,7 @@ import {
   XIcon,
 } from 'lucide-react-native'
 import * as React from 'react'
-import { Pressable, Switch, Text, View } from 'react-native'
+import { PanResponder, Pressable, Switch, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
@@ -655,6 +655,71 @@ function CribbageResults({ state: session }: { state: SessionState }) {
   )
 }
 
+function DragSeat({
+  label,
+  enabled,
+  onGrant,
+  onMovePoint,
+  onEnd,
+}: {
+  label: string
+  enabled: boolean
+  onGrant: () => void
+  onMovePoint: (x: number, y: number) => void
+  onEnd: (x: number, y: number) => void
+}) {
+  const enabledRef = React.useRef(enabled)
+  const grantRef = React.useRef(onGrant)
+  const moveRef = React.useRef(onMovePoint)
+  const endRef = React.useRef(onEnd)
+  enabledRef.current = enabled
+  grantRef.current = onGrant
+  moveRef.current = onMovePoint
+  endRef.current = onEnd
+  const [shift, setShift] = React.useState({ x: 0, y: 0, active: false })
+  const responder = React.useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => enabledRef.current,
+        onMoveShouldSetPanResponder: () => enabledRef.current,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => {
+          setShift({ x: 0, y: 0, active: true })
+          grantRef.current()
+        },
+        onPanResponderMove: (_event, gesture) => {
+          setShift({ x: gesture.dx, y: gesture.dy, active: true })
+          moveRef.current(gesture.moveX, gesture.moveY)
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          setShift({ x: 0, y: 0, active: false })
+          endRef.current(gesture.moveX, gesture.moveY)
+        },
+        onPanResponderTerminate: () => setShift({ x: 0, y: 0, active: false }),
+      }),
+    [],
+  )
+
+  return (
+    <View
+      {...(enabled ? responder.panHandlers : {})}
+      style={{
+        transform: [{ translateX: shift.x }, { translateY: shift.y }],
+        zIndex: shift.active ? 20 : 0,
+        elevation: shift.active ? 8 : 0,
+      }}
+      className={clsx(
+        'flex-row items-center rounded-lg border border-line bg-field px-2 py-1.5',
+        shift.active && 'border-emerald-400/70',
+      )}
+    >
+      <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  )
+}
+
 function CribbageLobby({ state, isHost, updateConfig }: GameLobbyProps) {
   const config = state.gameConfig as CribbageConfig
   const teamCount = clampCribbageTeamCount(config.teamCount)
@@ -665,61 +730,105 @@ function CribbageLobby({ state, isHost, updateConfig }: GameLobbyProps) {
     atTable.map((player) => player.id),
   )
   const playerOf = (id: string) => state.players.find((player) => player.id === id)
+  const teamNodes = React.useRef<(View | null)[]>([])
+  const layouts = React.useRef<Array<{ x: number; y: number; width: number; height: number } | null>>([])
+  const teamsRef = React.useRef(teams)
+  const configRef = React.useRef(config)
+  teamsRef.current = teams
+  configRef.current = config
+  const [over, setOver] = React.useState<number | null>(null)
+  const [draggingId, setDraggingId] = React.useState<string | null>(null)
 
-  const move = (playerId: string, teamIndex: number) => {
-    const next = teams.map((team) => team.filter((id) => id !== playerId))
-    if ((next[teamIndex]?.length ?? 2) >= 2) return
-    next[teamIndex]!.push(playerId)
-    updateConfig({ ...config, teamCount, teams: next })
-  }
+  const remeasure = React.useCallback(() => {
+    teamNodes.current.forEach((node, index) => {
+      node?.measureInWindow((x, y, width, height) => {
+        layouts.current[index] = { x, y, width, height }
+      })
+    })
+  }, [])
+
+  const teamAt = React.useCallback((x: number, y: number) => {
+    for (let i = 0; i < layouts.current.length; i++) {
+      const rect = layouts.current[i]
+      if (!rect) continue
+      if (x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height) return i
+    }
+    return null
+  }, [])
+
+  const commitMove = React.useCallback(
+    (playerId: string, teamIndex: number) => {
+      const current = teamsRef.current
+      const from = current.findIndex((team) => team.includes(playerId))
+      if (from === teamIndex) return
+      if ((current[teamIndex]?.length ?? 2) >= 2) return
+      const next = current.map((team) => team.filter((id) => id !== playerId))
+      next[teamIndex]!.push(playerId)
+      updateConfig({ ...configRef.current, teamCount, teams: next })
+    },
+    [teamCount, updateConfig],
+  )
 
   return (
     <Card className="gap-3 p-4">
       <Text className="text-sm font-semibold text-zinc-100">Teams</Text>
       <Text className="text-xs text-muted-foreground">
-        {teamCount} teams, up to two players each. People sit as they join. Move anyone before the
-        deal.
+        {teamCount} teams, up to two players each. People sit as they join.
+        {isHost ? ' Drag a player onto another team before the deal.' : ''}
       </Text>
       <View className="gap-2">
-        {teams.map((team, index) => (
-          <View key={index} className="rounded-xl border border-line p-3">
-            <Text className="text-xs font-medium text-muted-foreground">Team {index + 1}</Text>
-            {team.length === 0 && <Text className="mt-2 text-sm text-muted-foreground">Empty</Text>}
-            <View className="mt-2 gap-2">
-              {team.map((id) => {
-                const person = playerOf(id)
-                return (
-                  <View key={id} className="gap-1">
-                    <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
-                      {person?.emoji} {person?.name ?? 'Unknown'}
-                    </Text>
-                    {isHost && (
-                      <View className="flex-row flex-wrap gap-1">
-                        {teams.map((destTeam, dest) =>
-                          dest === index ? null : (
-                            <Pressable
-                              key={dest}
-                              disabled={destTeam.length >= 2}
-                              onPress={() => move(id, dest)}
-                              className={clsx(
-                                'rounded-md border border-line px-2 py-1 active:opacity-70',
-                                destTeam.length >= 2 && 'opacity-40',
-                              )}
-                            >
-                              <Text className="text-[11px] text-muted-foreground">
-                                To team {dest + 1}
-                              </Text>
-                            </Pressable>
-                          ),
-                        )}
-                      </View>
-                    )}
-                  </View>
-                )
-              })}
+        {teams.map((team, index) => {
+          const full = team.length >= 2 && !team.includes(draggingId ?? '')
+          const hot = over === index
+          return (
+            <View
+              key={index}
+              ref={(node) => {
+                teamNodes.current[index] = node
+              }}
+              onLayout={remeasure}
+              className={clsx(
+                'min-h-16 rounded-xl border p-3',
+                hot && !full && 'border-emerald-400 bg-emerald-400/10',
+                hot && full && 'border-rose-400/70 bg-rose-400/10',
+                !hot && 'border-line',
+              )}
+            >
+              <Text className="text-xs font-medium text-muted-foreground">
+                Team {index + 1}
+                {hot && full ? ' · full' : ''}
+              </Text>
+              {team.length === 0 && (
+                <Text className="mt-2 text-sm text-muted-foreground">
+                  {hot && !full ? 'Drop here' : 'Empty'}
+                </Text>
+              )}
+              <View className="mt-2 gap-2">
+                {team.map((id) => {
+                  const person = playerOf(id)
+                  return (
+                    <DragSeat
+                      key={id}
+                      label={`${person?.emoji ?? ''} ${person?.name ?? 'Unknown'}`}
+                      enabled={isHost}
+                      onGrant={() => {
+                        remeasure()
+                        setDraggingId(id)
+                      }}
+                      onMovePoint={(x, y) => setOver(teamAt(x, y))}
+                      onEnd={(x, y) => {
+                        const dest = teamAt(x, y)
+                        setOver(null)
+                        setDraggingId(null)
+                        if (dest !== null) commitMove(id, dest)
+                      }}
+                    />
+                  )
+                })}
+              </View>
             </View>
-          </View>
-        ))}
+          )
+        })}
       </View>
     </Card>
   )

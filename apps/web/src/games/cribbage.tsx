@@ -635,13 +635,82 @@ function CribbageLobby({ state, isHost, updateConfig }: GameLobbyProps) {
     atTable.map((player) => player.id),
   )
   const playerOf = (id: string) => state.players.find((player) => player.id === id)
+  const teamEls = React.useRef<(HTMLDivElement | null)[]>([])
+  const teamsRef = React.useRef(teams)
+  const configRef = React.useRef(config)
+  teamsRef.current = teams
+  configRef.current = config
+  const [drag, setDrag] = React.useState<{
+    playerId: string
+    x: number
+    y: number
+    over: number | null
+  } | null>(null)
+  const stopDrag = React.useRef<(() => void) | null>(null)
 
-  const move = (playerId: string, teamIndex: number) => {
-    const next = teams.map((team) => team.filter((id) => id !== playerId))
-    if ((next[teamIndex]?.length ?? 2) >= 2) return
-    next[teamIndex]!.push(playerId)
-    updateConfig({ ...config, teamCount, teams: next })
+  const teamAt = React.useCallback((x: number, y: number) => {
+    for (let i = 0; i < teamEls.current.length; i++) {
+      const el = teamEls.current[i]
+      if (!el) continue
+      const rect = el.getBoundingClientRect()
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return i
+    }
+    return null
+  }, [])
+
+  const commitMove = React.useCallback(
+    (playerId: string, teamIndex: number) => {
+      const current = teamsRef.current
+      const from = current.findIndex((team) => team.includes(playerId))
+      if (from === teamIndex) return
+      if ((current[teamIndex]?.length ?? 2) >= 2) return
+      const next = current.map((team) => team.filter((id) => id !== playerId))
+      next[teamIndex]!.push(playerId)
+      updateConfig({ ...configRef.current, teamCount, teams: next })
+    },
+    [teamCount, updateConfig],
+  )
+
+  React.useEffect(() => () => stopDrag.current?.(), [])
+
+  const startDrag = (playerId: string, event: React.PointerEvent) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    stopDrag.current?.()
+    const point = (e: PointerEvent) => {
+      setDrag({
+        playerId,
+        x: e.clientX,
+        y: e.clientY,
+        over: teamAt(e.clientX, e.clientY),
+      })
+    }
+    const end = (e: PointerEvent) => {
+      window.removeEventListener('pointermove', point)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+      stopDrag.current = null
+      const over = teamAt(e.clientX, e.clientY)
+      setDrag(null)
+      if (over !== null) commitMove(playerId, over)
+    }
+    stopDrag.current = () => {
+      window.removeEventListener('pointermove', point)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+    }
+    setDrag({
+      playerId,
+      x: event.clientX,
+      y: event.clientY,
+      over: teamAt(event.clientX, event.clientY),
+    })
+    window.addEventListener('pointermove', point)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
   }
+
+  const dragged = drag ? playerOf(drag.playerId) : null
 
   return (
     <Card>
@@ -650,51 +719,90 @@ function CribbageLobby({ state, isHost, updateConfig }: GameLobbyProps) {
       </CardHeader>
       <CardContent className="grid gap-3">
         <p className="text-xs text-muted-foreground">
-          {teamCount} teams, up to two players each. People sit as they join. Move anyone before
-          the deal.
+          {teamCount} teams, up to two players each. People sit as they join.
+          {isHost ? ' Drag a player onto another team before the deal.' : ''}
         </p>
         <div className={cn('grid gap-2', teamCount === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
-          {teams.map((team, index) => (
-            <div key={index} className="rounded-xl border border-border/60 p-3">
-              <div className="text-xs font-medium text-muted-foreground">Team {index + 1}</div>
-              {team.length === 0 && <p className="mt-2 text-sm text-muted-foreground">Empty</p>}
-              <div className="mt-2 grid gap-2">
-                {team.map((id) => {
-                  const person = playerOf(id)
-                  return (
-                    <div key={id} className="grid gap-1">
-                      <div className="flex items-center gap-2 text-sm">
+          {teams.map((team, index) => {
+            const full = team.length >= 2 && !team.includes(drag?.playerId ?? '')
+            const hot = drag?.over === index
+            return (
+              <div
+                key={index}
+                ref={(el) => {
+                  teamEls.current[index] = el
+                }}
+                className={cn(
+                  'min-h-24 rounded-xl border p-3 transition-colors',
+                  hot && !full && 'border-emerald-400/80 bg-emerald-400/10',
+                  hot && full && 'border-rose-400/70 bg-rose-400/10',
+                  !hot && 'border-border/60',
+                )}
+              >
+                <div className="text-xs font-medium text-muted-foreground">
+                  Team {index + 1}
+                  {hot && full ? ' · full' : ''}
+                </div>
+                {team.length === 0 && (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {hot && !full ? 'Drop here' : 'Empty'}
+                  </p>
+                )}
+                <div className="mt-2 grid gap-2">
+                  {team.map((id) => {
+                    const person = playerOf(id)
+                    const name = person?.name ?? 'Unknown'
+                    const active = drag?.playerId === id
+                    return (
+                      <div
+                        key={id}
+                        role={isHost ? 'button' : undefined}
+                        tabIndex={isHost ? 0 : undefined}
+                        aria-grabbed={isHost ? active : undefined}
+                        aria-label={isHost ? `Drag ${name} to another team` : undefined}
+                        onPointerDown={isHost ? (event) => startDrag(id, event) : undefined}
+                        onKeyDown={
+                          isHost
+                            ? (event) => {
+                                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                                event.preventDefault()
+                                const dir = event.key === 'ArrowRight' ? 1 : -1
+                                let dest = index
+                                for (let step = 0; step < teamCount; step++) {
+                                  dest = (dest + dir + teamCount) % teamCount
+                                  if (teams[dest]!.length < 2) {
+                                    commitMove(id, dest)
+                                    break
+                                  }
+                                }
+                              }
+                            : undefined
+                        }
+                        className={cn(
+                          'flex items-center gap-2 rounded-lg border border-border/50 bg-background/50 px-2 py-1.5 text-sm',
+                          isHost && 'cursor-grab touch-none select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+                          active && 'opacity-40',
+                        )}
+                      >
                         <span>{person?.emoji}</span>
-                        <span className="min-w-0 flex-1 truncate font-medium">
-                          {person?.name ?? 'Unknown'}
-                        </span>
+                        <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
                       </div>
-                      {isHost && (
-                        <div className="flex flex-wrap gap-1">
-                          {teams.map((destTeam, dest) =>
-                            dest === index ? null : (
-                              <Button
-                                key={dest}
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-7 px-2 text-[11px]"
-                                disabled={destTeam.length >= 2}
-                                onClick={() => move(id, dest)}
-                              >
-                                To team {dest + 1}
-                              </Button>
-                            ),
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
+        {dragged && drag && (
+          <div
+            className="pointer-events-none fixed z-50 flex items-center gap-2 rounded-lg border border-emerald-400/70 bg-background px-2 py-1.5 text-sm shadow-lg"
+            style={{ left: drag.x, top: drag.y, transform: 'translate(-50%, -120%)' }}
+          >
+            <span>{dragged.emoji}</span>
+            <span className="font-medium">{dragged.name}</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
