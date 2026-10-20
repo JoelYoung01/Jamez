@@ -4,10 +4,11 @@ import { formatPoints, namesList, type ActionContext, type GameEngine, type Game
 /**
  * Cribbage match scoring (Bicycle Cards):
  *
- * - Two or three players each keep their own pegs. Four players play the
- *   standard partnership game: opposite seats in join order (1st with 3rd,
- *   2nd with 4th) share one score. The host can switch that pairing until
- *   the first peg.
+ * - The host picks 2 or 3 teams before the lobby. Each team has one peg and
+ *   seats one or two players (so three teams is at most six people).
+ * - Players fill those teams in the lobby. Until someone is moved by hand,
+ *   join order alternates around the teams, which is opposite-seat partners
+ *   when every team is full.
  * - Race to a target (default 121; shorter games often play to 61).
  * - Points are pegged as they happen: His Heels, play combinations (15, pairs,
  *   runs, Go, 31), then hand and crib counts.
@@ -18,8 +19,7 @@ import { formatPoints, namesList, type ActionContext, type GameEngine, type Game
  *   are "lurched" and the win counts as a double game.
  *
  * This engine is a digital pegboard + optional hand calculator — it does not
- * deal cards or enforce the play sequence. Join order is clockwise seat order
- * for the deal and for the opening four-handed partnerships.
+ * deal cards or enforce the play sequence. Join order is the deal order.
  */
 
 export type CribbageRank = 'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K'
@@ -45,6 +45,9 @@ export type CribbagePegKind =
   | 'nobs'
   | 'custom'
 
+/** How many scoring sides the host asked for on the setup screen. */
+export type CribbageTeamCount = 2 | 3
+
 export interface CribbageConfig {
   /** First player to reach this total wins (Bicycle default: 121). */
   targetScore: number
@@ -53,6 +56,16 @@ export interface CribbageConfig {
    * target (Bicycle halfway mark: 61 on a 121 board).
    */
   skunkLine: number
+  /**
+   * Scoring sides. Each side seats up to two players. Missing on setups saved
+   * before team selection; those are treated as two teams.
+   */
+  teamCount?: CribbageTeamCount
+  /**
+   * Lobby seating, one list per team. Missing players are seated automatically
+   * at the start of the match.
+   */
+  teams?: string[][]
 }
 
 export interface CribbagePeg {
@@ -94,7 +107,6 @@ export type CribbageAction =
   | { type: 'undoPeg' }
   | { type: 'setDealer'; playerId: string }
   | { type: 'nextDeal' }
-  | { type: 'cyclePartnerships' }
 
 export interface CribbageHandBreakdown {
   fifteens: number
@@ -251,34 +263,83 @@ export function scoreCribbageHand(
   }
 }
 
-/**
- * Four-handed partnerships, in seat-index pairs. The first matching is
- * opposite seats (standard cribbage). The host can cycle the other two
- * perfect matchings before anyone pegs.
- */
-const CRIBBAGE_PAIRINGS: readonly (readonly [number, number])[][] = [
-  [
-    [0, 2],
-    [1, 3],
-  ],
-  [
-    [0, 1],
-    [2, 3],
-  ],
-  [
-    [0, 3],
-    [1, 2],
-  ],
-]
+/** Players who share one peg. */
+export const CRIBBAGE_PLAYERS_PER_TEAM = 2
 
-function initialSides(playerIds: string[]): CribbageSide[] {
-  if (playerIds.length === 4) {
-    return CRIBBAGE_PAIRINGS[0]!.map((pair) => ({
-      id: `side-${playerIds[pair[0]]}`,
-      playerIds: pair.map((index) => playerIds[index]!),
-    }))
+export function clampCribbageTeamCount(value: unknown): CribbageTeamCount {
+  return value === 3 ? 3 : 2
+}
+
+export function cribbagePlayerLimit(config: Pick<CribbageConfig, 'teamCount'>): number {
+  return clampCribbageTeamCount(config.teamCount) * CRIBBAGE_PLAYERS_PER_TEAM
+}
+
+/**
+ * Seat `playerIds` onto `teamCount` teams of at most two. Explicit seats in
+ * `seating` are kept; everyone else fills the smallest team, which alternates
+ * join order around the table.
+ */
+export function normalizeCribbageTeams(
+  teamCount: CribbageTeamCount,
+  seating: string[][] | undefined,
+  playerIds: string[],
+): string[][] {
+  const allowed = new Set(playerIds)
+  const teams: string[][] = Array.from({ length: teamCount }, () => [])
+  const seated = new Set<string>()
+  for (let i = 0; i < teamCount; i++) {
+    for (const id of seating?.[i] ?? []) {
+      if (!allowed.has(id) || seated.has(id)) continue
+      if (teams[i]!.length >= CRIBBAGE_PLAYERS_PER_TEAM) break
+      teams[i]!.push(id)
+      seated.add(id)
+    }
   }
-  return playerIds.map((id) => ({ id, playerIds: [id] }))
+  for (const id of playerIds) {
+    if (seated.has(id)) continue
+    let openAt = -1
+    let openSize = CRIBBAGE_PLAYERS_PER_TEAM
+    for (let i = 0; i < teams.length; i++) {
+      const size = teams[i]!.length
+      if (size >= CRIBBAGE_PLAYERS_PER_TEAM) continue
+      if (size < openSize) {
+        openAt = i
+        openSize = size
+      }
+    }
+    if (openAt === -1) break
+    teams[openAt]!.push(id)
+    seated.add(id)
+  }
+  return teams
+}
+
+/** Why the lobby cannot deal yet, or null when every team has a player. */
+export function cribbageSeatingError(
+  config: Pick<CribbageConfig, 'teamCount' | 'teams'>,
+  playerIds: string[],
+): string | null {
+  const teamCount = clampCribbageTeamCount(config.teamCount)
+  const limit = teamCount * CRIBBAGE_PLAYERS_PER_TEAM
+  if (playerIds.length > limit) {
+    return `This setup seats at most ${limit} players`
+  }
+  const teams = normalizeCribbageTeams(teamCount, config.teams, playerIds)
+  const empty = teams.findIndex((team) => team.length === 0)
+  if (empty !== -1) return `Seat at least one player on team ${empty + 1}`
+  const unassigned = playerIds.filter((id) => !teams.some((team) => team.includes(id)))
+  if (unassigned.length > 0) return 'Every player needs a team'
+  return null
+}
+
+function sidesFromTeams(teams: string[][]): CribbageSide[] {
+  return teams
+    .filter((ids) => ids.length > 0)
+    .map((ids) => ({
+      // A solo team keeps the player's id so older two-handed totals stay keyed that way.
+      id: ids.length === 1 ? ids[0]! : `side-${ids[0]}`,
+      playerIds: ids,
+    }))
 }
 
 /** Scoring sides, including matches saved before `sides` existed. */
@@ -298,41 +359,7 @@ export function cribbageSideLabel(
   return namesList(side.playerIds.map((id) => players.find((p) => p.id === id)?.name ?? 'Unknown'))
 }
 
-function pairingKey(playerIds: string[], groups: ReadonlyArray<readonly number[]>): string {
-  return groups
-    .map((group) =>
-      group
-        .map((index) => playerIds[index] ?? '')
-        .slice()
-        .sort()
-        .join('+'),
-    )
-    .sort()
-    .join('|')
-}
-
-function currentPairingIndex(state: CribbageState): number {
-  const ids = state.playerIds
-  const key = cribbageSides(state)
-    .map((side) => side.playerIds.slice().sort().join('+'))
-    .sort()
-    .join('|')
-  const index = CRIBBAGE_PAIRINGS.findIndex(
-    (pairing) => pairingKey(ids, pairing) === key,
-  )
-  return index === -1 ? 0 : index
-}
-
-function sidesForPairing(state: CribbageState, pairingIndex: number): CribbageSide[] {
-  const pairing = CRIBBAGE_PAIRINGS[pairingIndex]!
-  const previous = cribbageSides(state)
-  return pairing.map((pair, index) => ({
-    id: previous[index]?.id ?? `side-${state.playerIds[pair[0]]}`,
-    playerIds: pair.map((seat) => state.playerIds[seat]!),
-  }))
-}
-
-/** Running peg totals, keyed by side id (a player id in two- and three-handed). */
+/** Running peg totals, keyed by side id (a player id when a team is one person). */
 export function cribbageTotals(state: CribbageState): Record<string, number> {
   const sides = cribbageSides(state)
   const totals: Record<string, number> = {}
@@ -380,26 +407,41 @@ function validatePegPoints(points: number): string | null {
 export const cribbageEngine: GameEngine<CribbageConfig, CribbageState, CribbageAction> = {
   id: 'cribbage',
   name: 'Cribbage',
-  tagline: 'Peg to 121 — two-handed, or four-handed partners',
+  tagline: 'Peg to 121 — up to three teams of two',
   accentColor: '#86efac',
   minPlayers: 2,
-  maxPlayers: 4,
+  maxPlayers: 6,
   allowLateJoin: false,
 
   defaultConfig(): CribbageConfig {
     return {
       targetScore: 121,
       skunkLine: 61,
+      teamCount: 2,
     }
+  },
+
+  playerLimit(config) {
+    return cribbagePlayerLimit(config)
+  },
+
+  validateStart(config, players) {
+    return cribbageSeatingError(
+      config,
+      players.map((player) => player.id),
+    )
   },
 
   init(config, players) {
     const ids = players.map((p) => p.id)
+    const teamCount = clampCribbageTeamCount(config.teamCount)
+    const teams = normalizeCribbageTeams(teamCount, config.teams, ids)
+    const seated = new Set(teams.flat())
     return {
-      config,
-      playerIds: ids,
-      sides: initialSides(ids),
-      dealerId: ids[0] ?? null,
+      config: { ...config, teamCount, teams },
+      playerIds: ids.filter((id) => seated.has(id)),
+      sides: sidesFromTeams(teams),
+      dealerId: ids.find((id) => seated.has(id)) ?? null,
       pegs: [],
     }
   },
@@ -421,13 +463,6 @@ export const cribbageEngine: GameEngine<CribbageConfig, CribbageState, CribbageA
       if (state.playerIds.length === 0) return 'No players seated'
       return null
     }
-    if (action.type === 'cyclePartnerships') {
-      if (!ctx.isHost) return 'Only the host can switch partners'
-      if (state.playerIds.length !== 4) return 'Partnerships are only for four players'
-      if (state.pegs.length > 0) return 'Partnerships lock in once someone pegs'
-      return null
-    }
-
     if (!state.playerIds.includes(action.playerId)) return 'Unknown player'
     if (action.playerId !== ctx.actorId && !ctx.isHost) {
       return 'You can only peg points for yourself'
@@ -453,11 +488,6 @@ export const cribbageEngine: GameEngine<CribbageConfig, CribbageState, CribbageA
       const dealerId = ids[(idx + 1) % ids.length] ?? ids[0] ?? null
       return { ...state, dealerId }
     }
-    if (action.type === 'cyclePartnerships') {
-      const next = (currentPairingIndex(state) + 1) % CRIBBAGE_PAIRINGS.length
-      return { ...state, sides: sidesForPairing(state, next) }
-    }
-
     const side = cribbageSideForPlayer(state, action.playerId)
     const peg: CribbagePeg = {
       n: state.pegs.length + 1,

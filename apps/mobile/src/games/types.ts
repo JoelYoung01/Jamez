@@ -15,11 +15,18 @@ export interface GameSetupProps<C = unknown> {
   onChange: (config: C) => void
 }
 
+export interface GameLobbyProps {
+  state: SessionState
+  isHost: boolean
+  updateConfig: (config: unknown) => void
+}
+
 export interface GameUIModule {
   id: string
   /** Icon shown on the shelf, host picker, session header and history rows. */
   icon: LucideIcon
   SetupForm: React.ComponentType<GameSetupProps<never>> | React.ComponentType<GameSetupProps>
+  LobbyPanel?: React.ComponentType<GameLobbyProps>
   PlayView: React.ComponentType<GamePlayProps>
   ResultsDetail?: React.ComponentType<{ state: SessionState }>
   configSummary?: (config: unknown) => string[]

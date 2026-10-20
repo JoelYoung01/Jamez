@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { createHostSession } from '../protocol/host'
 import type { SessionPlayer } from '../protocol/session-state'
+import { createMemoryTransport } from '../transport/memory'
 import {
   cribbageEngine,
   cribbageIsSkunk,
@@ -23,12 +25,13 @@ const config = cribbageEngine.defaultConfig()
 const ctxHost = { actorId: 'a', isHost: true, now: 100 }
 const ctxGuest = { actorId: 'b', isHost: false, now: 100 }
 
-const NAMES = ['Alice', 'Bob', 'Carol', 'Dan'] as const
+const IDS = ['a', 'b', 'c', 'd', 'e', 'f'] as const
+const NAMES = ['Alice', 'Bob', 'Carol', 'Dan', 'Eve', 'Frank'] as const
 
 function freshState(overrides?: Partial<typeof config>, count = 2): CribbageState {
   return cribbageEngine.init(
     { ...config, ...overrides },
-    Array.from({ length: count }, (_, i) => player('abcd'[i]!, NAMES[i]!, i === 0)),
+    Array.from({ length: count }, (_, i) => player(IDS[i]!, NAMES[i]!, i === 0)),
   )
 }
 
@@ -129,8 +132,11 @@ describe('cribbage hand scoring (Bicycle)', () => {
 })
 
 describe('cribbage engine', () => {
-  it('defaults to Bicycle 121 with a 61 skunk line', () => {
-    expect(config).toEqual({ targetScore: 121, skunkLine: 61 })
+  it('defaults to Bicycle 121 with a 61 skunk line and two teams', () => {
+    expect(config).toEqual({ targetScore: 121, skunkLine: 61, teamCount: 2 })
+    expect(cribbageEngine.playerLimit(config)).toBe(4)
+    expect(cribbageEngine.playerLimit({ ...config, teamCount: 3 })).toBe(6)
+    expect(cribbageEngine.maxPlayers).toBe(6)
   })
 
   it('lets the host peg for anyone and guests only for themselves', () => {
@@ -222,11 +228,11 @@ describe('cribbage engine', () => {
   })
 
   it('scores three-handed cribbage on separate pegs and rotates the deal', () => {
-    let state = freshState(undefined, 3)
+    let state = freshState({ teamCount: 3 }, 3)
     expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([['a'], ['b'], ['c']])
-    expect(
-      cribbageEngine.validateAction(state, { type: 'cyclePartnerships' }, ctxHost),
-    ).toMatch(/four players/)
+    expect(cribbageEngine.validateStart({ ...config, teamCount: 3 }, [player('a'), player('b')])).toMatch(
+      /team 3/,
+    )
 
     state = peg(state, { playerId: 'a', points: 2, kind: 'heels' })
     state = peg(state, { playerId: 'c', points: 4, kind: 'run' }, { actorId: 'c', isHost: false, now: 100 })
@@ -252,7 +258,6 @@ describe('four-handed cribbage', () => {
   it('opens as opposite-seat partnerships and shares a peg', () => {
     let state = freshState(undefined, 4)
     expect(cribbageEngine.minPlayers).toBe(2)
-    expect(cribbageEngine.maxPlayers).toBe(4)
     expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([
       ['a', 'c'],
       ['b', 'd'],
@@ -270,40 +275,46 @@ describe('four-handed cribbage', () => {
     expect(cribbageTotals(state)).toEqual({ [us!.id]: 8, [them!.id]: 2 })
   })
 
-  it('lets the host switch partners until the first peg, then rotates all four deals', () => {
-    let state = freshState(undefined, 4)
-    expect(
-      cribbageEngine.validateAction(state, { type: 'cyclePartnerships' }, ctxGuest),
-    ).toMatch(/host/)
-
-    state = cribbageEngine.applyAction(state, { type: 'cyclePartnerships' }, ctxHost)
+  it('keeps an explicit lobby seating and rotates the deal through join order', () => {
+    let state = freshState({ teamCount: 2, teams: [['a', 'b'], ['c', 'd']] }, 4)
     expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([
       ['a', 'b'],
       ['c', 'd'],
     ])
-    state = cribbageEngine.applyAction(state, { type: 'cyclePartnerships' }, ctxHost)
-    expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([
-      ['a', 'd'],
-      ['b', 'c'],
-    ])
-    state = cribbageEngine.applyAction(state, { type: 'cyclePartnerships' }, ctxHost)
-    expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([
-      ['a', 'c'],
-      ['b', 'd'],
-    ])
-
-    state = peg(state, { playerId: 'a', points: 1, kind: 'nobs' })
-    expect(
-      cribbageEngine.validateAction(state, { type: 'cyclePartnerships' }, ctxHost),
-    ).toMatch(/lock/)
-    state = cribbageEngine.applyAction(state, { type: 'undoPeg' }, ctxHost)
-    expect(cribbageEngine.validateAction(state, { type: 'cyclePartnerships' }, ctxHost)).toBeNull()
-
     state = peg(state, { playerId: 'd', points: 2, kind: 'go' })
     for (const dealerId of ['b', 'c', 'd', 'a']) {
       state = cribbageEngine.applyAction(state, { type: 'nextDeal' }, ctxHost)
       expect(state.dealerId).toBe(dealerId)
     }
+  })
+
+  it('seats six players as three partnerships', () => {
+    const state = freshState({ teamCount: 3 }, 6)
+    expect(cribbageSides(state).map((side) => side.playerIds)).toEqual([
+      ['a', 'd'],
+      ['b', 'e'],
+      ['c', 'f'],
+    ])
+    expect(
+      cribbageEngine.validateStart(
+        { ...config, teamCount: 3 },
+        IDS.map((id, i) => player(id, NAMES[i])),
+      ),
+    ).toBeNull()
+
+    const summary = cribbageEngine.summary(
+      peg(
+        peg(peg(state, { playerId: 'a', points: 40, kind: 'hand' }), {
+          playerId: 'd',
+          points: 40,
+          kind: 'hand',
+        }),
+        { playerId: 'a', points: 40, kind: 'crib' },
+      ),
+      IDS.map((id, i) => player(id, NAMES[i], i === 0)),
+    )
+    // 120 is still short of 121.
+    expect(summary.headline).toBe('Alice & Dan leads 120 – 0 – 0')
   })
 
   it('skunks the losing partnership and credits both winners', () => {
@@ -321,5 +332,56 @@ describe('four-handed cribbage', () => {
     expect(summary.headline).toBe('Alice & Carol skunks Bob & Dan 121 – 30')
     expect(summary.entries.find((e) => e.playerId === 'b')?.scoreText).toMatch(/Bob & Dan/)
     expect(summary.entries.find((e) => e.playerId === 'b')?.scoreText).toMatch(/lurched/)
+  })
+})
+
+describe('cribbage lobby seating', () => {
+  it('caps two teams at four players and refuses to deal an empty third team', () => {
+    const two = createHostSession({
+      code: 'CRIB2',
+      game: cribbageEngine,
+      gameConfig: cribbageEngine.defaultConfig(),
+      hostProfile: { id: 'a', name: 'Alice', emoji: '🃏' },
+      transport: createMemoryTransport('CRIB2'),
+    })
+    two.start()
+    expect(two.addLocalPlayer({ name: 'Bob', emoji: 'b' })).toBeNull()
+    expect(two.addLocalPlayer({ name: 'Carol', emoji: 'c' })).toBeNull()
+    expect(two.addLocalPlayer({ name: 'Dan', emoji: 'd' })).toBeNull()
+    expect(two.addLocalPlayer({ name: 'Eve', emoji: 'e' })).toMatch(/full/)
+    expect(two.startGame()).toBeNull()
+    expect(cribbageSides(two.current.game as CribbageState).map((side) => side.playerIds.length)).toEqual([
+      2, 2,
+    ])
+    two.stop()
+
+    const three = createHostSession({
+      code: 'CRIB3',
+      game: cribbageEngine,
+      gameConfig: { ...cribbageEngine.defaultConfig(), teamCount: 3 },
+      hostProfile: { id: 'a', name: 'Alice', emoji: '🃏' },
+      transport: createMemoryTransport('CRIB3'),
+    })
+    three.start()
+    expect(three.addLocalPlayer({ name: 'Bob', emoji: 'b' })).toBeNull()
+    expect(three.startGame()).toMatch(/team 3/)
+    const carolError = three.addLocalPlayer({ name: 'Carol', emoji: 'c' })
+    expect(carolError).toBeNull()
+    const bob = three.current.players.find((p) => p.name === 'Bob')!
+    const carol = three.current.players.find((p) => p.name === 'Carol')!
+    expect(
+      three.updateGameConfig({
+        ...cribbageEngine.defaultConfig(),
+        teamCount: 3,
+        teams: [['a'], [bob.id], [carol.id]],
+      }),
+    ).toBeNull()
+    expect(three.startGame()).toBeNull()
+    expect(cribbageSides(three.current.game as CribbageState).map((side) => side.playerIds)).toEqual([
+      ['a'],
+      [bob.id],
+      [carol.id],
+    ])
+    three.stop()
   })
 })

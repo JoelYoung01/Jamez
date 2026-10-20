@@ -3,10 +3,13 @@ import {
   CRIBBAGE_QUICK_PEGS,
   CRIBBAGE_RANKS,
   CRIBBAGE_SUITS,
+  clampCribbageTeamCount,
   cribbageIsSkunk,
   cribbageSideLabel,
   cribbageSides,
   cribbageTotals,
+  isPlayerActive,
+  normalizeCribbageTeams,
   scoreCribbageHand,
   type CribbageCard,
   type CribbageConfig,
@@ -30,7 +33,7 @@ import { AppTextInput } from '@/components/app-text-input'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
 import { AppButton, Card, SectionLabel } from '@/components/ui'
-import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
+import type { GameLobbyProps, GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
 const SUIT_GLYPH: Record<CribbageSuit, string> = {
   S: '♠',
@@ -64,6 +67,7 @@ function CribbageSetup({ config, onChange }: GameSetupProps<CribbageConfig>) {
           onChange={(value) => {
             const targetScore = value === '61' ? 61 : 121
             onChange({
+              ...config,
               targetScore,
               skunkLine: Math.floor(targetScore / 2),
             })
@@ -90,9 +94,25 @@ function CribbageSetup({ config, onChange }: GameSetupProps<CribbageConfig>) {
         />
         <Text className="text-xs text-muted-foreground">
           Bicycle: first to {config.targetScore}. Every losing side still below {config.skunkLine}{' '}
-          when the winner pegs out is lurched (double game). Two or three players each keep a peg.
-          Four players play as partners — opposite seats in join order share a score, and the deal
-          moves clockwise.
+          when the winner pegs out is lurched (double game).
+        </Text>
+      </View>
+      <View className="gap-1.5">
+        <Text className="text-xs text-muted-foreground">Teams</Text>
+        <Segmented
+          value={clampCribbageTeamCount(config.teamCount) === 3 ? '3' : '2'}
+          onChange={(value) => {
+            const teamCount = value === '3' ? 3 : 2
+            onChange({ ...config, teamCount, teams: undefined })
+          }}
+          options={[
+            { value: '2', label: '2 teams' },
+            { value: '3', label: '3 teams' },
+          ]}
+        />
+        <Text className="text-xs text-muted-foreground">
+          Each team keeps one peg and seats one or two players. Two teams is the classic game (up
+          to 4). Three teams seats up to 6. You fill the teams in the lobby.
         </Text>
       </View>
     </View>
@@ -525,28 +545,15 @@ function CribbagePlay(props: GamePlayProps) {
           )
         })}
       </View>
-      {partnership && (
+      {(partnership || sides.length > 2) && (
         <Text className="text-center text-xs text-muted-foreground">
-          Partners {cribbageSideLabel(sides[0]!, session.players)} vs{' '}
-          {cribbageSideLabel(sides[1]!, session.players)}.
-          {game.pegs.length === 0
-            ? ' Switch the pairing before the first peg.'
-            : ' Pairing is locked for this match.'}
+          {sides.map((side) => cribbageSideLabel(side, session.players)).join(' vs ')}
         </Text>
       )}
       <View className="flex-row flex-wrap items-center justify-center gap-2">
         <Text className="text-center text-xs text-muted-foreground">
           First to {game.config.targetScore} · skunk below {game.config.skunkLine}
         </Text>
-        {isHost && partnership && (
-          <Pressable
-            disabled={game.pegs.length > 0}
-            onPress={() => send({ type: 'cyclePartnerships' })}
-            className={clsx('active:opacity-70', game.pegs.length > 0 && 'opacity-40')}
-          >
-            <Text className="text-xs text-muted-foreground">Switch partners</Text>
-          </Pressable>
-        )}
         {isHost && (
           <Pressable
             onPress={() => send({ type: 'nextDeal' })}
@@ -648,14 +655,86 @@ function CribbageResults({ state: session }: { state: SessionState }) {
   )
 }
 
+function CribbageLobby({ state, isHost, updateConfig }: GameLobbyProps) {
+  const config = state.gameConfig as CribbageConfig
+  const teamCount = clampCribbageTeamCount(config.teamCount)
+  const atTable = state.players.filter(isPlayerActive)
+  const teams = normalizeCribbageTeams(
+    teamCount,
+    config.teams,
+    atTable.map((player) => player.id),
+  )
+  const playerOf = (id: string) => state.players.find((player) => player.id === id)
+
+  const move = (playerId: string, teamIndex: number) => {
+    const next = teams.map((team) => team.filter((id) => id !== playerId))
+    if ((next[teamIndex]?.length ?? 2) >= 2) return
+    next[teamIndex]!.push(playerId)
+    updateConfig({ ...config, teamCount, teams: next })
+  }
+
+  return (
+    <Card className="gap-3 p-4">
+      <Text className="text-sm font-semibold text-zinc-100">Teams</Text>
+      <Text className="text-xs text-muted-foreground">
+        {teamCount} teams, up to two players each. People sit as they join. Move anyone before the
+        deal.
+      </Text>
+      <View className="gap-2">
+        {teams.map((team, index) => (
+          <View key={index} className="rounded-xl border border-line p-3">
+            <Text className="text-xs font-medium text-muted-foreground">Team {index + 1}</Text>
+            {team.length === 0 && <Text className="mt-2 text-sm text-muted-foreground">Empty</Text>}
+            <View className="mt-2 gap-2">
+              {team.map((id) => {
+                const person = playerOf(id)
+                return (
+                  <View key={id} className="gap-1">
+                    <Text className="text-sm font-medium text-zinc-100" numberOfLines={1}>
+                      {person?.emoji} {person?.name ?? 'Unknown'}
+                    </Text>
+                    {isHost && (
+                      <View className="flex-row flex-wrap gap-1">
+                        {teams.map((destTeam, dest) =>
+                          dest === index ? null : (
+                            <Pressable
+                              key={dest}
+                              disabled={destTeam.length >= 2}
+                              onPress={() => move(id, dest)}
+                              className={clsx(
+                                'rounded-md border border-line px-2 py-1 active:opacity-70',
+                                destTeam.length >= 2 && 'opacity-40',
+                              )}
+                            >
+                              <Text className="text-[11px] text-muted-foreground">
+                                To team {dest + 1}
+                              </Text>
+                            </Pressable>
+                          ),
+                        )}
+                      </View>
+                    )}
+                  </View>
+                )
+              })}
+            </View>
+          </View>
+        ))}
+      </View>
+    </Card>
+  )
+}
+
 export const cribbageUI: GameUIModule = {
   id: 'cribbage',
   icon: CircleDotIcon,
   SetupForm: CribbageSetup as GameUIModule['SetupForm'],
+  LobbyPanel: CribbageLobby,
   PlayView: CribbagePlay,
   ResultsDetail: CribbageResults,
   configSummary: (config) => {
     const c = config as CribbageConfig
-    return [`First to ${c.targetScore}`, `Skunk below ${c.skunkLine}`]
+    const teams = clampCribbageTeamCount(c.teamCount)
+    return [`First to ${c.targetScore}`, `Skunk below ${c.skunkLine}`, `${teams} teams`]
   },
 }

@@ -67,6 +67,7 @@ interface SessionStoreState {
   finishGame: () => void
   rematch: () => void
   setNickname: (nickname: string) => void
+  updateGameConfig: (config: unknown) => void
   addLocalPlayer: (profile: {
     name: string
     emoji: string
@@ -277,6 +278,11 @@ export const useSession = create<SessionStoreState>()((set, get) => {
 
     setNickname(nickname) {
       host?.setNickname(nickname)
+    },
+
+    updateGameConfig(config) {
+      const error = host?.updateGameConfig(config)
+      if (error) toast.error(error)
     },
 
     addLocalPlayer(profile) {

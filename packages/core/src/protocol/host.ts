@@ -176,6 +176,22 @@ export class HostSession {
 
   // -- Lobby management ------------------------------------------------------
 
+  /** Cap for the current config. Falls back to the engine's absolute max. */
+  private tableLimit(): number {
+    const configured = this.game.playerLimit?.(this.state.gameConfig)
+    if (typeof configured !== 'number' || !Number.isFinite(configured)) return this.game.maxPlayers
+    return Math.min(this.game.maxPlayers, Math.max(1, Math.floor(configured)))
+  }
+
+  /** Replace lobby setup (cribbage team seating) before the deal. */
+  updateGameConfig(config: unknown): string | null {
+    if (this.state.phase !== 'lobby') return 'Setup can only change before the game starts'
+    this.mutate((s) => {
+      s.gameConfig = config
+    })
+    return null
+  }
+
   addLocalPlayer(profile: {
     name: string
     emoji: string
@@ -183,14 +199,15 @@ export class HostSession {
     id?: string
     photo?: string
   }): string | null {
-    if (this.state.players.length >= this.game.maxPlayers) {
+    const limit = this.tableLimit()
+    if (this.state.players.length >= limit) {
       return 'Session is full'
     }
     // Match lobbies: adding someone means they're playing. Ongoing banks
     // (Poker Bank): new seats join the roster as not present until the host
     // marks them at the table (or a remote claims the seat).
     const atTable = this.game.sessionMode !== 'ongoing'
-    if (atTable && this.state.players.filter(isPlayerActive).length >= this.game.maxPlayers) {
+    if (atTable && this.state.players.filter(isPlayerActive).length >= limit) {
       return 'Session is full'
     }
     const id = profile.id?.trim() || randomId(8)
@@ -285,7 +302,7 @@ export class HostSession {
     if (!player) return 'Player not found'
     if (isPlayerActive(player)) return null
     const activeCount = this.state.players.filter(isPlayerActive).length
-    if (activeCount >= this.game.maxPlayers) return 'Session is full'
+    if (activeCount >= this.tableLimit()) return 'Session is full'
     this.mutate((s) => {
       s.players = s.players.map((p) =>
         p.id === playerId ? { ...p, active: true, connected: p.remote ? p.connected : true } : p,
@@ -305,9 +322,12 @@ export class HostSession {
     if (count < this.game.minPlayers) {
       return `${this.game.name} needs at least ${this.game.minPlayers} players`
     }
-    if (count > this.game.maxPlayers) {
-      return `${this.game.name} supports at most ${this.game.maxPlayers} players`
+    const limit = this.tableLimit()
+    if (count > limit) {
+      return `${this.game.name} supports at most ${limit} players`
     }
+    const seatingError = this.game.validateStart?.(this.state.gameConfig, active)
+    if (seatingError) return seatingError
     this.mutate((s) => {
       // Keep the full roster (including not-present seats). Only people at the
       // table receive initial game resources; others join later via check-in.
@@ -526,11 +546,11 @@ export class HostSession {
       // Reconnect (or profile update) for a known player — including soft-removed seats.
       if (!isPlayerActive(existing)) {
         const activeCount = this.state.players.filter(isPlayerActive).length
-        if (activeCount >= this.game.maxPlayers) {
+        if (activeCount >= this.tableLimit()) {
           this.sendWire({
             t: 'reject',
             to: profile.id,
-            reason: `This ${this.game.name} session is full (${this.game.maxPlayers} players max)`,
+            reason: `This ${this.game.name} session is full (${this.tableLimit()} players max)`,
           })
           return
         }
@@ -560,11 +580,11 @@ export class HostSession {
       if (photo && photo !== prevPhoto) this.broadcastAvatar(profile.id, photo)
       return
     }
-    if (this.state.players.filter(isPlayerActive).length >= this.game.maxPlayers) {
+    if (this.state.players.filter(isPlayerActive).length >= this.tableLimit()) {
       this.sendWire({
         t: 'reject',
         to: profile.id,
-        reason: `This ${this.game.name} session is full (${this.game.maxPlayers} players max)`,
+        reason: `This ${this.game.name} session is full (${this.tableLimit()} players max)`,
       })
       return
     }
