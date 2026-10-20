@@ -20,6 +20,13 @@ export interface GameSetupProps<C = unknown> {
   onChange: (config: C) => void
 }
 
+/** Optional lobby panel rendered under the player list, before Start. */
+export interface GameLobbyProps {
+  state: SessionState
+  isHost: boolean
+  updateConfig: (config: unknown) => void
+}
+
 /**
  * The UI half of a game. The scoring half lives in @jamez/core; both are
  * registered by game id (see docs/adding-a-game.md).
@@ -29,6 +36,8 @@ export interface GameUIModule {
   /** Icon shown on the shelf, host picker, session header and history rows. */
   icon: LucideIcon
   SetupForm: React.ComponentType<GameSetupProps<never>> | React.ComponentType<GameSetupProps>
+  /** Seat or configure the match after the host opens the lobby. */
+  LobbyPanel?: React.ComponentType<GameLobbyProps>
   PlayView: React.ComponentType<GamePlayProps>
   ResultsDetail?: React.ComponentType<{ state: SessionState }>
   configSummary?: (config: unknown) => string[]

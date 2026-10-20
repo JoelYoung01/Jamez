@@ -62,6 +62,16 @@ export interface GameEngine<C = unknown, S = unknown, A extends { type: string }
   accentColor: string
   minPlayers: number
   maxPlayers: number
+  /**
+   * Lobby cap for this config, when it is tighter than `maxPlayers`.
+   * Cribbage uses this so two teams seat 4 and three teams seat 6.
+   */
+  playerLimit?(config: C): number
+  /**
+   * Extra start check after the min/max player counts. Return an error to
+   * keep the match in the lobby (for example, an empty cribbage team).
+   */
+  validateStart?(config: C, players: SessionPlayer[]): string | null
   /** Can new players join after the game has started? */
   allowLateJoin: boolean
   /**

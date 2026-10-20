@@ -332,7 +332,11 @@ function LobbyView() {
   const atTable = state.players.filter(isPlayerActive)
   const notPresent = state.players.filter((p) => !isPlayerActive(p))
   const ongoing = sessionIsOngoing(state)
-  const canStart = atTable.length >= (game?.minPlayers ?? 1)
+  const cap = game?.playerLimit?.(state.gameConfig) ?? game?.maxPlayers
+  const belowMin = atTable.length < (game?.minPlayers ?? 1)
+  const seatingError = belowMin ? null : (game?.validateStart?.(state.gameConfig, atTable) ?? null)
+  const canStart = !belowMin && !seatingError
+  const LobbyPanel = ui?.LobbyPanel
 
   return (
     <div className="grid gap-4">
@@ -349,7 +353,7 @@ function LobbyView() {
           <div>
             <CardTitle className="text-sm">
               {ongoing ? 'At the table' : 'Players'} ({atTable.length}
-              {game ? `/${game.maxPlayers}` : ''})
+              {cap ? `/${cap}` : ''})
             </CardTitle>
             {summary.length > 0 && (
               <div className="mt-1 flex flex-wrap gap-1">
@@ -412,15 +416,28 @@ function LobbyView() {
         </CardContent>
       </Card>
 
+      {LobbyPanel && (
+        <LobbyPanel
+          state={state}
+          isHost={isHost}
+          updateConfig={(config) => store.updateGameConfig(config)}
+        />
+      )}
+
       {isHost ? (
         <div className="grid gap-2">
+          {seatingError && (
+            <p className="text-center text-xs text-amber-200">{seatingError}</p>
+          )}
           <Button size="lg" onClick={() => store.startGame()} disabled={!canStart}>
             <PlayIcon />
             {canStart
               ? ongoing
                 ? 'Open the bank'
                 : 'Start'
-              : `Need ${game?.minPlayers ?? 1}+ players to start`}
+              : belowMin
+                ? `Need ${game?.minPlayers ?? 1}+ players to start`
+                : 'Start'}
           </Button>
           {ongoing ? (
             <HostSessionControls />

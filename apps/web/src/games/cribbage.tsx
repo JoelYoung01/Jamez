@@ -3,10 +3,13 @@ import {
   CRIBBAGE_QUICK_PEGS,
   CRIBBAGE_RANKS,
   CRIBBAGE_SUITS,
+  clampCribbageTeamCount,
   cribbageIsSkunk,
   cribbageSideLabel,
   cribbageSides,
   cribbageTotals,
+  isPlayerActive,
+  normalizeCribbageTeams,
   scoreCribbageHand,
   type CribbageCard,
   type CribbageConfig,
@@ -32,7 +35,7 @@ import { Label } from '@/components/ui/label'
 import { Segmented } from '@/components/ui/segmented'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
-import type { GamePlayProps, GameSetupProps, GameUIModule } from './types'
+import type { GameLobbyProps, GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
 const SUIT_GLYPH: Record<CribbageSuit, string> = {
   S: '♠',
@@ -66,6 +69,7 @@ function CribbageSetup({ config, onChange }: GameSetupProps<CribbageConfig>) {
           onChange={(value) => {
             const targetScore = value === '61' ? 61 : 121
             onChange({
+              ...config,
               targetScore,
               skunkLine: Math.floor(targetScore / 2),
             })
@@ -95,9 +99,25 @@ function CribbageSetup({ config, onChange }: GameSetupProps<CribbageConfig>) {
         />
         <p className="text-xs text-muted-foreground">
           Per Bicycle: first to {config.targetScore}. If every losing side is still below{' '}
-          {config.skunkLine} when the winner pegs out, they are lurched (double game). Two or
-          three players each keep a peg. Four players play as partners — opposite seats in join
-          order share a score, and the deal moves clockwise.
+          {config.skunkLine} when the winner pegs out, they are lurched (double game).
+        </p>
+      </div>
+      <div className="grid gap-1.5">
+        <Label className="text-xs text-muted-foreground">Teams</Label>
+        <Segmented
+          value={clampCribbageTeamCount(config.teamCount) === 3 ? '3' : '2'}
+          onChange={(value) => {
+            const teamCount = value === '3' ? 3 : 2
+            onChange({ ...config, teamCount, teams: undefined })
+          }}
+          options={[
+            { value: '2', label: '2 teams' },
+            { value: '3', label: '3 teams' },
+          ]}
+        />
+        <p className="text-xs text-muted-foreground">
+          Each team keeps one peg and seats one or two players. Two teams is the classic game
+          (up to 4). Three teams seats up to 6. You fill the teams in the lobby.
         </p>
       </div>
     </div>
@@ -499,13 +519,9 @@ function CribbagePlay(props: GamePlayProps) {
           )
         })}
       </div>
-      {partnership && (
+      {(partnership || sides.length > 2) && (
         <p className="text-center text-xs text-muted-foreground">
-          Partners {cribbageSideLabel(sides[0]!, session.players)} vs{' '}
-          {cribbageSideLabel(sides[1]!, session.players)}.
-          {game.pegs.length === 0
-            ? ' Switch the pairing before the first peg.'
-            : ' Pairing is locked for this match.'}
+          {sides.map((side) => cribbageSideLabel(side, session.players)).join(' vs ')}
         </p>
       )}
       <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -514,17 +530,6 @@ function CribbagePlay(props: GamePlayProps) {
           {' · '}
           skunk below {game.config.skunkLine}
         </span>
-        {isHost && partnership && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2"
-            disabled={game.pegs.length > 0}
-            onClick={() => send({ type: 'cyclePartnerships' })}
-          >
-            Switch partners
-          </Button>
-        )}
         {isHost && (
           <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => send({ type: 'nextDeal' })}>
             <Redo2Icon className="size-3.5" /> Next deal
@@ -620,14 +625,199 @@ function CribbageResults({ state: session }: { state: SessionState }) {
   )
 }
 
+function CribbageLobby({ state, isHost, updateConfig }: GameLobbyProps) {
+  const config = state.gameConfig as CribbageConfig
+  const teamCount = clampCribbageTeamCount(config.teamCount)
+  const atTable = state.players.filter(isPlayerActive)
+  const teams = normalizeCribbageTeams(
+    teamCount,
+    config.teams,
+    atTable.map((player) => player.id),
+  )
+  const playerOf = (id: string) => state.players.find((player) => player.id === id)
+  const teamEls = React.useRef<(HTMLDivElement | null)[]>([])
+  const teamsRef = React.useRef(teams)
+  const configRef = React.useRef(config)
+  teamsRef.current = teams
+  configRef.current = config
+  const [drag, setDrag] = React.useState<{
+    playerId: string
+    x: number
+    y: number
+    over: number | null
+  } | null>(null)
+  const stopDrag = React.useRef<(() => void) | null>(null)
+
+  const teamAt = React.useCallback((x: number, y: number) => {
+    for (let i = 0; i < teamEls.current.length; i++) {
+      const el = teamEls.current[i]
+      if (!el) continue
+      const rect = el.getBoundingClientRect()
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return i
+    }
+    return null
+  }, [])
+
+  const commitMove = React.useCallback(
+    (playerId: string, teamIndex: number) => {
+      const current = teamsRef.current
+      const from = current.findIndex((team) => team.includes(playerId))
+      if (from === teamIndex) return
+      if ((current[teamIndex]?.length ?? 2) >= 2) return
+      const next = current.map((team) => team.filter((id) => id !== playerId))
+      next[teamIndex]!.push(playerId)
+      updateConfig({ ...configRef.current, teamCount, teams: next })
+    },
+    [teamCount, updateConfig],
+  )
+
+  React.useEffect(() => () => stopDrag.current?.(), [])
+
+  const startDrag = (playerId: string, event: React.PointerEvent) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    stopDrag.current?.()
+    const point = (e: PointerEvent) => {
+      setDrag({
+        playerId,
+        x: e.clientX,
+        y: e.clientY,
+        over: teamAt(e.clientX, e.clientY),
+      })
+    }
+    const end = (e: PointerEvent) => {
+      window.removeEventListener('pointermove', point)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+      stopDrag.current = null
+      const over = teamAt(e.clientX, e.clientY)
+      setDrag(null)
+      if (over !== null) commitMove(playerId, over)
+    }
+    stopDrag.current = () => {
+      window.removeEventListener('pointermove', point)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+    }
+    setDrag({
+      playerId,
+      x: event.clientX,
+      y: event.clientY,
+      over: teamAt(event.clientX, event.clientY),
+    })
+    window.addEventListener('pointermove', point)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+  }
+
+  const dragged = drag ? playerOf(drag.playerId) : null
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Teams</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <p className="text-xs text-muted-foreground">
+          {teamCount} teams, up to two players each. People sit as they join.
+          {isHost ? ' Drag a player onto another team before the deal.' : ''}
+        </p>
+        <div className={cn('grid gap-2', teamCount === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
+          {teams.map((team, index) => {
+            const full = team.length >= 2 && !team.includes(drag?.playerId ?? '')
+            const hot = drag?.over === index
+            return (
+              <div
+                key={index}
+                ref={(el) => {
+                  teamEls.current[index] = el
+                }}
+                className={cn(
+                  'min-h-24 rounded-xl border p-3 transition-colors',
+                  hot && !full && 'border-emerald-400/80 bg-emerald-400/10',
+                  hot && full && 'border-rose-400/70 bg-rose-400/10',
+                  !hot && 'border-border/60',
+                )}
+              >
+                <div className="text-xs font-medium text-muted-foreground">
+                  Team {index + 1}
+                  {hot && full ? ' · full' : ''}
+                </div>
+                {team.length === 0 && (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {hot && !full ? 'Drop here' : 'Empty'}
+                  </p>
+                )}
+                <div className="mt-2 grid gap-2">
+                  {team.map((id) => {
+                    const person = playerOf(id)
+                    const name = person?.name ?? 'Unknown'
+                    const active = drag?.playerId === id
+                    return (
+                      <div
+                        key={id}
+                        role={isHost ? 'button' : undefined}
+                        tabIndex={isHost ? 0 : undefined}
+                        aria-grabbed={isHost ? active : undefined}
+                        aria-label={isHost ? `Drag ${name} to another team` : undefined}
+                        onPointerDown={isHost ? (event) => startDrag(id, event) : undefined}
+                        onKeyDown={
+                          isHost
+                            ? (event) => {
+                                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                                event.preventDefault()
+                                const dir = event.key === 'ArrowRight' ? 1 : -1
+                                let dest = index
+                                for (let step = 0; step < teamCount; step++) {
+                                  dest = (dest + dir + teamCount) % teamCount
+                                  if (teams[dest]!.length < 2) {
+                                    commitMove(id, dest)
+                                    break
+                                  }
+                                }
+                              }
+                            : undefined
+                        }
+                        className={cn(
+                          'flex items-center gap-2 rounded-lg border border-border/50 bg-background/50 px-2 py-1.5 text-sm',
+                          isHost && 'cursor-grab touch-none select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+                          active && 'opacity-40',
+                        )}
+                      >
+                        <span>{person?.emoji}</span>
+                        <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {dragged && drag && (
+          <div
+            className="pointer-events-none fixed z-50 flex items-center gap-2 rounded-lg border border-emerald-400/70 bg-background px-2 py-1.5 text-sm shadow-lg"
+            style={{ left: drag.x, top: drag.y, transform: 'translate(-50%, -120%)' }}
+          >
+            <span>{dragged.emoji}</span>
+            <span className="font-medium">{dragged.name}</span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export const cribbageUI: GameUIModule = {
   id: 'cribbage',
   icon: CircleDotIcon,
   SetupForm: CribbageSetup as GameUIModule['SetupForm'],
+  LobbyPanel: CribbageLobby,
   PlayView: CribbagePlay,
   ResultsDetail: CribbageResults,
   configSummary: (config) => {
     const c = config as CribbageConfig
-    return [`First to ${c.targetScore}`, `Skunk below ${c.skunkLine}`]
+    const teams = clampCribbageTeamCount(c.teamCount)
+    return [`First to ${c.targetScore}`, `Skunk below ${c.skunkLine}`, `${teams} teams`]
   },
 }
