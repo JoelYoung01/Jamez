@@ -3,7 +3,7 @@ import type { SessionPlayer } from '../protocol/session-state'
 import { wingspanEngine, wingspanRanking, wingspanTotal, type WingspanState } from './wingspan'
 
 function player(id: string, name = id, isHost = false): SessionPlayer {
-  return { id, name, emoji: '🐦', color: '#fff', isHost, remote: !isHost, connected: true, joinedAt: 0 }
+  return { id, name, emoji: '🐦', color: '#fff', isHost, clientIds: isHost ? [] : [id], connected: true, joinedAt: 0 }
 }
 
 const ctxHost = { actorId: 'host', isHost: true, now: 0 }

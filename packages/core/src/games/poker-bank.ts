@@ -625,12 +625,16 @@ export const pokerBankEngine: GameEngine<PokerBankConfig, PokerBankState, PokerB
     )
   },
 
-  mergePlayers(state, fromId, toId) {
+  mergePlayers(state, fromId, toId, mode) {
     const from = state.banks[fromId]
     const to = state.banks[toId]
-    if (!from || !to) return state
+    if (!from && !to) return state
     const banks = { ...state.banks }
-    banks[toId] = { balance: to.balance + from.balance }
+    if (to && from) {
+      banks[toId] = { balance: mode === 'combine' ? to.balance + from.balance : to.balance }
+    } else if (from && !to) {
+      banks[toId] = { balance: mode === 'keep' ? 0 : from.balance }
+    }
     delete banks[fromId]
     return appendLedger(
       { ...state, banks },
@@ -638,10 +642,10 @@ export const pokerBankEngine: GameEngine<PokerBankConfig, PokerBankState, PokerB
         at: Date.now(),
         playerId: toId,
         kind: 'merge',
-        points: from.balance,
+        points: mode === 'combine' ? (from?.balance ?? 0) : 0,
         by: toId,
-        note: 'Merged accounts',
-        meta: { fromId },
+        note: mode === 'combine' ? 'Combined stacks' : 'Kept survivor stack',
+        meta: { fromId, mode },
       },
     )
   },

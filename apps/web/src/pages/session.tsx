@@ -1,6 +1,7 @@
 import {
   getGameEngine,
   isPlayerActive,
+  seatForClientId,
   normalizeJoinCode,
   sessionDisplayName,
   SESSION_NICKNAME_MAX,
@@ -25,6 +26,7 @@ import {
 import * as React from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AddLocalPlayerDialog } from '@/components/add-local-player-dialog'
+import { HostPlayerMenu, PhoneMark, hostFacingName } from '@/components/player-actions'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { QrCard } from '@/components/qr-card'
 import { StatusPill } from '@/components/status-pill'
@@ -43,6 +45,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getGameIcon, getGameUI } from '@/games/registry'
 import { useProfile } from '@/lib/profile'
+import { usePlayerRoster } from '@/lib/player-roster'
 import { sessionIsOngoing, useSession } from '@/lib/session-store'
 import { cn } from '@/lib/utils'
 
@@ -305,19 +308,18 @@ function BackHomeButton({ onClick }: { onClick?: () => void }) {
   )
 }
 
-function PlayerRow({ player, canKick, onKick }: { player: SessionPlayer; canKick: boolean; onKick: () => void }) {
+function PlayerRow({ player }: { player: SessionPlayer }) {
+  const entries = usePlayerRoster((s) => s.entries)
+  const label = hostFacingName(player, entries)
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/40 px-3 py-2">
-      <PlayerAvatar player={player} size="sm" showPresence />
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">{player.name}</span>
-      {player.isHost && <Badge variant="secondary">host</Badge>}
-      {!player.remote && !player.isHost && <Badge variant="outline">local</Badge>}
-      {canKick && (
-        <Button variant="ghost" size="icon-sm" onClick={onKick} aria-label={`Remove ${player.name}`}>
-          <XIcon className="size-3.5" />
-        </Button>
-      )}
-    </div>
+    <HostPlayerMenu player={player}>
+      <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/40 px-3 py-2">
+        <PlayerAvatar player={player} size="sm" showPresence />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
+        <PhoneMark player={player} />
+        {player.isHost && <Badge variant="secondary">host</Badge>}
+      </div>
+    </HostPlayerMenu>
   )
 }
 
@@ -365,14 +367,7 @@ function LobbyView() {
         </CardHeader>
         <CardContent className="grid gap-2">
           {atTable.map((player) => (
-            <PlayerRow
-              key={player.id}
-              player={player}
-              canKick={isHost && !player.isHost}
-              onKick={() =>
-                ongoing ? store.deactivatePlayer(player.id) : store.removePlayer(player.id)
-              }
-            />
+            <PlayerRow key={player.id} player={player} />
           ))}
           {atTable.length === 1 && !store.passAndPlay && (
             <p className="py-2 text-center text-xs text-muted-foreground/70">
@@ -386,26 +381,7 @@ function LobbyView() {
                 On the session roster — mark at the table when they show up.
               </p>
               {notPresent.map((player) => (
-                <div key={player.id} className="flex items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-sm">
-                    {player.emoji} {player.name}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => store.reactivatePlayer(player.id)}
-                  >
-                    At the table
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    aria-label={`Remove ${player.name}`}
-                    onClick={() => store.removePlayer(player.id)}
-                  >
-                    <XIcon />
-                  </Button>
-                </div>
+                <PlayerRow key={player.id} player={player} />
               ))}
             </div>
           ) : null}
@@ -451,7 +427,7 @@ function PlayingView() {
   const isHost = store.role === 'host'
   const profileId = useProfile((s) => s.playerId)
   const ui = getGameUI(state.gameId)
-  const me = state.players.find((p) => p.id === profileId) ?? null
+  const me = seatForClientId(state.players, profileId) ?? null
 
   if (!ui) return <StatusCard icon={CircleHelpIcon} title="Unsupported game" body="This app version doesn't know this game yet. Update and rejoin." />
   const PlayView = ui.PlayView

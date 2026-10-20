@@ -32,6 +32,7 @@ import { ColorPicker } from '@/components/color-picker'
 import { AddLocalPlayerDialog } from '@/components/add-local-player-dialog'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { PokerChip } from '@/components/poker-chip'
+import { HostPlayerMenu, PhoneMark } from '@/components/player-actions'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -727,184 +728,7 @@ function BankSettingsDialog({ game, send }: { game: PokerBankState; send: GamePl
   )
 }
 
-function ClaimMergePanel({ state }: { state: GamePlayProps['state'] }) {
-  const claimSeat = useSession((s) => s.claimSeat)
-  const mergePlayers = useSession((s) => s.mergePlayers)
-  const reactivatePlayer = useSession((s) => s.reactivatePlayer)
-  const engine = getGameEngine(state.gameId)
-  const guests = state.players.filter((p) => !p.remote && !p.isHost)
-  const remotes = state.players.filter((p) => p.remote && isPlayerActive(p))
-  const inactive = state.players.filter((p) => !isPlayerActive(p))
-  const [open, setOpen] = React.useState(inactive.length > 0)
-  const [claimerId, setClaimerId] = React.useState(remotes[0]?.id ?? '')
-  const [seatId, setSeatId] = React.useState(guests[0]?.id ?? '')
-  const [fromId, setFromId] = React.useState('')
-  const [toId, setToId] = React.useState('')
-  const prevInactiveCount = React.useRef(inactive.length)
-
-  React.useEffect(() => {
-    if (!remotes.find((p) => p.id === claimerId)) setClaimerId(remotes[0]?.id ?? '')
-    if (!guests.find((p) => p.id === seatId)) setSeatId(guests[0]?.id ?? '')
-  }, [remotes, guests, claimerId, seatId])
-
-  React.useEffect(() => {
-    if (inactive.length > prevInactiveCount.current) setOpen(true)
-    prevInactiveCount.current = inactive.length
-  }, [inactive.length])
-
-  if (!engine?.claimSeat && !engine?.mergePlayers) return null
-
-  return (
-    <Card>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-accent/20"
-      >
-        <div className="min-w-0 flex-1">
-          <CardTitle className="text-sm">Seats & accounts</CardTitle>
-          <CardDescription className="text-xs">
-            Claim a guest seat or merge accounts.
-          </CardDescription>
-        </div>
-        <ChevronDownIcon
-          className={cn(
-            'size-4 shrink-0 text-muted-foreground transition-transform',
-            open && 'rotate-180',
-          )}
-        />
-      </button>
-      {open ? (
-        <CardContent className="grid gap-4 pt-0">
-          {engine.claimSeat && (
-            <div className="grid gap-2 rounded-xl border border-border/50 p-3">
-              <div className="flex items-center gap-1.5 text-xs font-medium">
-                <UserRoundCheckIcon className="size-3.5" /> Claim guest seat
-              </div>
-              {guests.length === 0 || remotes.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Need a host-created guest and a joined player.
-                </p>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                      value={claimerId}
-                      onChange={(e) => setClaimerId(e.target.value)}
-                    >
-                      {remotes.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} (player)
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                      value={seatId}
-                      onChange={(e) => setSeatId(e.target.value)}
-                    >
-                      {guests.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                          {isPlayerActive(p) ? ' (guest)' : ' (not present)'}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <Button
-                    size="sm"
-                    disabled={!claimerId || !seatId}
-                    onClick={() => claimSeat(claimerId, seatId)}
-                  >
-                    Claim seat
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
-
-          {engine.mergePlayers && (
-            <div className="grid gap-2 rounded-xl border border-border/50 p-3">
-              <div className="flex items-center gap-1.5 text-xs font-medium">
-                <GitMergeIcon className="size-3.5" /> Merge accounts
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Guest → player always lands on the player. Player → player: pick who keeps the
-                combined stack.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                  value={fromId}
-                  onChange={(e) => setFromId(e.target.value)}
-                >
-                  <option value="">Merge away…</option>
-                  {state.players
-                    .filter((p) => !p.isHost && isPlayerActive(p))
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                        {!p.remote ? ' (guest)' : ''}
-                      </option>
-                    ))}
-                </select>
-                <select
-                  className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-                  value={toId}
-                  onChange={(e) => setToId(e.target.value)}
-                >
-                  <option value="">Into…</option>
-                  {state.players
-                    .filter((p) => p.id !== fromId && isPlayerActive(p))
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                        {!p.remote && !p.isHost ? ' (guest)' : ''}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={!fromId || !toId}
-                onClick={() => mergePlayers(fromId, toId)}
-              >
-                Merge
-              </Button>
-            </div>
-          )}
-
-          {inactive.length > 0 ? (
-            <div className="grid gap-2 rounded-xl border border-border/50 p-3">
-              <div className="text-xs font-medium">Not present</div>
-              <p className="text-[11px] text-muted-foreground">
-                On the session roster but hidden from the table — mark at the table or claim later.
-              </p>
-              <div className="grid gap-2">
-                {inactive.map((p) => (
-                  <div key={p.id} className="flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm">
-                      {p.emoji} {p.name}
-                    </span>
-                    <Button size="sm" variant="outline" onClick={() => reactivatePlayer(p.id)}>
-                      At the table
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </CardContent>
-      ) : null}
-    </Card>
-  )
-}
-
 function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
-  const deactivatePlayer = useSession((s) => s.deactivatePlayer)
   const leaveSession = useSession((s) => s.leaveSession)
   const navigate = useNavigate()
   const game = state.game as PokerBankState
@@ -955,17 +779,16 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
       <div className="grid gap-2">
         {ranked.map((player) => {
           const balance = game.banks[player.id]?.balance ?? 0
-          const mine = me?.id === player.id
+          const mine = me?.id === player.id || (me ? player.clientIds.includes(me.id) : false)
           const canAct = isHost || mine
-          const isGuest = !player.remote && !player.isHost
           const identity = (
             <>
               <PlayerAvatar player={player} size="sm" showPresence />
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate text-sm font-semibold">{player.name}</span>
+                  <PhoneMark player={player} />
                   {player.isHost && <Badge variant="secondary">host</Badge>}
-                  {isGuest && <Badge variant="outline">guest</Badge>}
                 </div>
                 <div className="font-mono text-sm font-bold tabular-nums text-primary">
                   {formatPokerAmount(balance, game.config)}
@@ -976,19 +799,9 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
           return (
             <Card key={player.id} className={cn(mine && 'border-primary/40')}>
               <CardContent className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center">
-                {isHost && isGuest ? (
-                  <EditGuestDialog player={player}>
-                    <button
-                      type="button"
-                      className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                      aria-label={`Edit ${player.name}`}
-                    >
-                      {identity}
-                    </button>
-                  </EditGuestDialog>
-                ) : (
-                  <div className="flex min-w-0 flex-1 items-center gap-3">{identity}</div>
-                )}
+                <HostPlayerMenu player={player} className="flex min-w-0 flex-1 items-center gap-3">
+                  {identity}
+                </HostPlayerMenu>
                 <div className="flex flex-wrap gap-2">
                   {canAct && (
                     <>
@@ -996,23 +809,22 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
                       <CashDialog mode="withdraw" player={player} game={game} send={send} />
                     </>
                   )}
-                  {isHost && !player.isHost ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="text-muted-foreground"
-                      onClick={() => deactivatePlayer(player.id)}
-                    >
-                      Not present
-                    </Button>
-                  ) : null}
                 </div>
               </CardContent>
             </Card>
           )
         })}
       </div>
+
+      {isHost && state.players.some((player) => !isPlayerActive(player)) ? (
+        <div className="grid gap-1">
+          {state.players.filter((player) => !isPlayerActive(player)).map((player) => (
+            <HostPlayerMenu key={player.id} player={player}>
+              <div className="truncate px-1 text-sm text-muted-foreground">{player.name}</div>
+            </HostPlayerMenu>
+          ))}
+        </div>
+      ) : null}
 
       {!isHost && me ? (
         <Button
@@ -1032,8 +844,6 @@ function PokerPlay({ state, me, isHost, send }: GamePlayProps) {
           <AddGuestButton />
         </div>
       )}
-      {isHost && <ClaimMergePanel state={state} />}
-
       {recent.length > 0 && (
         <Card>
           <CardHeader className="pb-2">

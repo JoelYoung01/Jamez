@@ -317,6 +317,29 @@ export const ginRummyEngine: GameEngine<GinConfig, GinState, GinAction> = {
       }),
     }
   },
+
+  mergePlayers(state, fromId, toId, mode) {
+    const ids = state.playerIds.filter((id) => id !== fromId)
+    if (!ids.includes(toId)) ids.unshift(toId)
+    const playerIds: [string, string] = [ids[0] ?? toId, ids[1] ?? toId]
+    const mapId = (id: string) => (mode === 'combine' && id === fromId ? toId : id)
+    const hands =
+      mode === 'combine'
+        ? state.hands.map((hand) => ({
+            ...hand,
+            knockerId: mapId(hand.knockerId),
+            winnerId: mapId(hand.winnerId),
+            recordedBy: mapId(hand.recordedBy),
+            dealerId: hand.dealerId === fromId ? toId : hand.dealerId,
+          }))
+        : state.hands.filter((hand) => hand.knockerId !== fromId && hand.winnerId !== fromId)
+    return {
+      ...state,
+      playerIds,
+      dealerId: state.dealerId === fromId ? toId : state.dealerId,
+      hands,
+    }
+  },
 }
 
 function loserOf(state: GinState, hand: GinHand): string {

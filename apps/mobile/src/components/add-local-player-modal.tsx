@@ -1,6 +1,6 @@
-import { rosterAvailableForSession, type RosterPlayer } from '@jamez/core'
+import { filterLibraryPlayers, libraryDisplayName, type LibraryPlayer } from '@jamez/core'
 import { clsx } from 'clsx'
-import { UserPlusIcon, XIcon } from 'lucide-react-native'
+import { UserPlusIcon } from 'lucide-react-native'
 import * as React from 'react'
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { AppTextInput } from '@/components/app-text-input'
@@ -10,7 +10,7 @@ import {
   KeyboardForm,
   useSuppressAndroidKeyboardHost,
 } from '@/components/keyboard-dismiss'
-import { AppButton, Chip, SectionLabel } from '@/components/ui'
+import { AppButton, SectionLabel } from '@/components/ui'
 import { useKeyboardHeight } from '@/lib/keyboard'
 import { usePlayerRoster } from '@/lib/player-roster'
 import { randomEmoji } from '@/lib/profile'
@@ -21,10 +21,11 @@ export type AddLocalPlayerProfile = {
   emoji: string
   id?: string
   photo?: string
+  clientIds?: string[]
 }
 
 export function AddLocalPlayerModal({
-  title = 'Add a local player',
+  title = 'Add a player',
   confirmLabel = 'Add player',
   namePlaceholder = 'e.g. Grandma',
   onClose,
@@ -39,10 +40,10 @@ export function AddLocalPlayerModal({
   const keyboardHeight = useKeyboardHeight()
   const players = useSession((s) => s.state?.players)
   const entries = usePlayerRoster((s) => s.entries)
-  const removeRoster = usePlayerRoster((s) => s.remove)
+  const [query, setQuery] = React.useState('')
   const available = React.useMemo(
-    () => rosterAvailableForSession(entries, players?.map((p) => p.id) ?? []),
-    [entries, players],
+    () => filterLibraryPlayers(entries, query, { seatedIds: players?.map((p) => p.id) ?? [] }),
+    [entries, players, query],
   )
   const [name, setName] = React.useState('')
   const [emoji, setEmoji] = React.useState(randomEmoji())
@@ -58,11 +59,12 @@ export function AddLocalPlayerModal({
     onConfirm({ name: name.trim(), emoji })
   }, [emoji, name, onConfirm])
 
-  const pickRecent = (player: RosterPlayer) => {
+  const pickRecent = (player: LibraryPlayer) => {
     onConfirm({
       id: player.id,
       name: player.name,
       emoji: player.emoji,
+      clientIds: player.clientIds,
       ...(player.photo ? { photo: player.photo } : {}),
     })
   }
@@ -123,7 +125,15 @@ export function AddLocalPlayerModal({
               </View>
 
               {tab === 'recent' ? (
-                available.length === 0 ? (
+                <>
+                <AppTextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Search players"
+                  placeholderTextColor="rgba(255,255,255,0.25)"
+                  className="h-11 rounded-xl border border-line bg-field px-3 text-base text-zinc-100"
+                />
+                {available.length === 0 ? (
                   <Text className="py-6 text-center text-sm text-muted-foreground">
                     No recent players yet. Create a new one.
                   </Text>
@@ -143,22 +153,14 @@ export function AddLocalPlayerModal({
                             className="min-w-0 flex-1 text-sm font-medium text-zinc-100"
                             numberOfLines={1}
                           >
-                            {player.name}
+                            {libraryDisplayName(player)}
                           </Text>
-                          <Chip tone="outline">{player.source}</Chip>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => removeRoster(player.id)}
-                          hitSlop={8}
-                          accessibilityLabel={`Remove ${player.name} from suggestions`}
-                          className="h-8 w-8 items-center justify-center rounded-md active:opacity-70"
-                        >
-                          <XIcon size={14} color="#a1a1ab" />
                         </Pressable>
                       </View>
                     ))}
                   </View>
-                )
+                )}
+                </>
               ) : (
                 <View className="gap-3">
                   <View>
@@ -211,8 +213,8 @@ export function AddLocalPlayerModal({
 
 /** Trigger + modal for host lobbies / banks. */
 export function AddLocalPlayerButton({
-  triggerLabel = 'Local player',
-  title = 'Add a local player',
+  triggerLabel = 'Add player',
+  title = 'Add a player',
   confirmLabel = 'Add player',
   namePlaceholder = 'e.g. Grandma',
 }: {

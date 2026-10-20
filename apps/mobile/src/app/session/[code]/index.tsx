@@ -303,27 +303,51 @@ function StatusCard({
 
 function PlayerRow({
   player,
-  canKick,
-  onKick,
+  canManage,
 }: {
   player: SessionPlayer
-  canKick: boolean
-  onKick: () => void
+  canManage: boolean
 }) {
+  const [open, setOpen] = React.useState(false)
+  const kick = useSession((s) => s.kickPlayer)
+  const remove = useSession((s) => s.removePlayer)
+  const deactivate = useSession((s) => s.deactivatePlayer)
+  const reactivate = useSession((s) => s.reactivatePlayer)
   return (
-    <View className="flex-row items-center gap-3 rounded-xl border border-line bg-background/40 px-3 py-2">
-      <PlayerAvatar player={player} size="sm" showPresence />
-      <Text className="min-w-0 flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
-        {player.name}
-      </Text>
-      {player.isHost && <Chip>host</Chip>}
-      {!player.remote && !player.isHost && <Chip tone="outline">local</Chip>}
-      {canKick && (
-        <Pressable onPress={onKick} hitSlop={8} className="h-7 w-7 items-center justify-center rounded-md active:opacity-70">
-          <XIcon size={14} color="#a1a1ab" />
+    <>
+      <Pressable
+        onLongPress={() => canManage && setOpen(true)}
+        delayLongPress={350}
+        className="flex-row items-center gap-3 rounded-xl border border-line bg-background/40 px-3 py-2"
+      >
+        <PlayerAvatar player={player} size="sm" showPresence />
+        <Text className="min-w-0 flex-1 text-sm font-medium text-zinc-100" numberOfLines={1}>
+          {player.name}
+        </Text>
+        {player.isHost && <Chip>host</Chip>}
+      </Pressable>
+      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable className="flex-1 justify-end bg-black/60" onPress={() => setOpen(false)}>
+          <View className="gap-2 rounded-t-3xl border border-line bg-card p-4">
+            <Text className="text-base font-semibold text-zinc-100">{player.name}</Text>
+            <AppButton title="Merge" variant="outline" onPress={() => { setOpen(false); router.push(`/players/merge/${player.id}`) }} />
+            {player.clientIds.length > 0 ? (
+              <AppButton title="Kick, keep at the table" variant="secondary" onPress={() => { kick(player.id); setOpen(false) }} />
+            ) : null}
+            <AppButton title="Remove from game" variant="destructive" onPress={() => { remove(player.id); setOpen(false) }} />
+            <AppButton
+              title={player.active === false ? 'At the table' : 'Not present'}
+              variant="ghost"
+              onPress={() => {
+                if (player.active === false) reactivate(player.id)
+                else deactivate(player.id)
+                setOpen(false)
+              }}
+            />
+          </View>
         </Pressable>
-      )}
-    </View>
+      </Modal>
+    </>
   )
 }
 
@@ -371,10 +395,7 @@ function LobbyView() {
             <PlayerRow
               key={player.id}
               player={player}
-              canKick={isHost && !player.isHost}
-              onKick={() =>
-                ongoing ? store.deactivatePlayer(player.id) : store.removePlayer(player.id)
-              }
+              canManage={isHost && !player.isHost}
             />
           ))}
           {atTable.length === 1 && !store.passAndPlay && (
@@ -456,7 +477,7 @@ function PlayingView() {
   const isHost = store.role === 'host'
   const profileId = useProfile((s) => s.playerId)
   const ui = getGameUI(state.gameId)
-  const me = state.players.find((p) => p.id === profileId) ?? null
+  const me = state.players.find((p) => p.id === profileId || p.clientIds.includes(profileId)) ?? null
 
   if (!ui) {
     return (

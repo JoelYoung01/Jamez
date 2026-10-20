@@ -17,7 +17,7 @@ function player(id: string, name = id, isHost = false): SessionPlayer {
     emoji: '🐂',
     color: '#e8a317',
     isHost,
-    remote: !isHost,
+    clientIds: isHost ? [] : [id],
     connected: true,
     joinedAt: 0,
   }

@@ -1,8 +1,7 @@
-import { randomId, rosterAvailableForSession, type RosterPlayer } from '@jamez/core'
-import { UserPlusIcon, XIcon } from 'lucide-react'
+import { filterLibraryPlayers, libraryDisplayName, randomId, type LibraryPlayer } from '@jamez/core'
+import { UserPlusIcon } from 'lucide-react'
 import * as React from 'react'
 import { EmojiPicker } from '@/components/emoji-picker'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -19,16 +18,9 @@ import { usePlayerRoster } from '@/lib/player-roster'
 import { randomEmoji } from '@/lib/profile'
 import { useSession } from '@/lib/session-store'
 
-export type AddLocalPlayerProfile = {
-  name: string
-  emoji: string
-  id?: string
-  photo?: string
-}
-
 export function AddLocalPlayerDialog({
-  triggerLabel = 'Add local player',
-  title = 'Add a local player',
+  triggerLabel = 'Add player',
+  title = 'Add a player',
   confirmLabel = 'Add player',
   namePlaceholder = 'e.g. Grandma',
   open: openProp,
@@ -44,34 +36,35 @@ export function AddLocalPlayerDialog({
   open?: boolean
   onOpenChange?: (open: boolean) => void
   keyboardAvoid?: boolean
-  /** When false, render dialog chrome only (nested / controlled use). */
   showTrigger?: boolean
-  /** Called after a successful add with the seated player id. */
   onAdded?: (player: { id: string; name: string; emoji: string; photo?: string }) => void
 }) {
   const addLocalPlayer = useSession((s) => s.addLocalPlayer)
   const players = useSession((s) => s.state?.players)
   const entries = usePlayerRoster((s) => s.entries)
-  const removeRoster = usePlayerRoster((s) => s.remove)
+  const seated = players?.map((p) => p.id) ?? []
+  const [query, setQuery] = React.useState('')
   const available = React.useMemo(
-    () => rosterAvailableForSession(entries, players?.map((p) => p.id) ?? []),
-    [entries, players],
+    () => filterLibraryPlayers(entries, query, { seatedIds: seated }),
+    [entries, query, seated],
   )
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
   const open = openProp ?? uncontrolledOpen
   const setOpen = onOpenChange ?? setUncontrolledOpen
   const [name, setName] = React.useState('')
   const [emoji, setEmoji] = React.useState(randomEmoji())
-  const [tab, setTab] = React.useState<'recent' | 'new'>('recent')
+  const [tab, setTab] = React.useState<'library' | 'new'>('library')
 
   React.useEffect(() => {
     if (!open) return
-    setTab(available.length > 0 ? 'recent' : 'new')
-  }, [open, available.length])
+    setTab(entries.some((entry) => !entry.inactive) ? 'library' : 'new')
+    setQuery('')
+  }, [open, entries])
 
   const resetForm = () => {
     setName('')
     setEmoji(randomEmoji())
+    setQuery('')
   }
 
   const close = () => {
@@ -79,7 +72,7 @@ export function AddLocalPlayerDialog({
     resetForm()
   }
 
-  const finish = (profile: { id: string; name: string; emoji: string; photo?: string }) => {
+  const finish = (profile: { id: string; name: string; emoji: string; photo?: string; clientIds?: string[] }) => {
     addLocalPlayer(profile)
     onAdded?.(profile)
     close()
@@ -87,14 +80,15 @@ export function AddLocalPlayerDialog({
 
   const addNew = () => {
     if (!name.trim()) return
-    finish({ id: randomId(8), name: name.trim(), emoji })
+    finish({ id: randomId(8), name: name.trim(), emoji, clientIds: [] })
   }
 
-  const pickRecent = (player: RosterPlayer) => {
+  const pick = (player: LibraryPlayer) => {
     finish({
       id: player.id,
       name: player.name,
       emoji: player.emoji,
+      clientIds: player.clientIds,
       ...(player.photo ? { photo: player.photo } : {}),
     })
   }
@@ -118,64 +112,57 @@ export function AddLocalPlayerDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <Tabs value={tab} onValueChange={(v) => setTab(v as 'recent' | 'new')}>
+        <Tabs value={tab} onValueChange={(value) => setTab(value as 'library' | 'new')}>
           <TabsList>
-            <TabsTrigger value="recent">Recent</TabsTrigger>
+            <TabsTrigger value="library">Players</TabsTrigger>
             <TabsTrigger value="new">Create new</TabsTrigger>
           </TabsList>
-          <TabsContent value="recent" className="grid gap-2">
+          <TabsContent value="library" className="grid gap-2">
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search players"
+              aria-label="Search players"
+            />
             {available.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                No recent players yet. Create a new one.
+                No matching players. Create a new one, or show inactive players on the Players screen.
               </p>
             ) : (
               <div className="grid max-h-52 gap-1.5 overflow-y-auto">
                 {available.map((player) => (
-                  <div
+                  <button
                     key={player.id}
-                    className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/40 px-2 py-1.5"
+                    type="button"
+                    onClick={() => pick(player)}
+                    className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/40 px-3 py-2 text-left transition-colors hover:bg-muted/40"
                   >
-                    <button
-                      type="button"
-                      onClick={() => pickRecent(player)}
-                      className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1 text-left transition-colors hover:bg-muted/40"
-                    >
-                      <span className="text-lg leading-none" aria-hidden>
-                        {player.emoji}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                        {player.name}
-                      </span>
-                      <Badge variant="outline" className="shrink-0 text-[10px]">
-                        {player.source}
-                      </Badge>
-                    </button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Remove ${player.name} from suggestions`}
-                      onClick={() => removeRoster(player.id)}
-                    >
-                      <XIcon className="size-3.5" />
-                    </Button>
-                  </div>
+                    <span className="text-lg leading-none" aria-hidden>
+                      {player.emoji}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {libraryDisplayName(player)}
+                    </span>
+                    {player.alias ? (
+                      <span className="truncate text-xs text-muted-foreground">{player.name}</span>
+                    ) : null}
+                  </button>
                 ))}
               </div>
             )}
           </TabsContent>
           <TabsContent value="new" className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="add-local-name">Name</Label>
+              <Label htmlFor="add-player-name">Name</Label>
               <Input
-                id="add-local-name"
+                id="add-player-name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(event) => setName(event.target.value)}
                 placeholder={namePlaceholder}
                 maxLength={24}
                 autoFocus={tab === 'new'}
                 enterKeyHint="done"
-                onKeyDown={(e) => e.key === 'Enter' && addNew()}
+                onKeyDown={(event) => event.key === 'Enter' && addNew()}
               />
             </div>
             <div className="grid gap-2">

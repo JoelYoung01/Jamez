@@ -269,6 +269,24 @@ export const sixNimmtEngine: GameEngine<SixNimmtConfig, SixNimmtState, SixNimmtA
     return { ...state, playerIds, rounds }
   },
 
+  mergePlayers(state, fromId, toId, mode) {
+    if (!state.playerIds.includes(fromId)) return state
+    const playerIds = state.playerIds.filter((id) => id !== fromId)
+    if (!playerIds.includes(toId)) playerIds.push(toId)
+    const rounds = state.rounds.map((round) => {
+      const scores = { ...round.scores }
+      const fromScore = scores[fromId]
+      const toScore = scores[toId]
+      if (mode === 'combine') {
+        if (fromScore == null && toScore == null) scores[toId] = null
+        else scores[toId] = (fromScore ?? 0) + (toScore ?? 0)
+      }
+      delete scores[fromId]
+      return { ...round, scores }
+    })
+    return { ...state, playerIds, rounds }
+  },
+
   removePlayer(state, playerId) {
     if (!state.playerIds.includes(playerId)) return state
     const playerIds = state.playerIds.filter((id) => id !== playerId)

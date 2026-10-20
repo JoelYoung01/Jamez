@@ -12,6 +12,7 @@ import {
   RadioTowerIcon,
   TicketIcon,
   TrophyIcon,
+  UsersIcon,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -68,6 +69,13 @@ export function HomePage() {
           description="Draft, parked, and live rooms."
           cta={longTermCount > 0 ? `${longTermCount} open` : 'None open'}
           badge={longTermCount > 0 ? String(longTermCount) : undefined}
+        />
+        <HomeTile
+          to="/players"
+          icon={<UsersIcon className="size-5" />}
+          title="Players"
+          description="People you play with, on a phone or not."
+          cta="Manage players"
         />
         <HomeTile
           to="/stats"

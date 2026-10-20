@@ -4,7 +4,7 @@ import { Image, Text, View } from 'react-native'
 
 interface PlayerAvatarProps {
   player: Pick<SessionPlayer, 'name' | 'emoji' | 'color'> &
-    Partial<Pick<SessionPlayer, 'connected' | 'remote' | 'photo'>>
+    Partial<Pick<SessionPlayer, 'connected' | 'clientIds' | 'photo'>>
   size?: 'sm' | 'md' | 'lg'
   showPresence?: boolean
 }
@@ -25,7 +25,7 @@ export function PlayerAvatar({ player, size = 'md', showPresence = false }: Play
           <Text className={text}>{player.emoji}</Text>
         )}
       </View>
-      {showPresence && player.remote !== false && (
+      {showPresence && (player.clientIds?.length ?? 0) > 0 && (
         <View
           className={clsx(
             'absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card',

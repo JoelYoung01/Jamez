@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 interface PlayerAvatarProps {
   player: Pick<SessionPlayer, 'name' | 'emoji' | 'color'> &
-    Partial<Pick<SessionPlayer, 'connected' | 'remote' | 'photo'>>
+    Partial<Pick<SessionPlayer, 'connected' | 'clientIds' | 'photo'>>
   size?: 'sm' | 'md' | 'lg'
   showPresence?: boolean
   className?: string
@@ -31,7 +31,7 @@ export function PlayerAvatar({ player, size = 'md', showPresence = false, classN
           <span aria-hidden>{player.emoji}</span>
         )}
       </div>
-      {showPresence && player.remote !== false && (
+      {showPresence && (player.clientIds?.length ?? 0) > 0 && (
         <span
           className={cn(
             'absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-card',
