@@ -1,6 +1,7 @@
 import { clsx } from 'clsx'
 import * as React from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, Text, View, type ScrollView as RNScrollView } from 'react-native'
+import { ScrollView } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   keyboardScrollPadding,
@@ -15,14 +16,29 @@ export function Screen({ children, padded = true }: { children: React.ReactNode;
   const insets = useSafeAreaInsets()
   const keyboardHeight = useKeyboardHeight()
   const bottomPad = insets.bottom + 32 + keyboardScrollPadding(keyboardHeight)
-  const scrollRef = React.useRef<ScrollView>(null)
+  const scrollRef = React.useRef<RNScrollView>(null)
+  const [scrollLocked, setScrollLockedState] = React.useState(false)
+  const scrollHeld = React.useRef(false)
+  const setScrollLocked = React.useCallback((locked: boolean) => {
+    if (locked) {
+      if (scrollHeld.current) return
+      scrollHeld.current = true
+      setScrollLockedState(true)
+      return
+    }
+    if (!scrollHeld.current) return
+    scrollHeld.current = false
+    setScrollLockedState(false)
+  }, [])
   const scrollApi = React.useMemo<ScreenScrollApi>(
     () => ({
       scrollInputAboveKeyboard(input, additionalOffset) {
         scrollInputAboveKeyboard(scrollRef.current, input, additionalOffset)
       },
+      setScrollLocked,
+      scrollGestureRef: scrollRef,
     }),
-    [],
+    [setScrollLocked],
   )
 
   return (
@@ -33,6 +49,11 @@ export function Screen({ children, padded = true }: { children: React.ReactNode;
         contentContainerStyle={{ paddingBottom: bottomPad, flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        scrollEnabled={!scrollLocked}
+        // Let a seat drag cancel the scroll if it already began. The default
+        // gesture-handler wrapper refuses interruption, which is what keeps
+        // iOS scrolling under a vertical pan.
+        disallowInterruption={false}
       >
         <View className={clsx('w-full max-w-xl self-center', padded && 'px-4 pt-4')}>{children}</View>
       </ScrollView>

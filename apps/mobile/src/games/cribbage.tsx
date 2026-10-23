@@ -28,11 +28,14 @@ import {
   XIcon,
 } from 'lucide-react-native'
 import * as React from 'react'
-import { PanResponder, Pressable, Switch, Text, View } from 'react-native'
+import { Pressable, Switch, Text, View } from 'react-native'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import { runOnJS, useSharedValue } from 'react-native-reanimated'
 import { AppTextInput } from '@/components/app-text-input'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { Segmented } from '@/components/segmented'
 import { AppButton, Card, SectionLabel } from '@/components/ui'
+import { ScreenScrollContext } from '@/lib/keyboard'
 import type { GameLobbyProps, GamePlayProps, GameSetupProps, GameUIModule } from './types'
 
 const SUIT_GLYPH: Record<CribbageSuit, string> = {
@@ -661,48 +664,85 @@ function DragSeat({
   onGrant,
   onMovePoint,
   onEnd,
+  onCancel,
 }: {
   label: string
   enabled: boolean
   onGrant: () => void
   onMovePoint: (x: number, y: number) => void
   onEnd: (x: number, y: number) => void
+  onCancel: () => void
 }) {
-  const enabledRef = React.useRef(enabled)
+  const scrollApi = React.useContext(ScreenScrollContext)
+  const enabledSv = useSharedValue(enabled)
+  enabledSv.value = enabled
   const grantRef = React.useRef(onGrant)
   const moveRef = React.useRef(onMovePoint)
   const endRef = React.useRef(onEnd)
-  enabledRef.current = enabled
+  const cancelRef = React.useRef(onCancel)
+  const lockRef = React.useRef(scrollApi?.setScrollLocked)
   grantRef.current = onGrant
   moveRef.current = onMovePoint
   endRef.current = onEnd
+  cancelRef.current = onCancel
+  lockRef.current = scrollApi?.setScrollLocked
   const [shift, setShift] = React.useState({ x: 0, y: 0, active: false })
-  const responder = React.useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => enabledRef.current,
-        onMoveShouldSetPanResponder: () => enabledRef.current,
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: () => {
-          setShift({ x: 0, y: 0, active: true })
-          grantRef.current()
-        },
-        onPanResponderMove: (_event, gesture) => {
-          setShift({ x: gesture.dx, y: gesture.dy, active: true })
-          moveRef.current(gesture.moveX, gesture.moveY)
-        },
-        onPanResponderRelease: (_event, gesture) => {
-          setShift({ x: 0, y: 0, active: false })
-          endRef.current(gesture.moveX, gesture.moveY)
-        },
-        onPanResponderTerminate: () => setShift({ x: 0, y: 0, active: false }),
-      }),
-    [],
-  )
 
-  return (
+  const grant = React.useCallback(() => {
+    lockRef.current?.(true)
+    setShift({ x: 0, y: 0, active: true })
+    grantRef.current()
+  }, [])
+  const move = React.useCallback((x: number, y: number, dx: number, dy: number) => {
+    setShift({ x: dx, y: dy, active: true })
+    moveRef.current(x, y)
+  }, [])
+  const finish = React.useCallback((x: number, y: number, success: boolean) => {
+    setShift({ x: 0, y: 0, active: false })
+    lockRef.current?.(false)
+    if (success) endRef.current(x, y)
+    else cancelRef.current()
+  }, [])
+
+  const scrollRef = scrollApi?.scrollGestureRef
+  const gesture = React.useMemo(() => {
+    const pan = Gesture.Pan()
+      .manualActivation(true)
+      // Teams are stacked, so this drag is vertical — the same axis as the
+      // page ScrollView. Claim the touch on finger-down and block that scroll
+      // recognizer; PanResponder cannot stop iOS from scrolling underneath.
+      .onTouchesDown((_event, manager) => {
+        'worklet'
+        if (!enabledSv.value) {
+          manager.fail()
+          return
+        }
+        manager.activate()
+      })
+      .onStart(() => {
+        'worklet'
+        runOnJS(grant)()
+      })
+      .onUpdate((event) => {
+        'worklet'
+        runOnJS(move)(event.absoluteX, event.absoluteY, event.translationX, event.translationY)
+      })
+      .onFinalize((event, success) => {
+        'worklet'
+        runOnJS(finish)(event.absoluteX, event.absoluteY, success)
+      })
+    // The scroll ref is the gesture-handler ScrollView instance (it carries
+    // handlerTag). The public relation type only names GestureType refs.
+    if (scrollRef) {
+      pan.blocksExternalGesture(
+        scrollRef as unknown as React.RefObject<React.ComponentType | null | undefined>,
+      )
+    }
+    return pan
+  }, [enabledSv, finish, grant, move, scrollRef])
+
+  const chip = (
     <View
-      {...(enabled ? responder.panHandlers : {})}
       style={{
         transform: [{ translateX: shift.x }, { translateY: shift.y }],
         zIndex: shift.active ? 20 : 0,
@@ -718,6 +758,9 @@ function DragSeat({
       </Text>
     </View>
   )
+
+  if (!enabled) return chip
+  return <GestureDetector gesture={gesture}>{chip}</GestureDetector>
 }
 
 function CribbageLobby({ state, isHost, updateConfig }: GameLobbyProps) {
@@ -813,6 +856,9 @@ function CribbageLobby({ state, isHost, updateConfig }: GameLobbyProps) {
                       enabled={isHost}
                       onGrant={() => {
                         remeasure()
+                        // scrollEnabled flips on the next commit; measure again
+                        // once that layout settles so the drop target matches.
+                        requestAnimationFrame(remeasure)
                         setDraggingId(id)
                       }}
                       onMovePoint={(x, y) => setOver(teamAt(x, y))}
@@ -821,6 +867,10 @@ function CribbageLobby({ state, isHost, updateConfig }: GameLobbyProps) {
                         setOver(null)
                         setDraggingId(null)
                         if (dest !== null) commitMove(id, dest)
+                      }}
+                      onCancel={() => {
+                        setOver(null)
+                        setDraggingId(null)
                       }}
                     />
                   )

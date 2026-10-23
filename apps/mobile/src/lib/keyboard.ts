@@ -53,6 +53,18 @@ export type ScreenScrollApi = {
     input: TextInput | null | undefined,
     additionalOffset?: number,
   ) => void
+  /**
+   * Freeze the page ScrollView. A vertical drag (cribbage team seats) shares
+   * the scroll axis, and on iOS the native scroll view will follow the finger
+   * unless scrolling is turned off for the gesture.
+   */
+  setScrollLocked: (locked: boolean) => void
+  /**
+   * Gesture-handler ScrollView that owns the page. Drag gestures should
+   * `blocksExternalGesture` this ref so the scroll recognizer waits until the
+   * drag fails — setting `scrollEnabled` from JS is a frame too late.
+   */
+  scrollGestureRef: React.RefObject<ScrollView | null>
 }
 
 export const ScreenScrollContext = React.createContext<ScreenScrollApi | null>(null)

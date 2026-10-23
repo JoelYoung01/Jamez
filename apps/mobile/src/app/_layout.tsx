@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler'
 import '../polyfills'
 import '../global.css'
 
@@ -6,6 +7,7 @@ import * as SplashScreen from 'expo-splash-screen'
 import { StatusBar } from 'expo-status-bar'
 import * as React from 'react'
 import { View } from 'react-native'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AndroidKeyboardDismissHost } from '@/components/keyboard-dismiss'
 import { useProfileHydrated } from '@/lib/profile'
@@ -29,22 +31,24 @@ export default function RootLayout() {
   }, [hydrated, restoreActiveHost])
 
   return (
-    <SafeAreaProvider>
-      <View className="flex-1 bg-background">
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: '#0e0e12' },
-          }}
-        >
-          <Stack.Screen name="profile" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="scan" options={{ presentation: 'modal' }} />
-        </Stack>
-        <ToastHost />
-        <AndroidKeyboardDismissHost />
-      </View>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <View className="flex-1 bg-background">
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: '#0e0e12' },
+            }}
+          >
+            <Stack.Screen name="profile" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
+            <Stack.Screen name="scan" options={{ presentation: 'modal' }} />
+          </Stack>
+          <ToastHost />
+          <AndroidKeyboardDismissHost />
+        </View>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   )
 }
